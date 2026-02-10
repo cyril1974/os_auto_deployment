@@ -1,0 +1,32 @@
+# Build artifacts and temporary files
+backup/
+backup
+iso_repository/
+iso_repository
+old_iso/
+old_iso
+workdir_custom_iso/
+workdir_custom_iso
+output_custom_iso/
+output_custom_iso
+
+# SSH keys generated during build
+*.pub
+id_ed25519_*
+
+# Temporary files
+*.tmp
+*.log
+*.crash
+*.meta
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# OS files
+.DS_Store
+Thumbs.db
