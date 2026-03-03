@@ -1,0 +1,36 @@
+2026-02-24 06:39:29,533 INFO subiquity:118 Starting Subiquity revision 2651
+2026-02-24 06:39:29,533 INFO subiquity:119 Arguments passed: ['/snap/subiquity/2651/usr/bin/subiquity']
+2026-02-24 06:39:29,534 DEBUG subiquitycore.screen:135 KDGKBTYPE returned b'\x02', is_linux_tty True
+2026-02-24 06:39:29,534 DEBUG asyncio:54 Using selector: EpollSelector
+2026-02-24 06:39:32,711 DEBUG subiquitycore.core:113 starting controllers
+2026-02-24 06:39:32,711 DEBUG subiquitycore.core:116 controllers started
+2026-02-24 06:39:32,718 DEBUG subiquity/Progress/_wait_status:100 start: 
+2026-02-24 06:39:32,773 INFO subiquity/Serial:100 start: starting UI
+2026-02-24 06:39:32,774 INFO subiquity/Serial:105 finish: (skipped) SUCCESS
+2026-02-24 06:39:32,774 DEBUG subiquitycore.tui:228 skipping screen Serial
+2026-02-24 06:39:32,774 INFO subiquity/Welcome:100 start: starting UI
+2026-02-24 06:39:32,787 DEBUG subiquity.views.welcome:81 ('ast_ES.UTF-8', 'en_US.UTF-8')
+2026-02-24 06:39:32,791 DEBUG subiquity.views.welcome:81 ('id_ID.UTF-8', 'en_US.UTF-8')
+2026-02-24 06:39:32,791 DEBUG subiquity.views.welcome:81 ('ca_ES.UTF-8', 'en_US.UTF-8')
+2026-02-24 06:39:32,792 DEBUG subiquity.views.welcome:81 ('de_DE.UTF-8', 'en_US.UTF-8')
+2026-02-24 06:39:32,792 DEBUG subiquity.views.welcome:81 ('en_US.UTF-8', 'en_US.UTF-8')
+2026-02-24 06:39:32,793 DEBUG subiquity.views.welcome:81 ('en_GB.UTF-8', 'en_US.UTF-8')
+2026-02-24 06:39:32,793 DEBUG subiquity.views.welcome:81 ('es_ES.UTF-8', 'en_US.UTF-8')
+2026-02-24 06:39:32,793 DEBUG subiquity.views.welcome:81 ('fr_FR.UTF-8', 'en_US.UTF-8')
+2026-02-24 06:39:32,794 DEBUG subiquity.views.welcome:81 ('hr_HR.UTF-8', 'en_US.UTF-8')
+2026-02-24 06:39:32,794 DEBUG subiquity.views.welcome:81 ('lv_LV.UTF-8', 'en_US.UTF-8')
+2026-02-24 06:39:32,795 DEBUG subiquity.views.welcome:81 ('lt_LT.UTF-8', 'en_US.UTF-8')
+2026-02-24 06:39:32,795 DEBUG subiquity.views.welcome:81 ('hu_HU.UTF-8', 'en_US.UTF-8')
+2026-02-24 06:39:32,796 DEBUG subiquity.views.welcome:81 ('nl_NL.UTF-8', 'en_US.UTF-8')
+2026-02-24 06:39:32,796 DEBUG subiquity.views.welcome:81 ('nb', 'en_US.UTF-8')
+2026-02-24 06:39:32,797 DEBUG subiquity.views.welcome:81 ('pl_PL.UTF-8', 'en_US.UTF-8')
+2026-02-24 06:39:32,797 DEBUG subiquity.views.welcome:81 ('fi_FI.UTF-8', 'en_US.UTF-8')
+2026-02-24 06:39:32,797 DEBUG subiquity.views.welcome:81 ('sv_SE.UTF-8', 'en_US.UTF-8')
+2026-02-24 06:39:32,798 DEBUG subiquity.views.welcome:81 ('cs_CZ.UTF-8', 'en_US.UTF-8')
+2026-02-24 06:39:32,798 DEBUG subiquity.views.welcome:81 ('el_GR.UTF-8', 'en_US.UTF-8')
+2026-02-24 06:39:32,799 DEBUG subiquity.views.welcome:81 ('be_BY.UTF-8', 'en_US.UTF-8')
+2026-02-24 06:39:32,799 DEBUG subiquity.views.welcome:81 ('ru_RU.UTF-8', 'en_US.UTF-8')
+2026-02-24 06:39:32,799 DEBUG subiquity.views.welcome:81 ('sr_RS', 'en_US.UTF-8')
+2026-02-24 06:39:32,800 DEBUG subiquity.views.welcome:81 ('uk_UA.UTF-8', 'en_US.UTF-8')
+2026-02-24 06:40:52,414 DEBUG subiquity.ui.help:410 open help menu
+2026-02-24 06:40:59,700 DEBUG subiquitycore.utils:94 astart_command called: ['bash']

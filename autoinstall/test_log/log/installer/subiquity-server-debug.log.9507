@@ -1,0 +1,885 @@
+2026-02-24 06:39:29,735 INFO subiquity:102 Starting Subiquity server revision 2651
+2026-02-24 06:39:29,736 INFO subiquity:103 Arguments passed: ['/snap/subiquity/2651/usr/bin/subiquity-server']
+2026-02-24 06:39:29,736 DEBUG asyncio:54 Using selector: EpollSelector
+2026-02-24 06:39:29,743 DEBUG subiquitycore.prober:34 Prober() init finished, data:None
+2026-02-24 06:39:29,749 DEBUG curtin:89 Running command ['dpkg', '--print-architecture'] with allowed return codes [0] (capture=True)
+2026-02-24 06:39:29,777 DEBUG subiquitycore.netplan:111 config for all-en = {'match': {'name': 'en*'}, 'dhcp4': True}
+2026-02-24 06:39:29,777 DEBUG subiquitycore.netplan:111 config for all-eth = {'match': {'name': 'eth*'}, 'dhcp4': True}
+2026-02-24 06:39:29,799 DEBUG subiquitycore.utils:74 arun_command called: ['cloud-init', 'status', '--wait']
+2026-02-24 06:39:30,546 DEBUG curtin.reporting.start.subiquity/Meta/status_GET:45 start: subiquity/Meta/status_GET: 
+2026-02-24 06:39:30,549 DEBUG curtin.reporting.finish.subiquity/Meta/status_GET:45 finish: subiquity/Meta/status_GET: SUCCESS: 200 {"state": "CLOUD_INIT_WAIT", "confirming_tty": "", "error": null, "cloud_init...
+2026-02-24 06:39:30,550 INFO aiohttp.access:206  [24/Feb/2026:06:39:30 +0000] "GET /meta/status HTTP/1.1" 200 425 "-" "Python/3.6 aiohttp/3.7.4.post0"
+2026-02-24 06:39:30,610 DEBUG curtin.reporting.start.subiquity/Meta/status_GET:45 start: subiquity/Meta/status_GET: 
+2026-02-24 06:39:31,099 DEBUG subiquitycore.utils:83 arun_command ['cloud-init', 'status', '--wait'] exited with code 0
+2026-02-24 06:39:31,100 DEBUG subiquity.server.server:436 waited 1.3014202117919922s for cloud-init
+2026-02-24 06:39:31,104 DEBUG subiquity.server.server:456 cloud-init status: '\nstatus: disabled\n', assumed disabled
+2026-02-24 06:39:31,105 DEBUG subiquity.server.server:390 load_autoinstall_config only_early True
+2026-02-24 06:39:31,107 DEBUG subiquity.server.server:390 load_autoinstall_config only_early False
+2026-02-24 06:39:31,108 DEBUG subiquitycore.core:113 starting controllers
+2026-02-24 06:39:31,109 DEBUG subiquity.models.subiquity:162 model locale for postinstall is configured, to go {'snaplist', 'ssh', 'userdata', 'timezone', 'identity', 'packages'}
+2026-02-24 06:39:31,134 DEBUG probert.network:585 event for link_change: NEW {'ifindex': 1, 'flags': 65609, 'arptype': 772, 'family': 0, 'is_vlan': False, 'name': b'lo'}
+2026-02-24 06:39:31,135 DEBUG probert.network:585 event for link_change: NEW {'ifindex': 2, 'flags': 69699, 'arptype': 1, 'family': 0, 'is_vlan': False, 'name': b'ens801f0'}
+2026-02-24 06:39:31,135 DEBUG probert.network:585 event for link_change: NEW {'ifindex': 3, 'flags': 69699, 'arptype': 1, 'family': 0, 'is_vlan': False, 'name': b'ens801f1'}
+2026-02-24 06:39:31,135 DEBUG probert.network:585 event for link_change: NEW {'ifindex': 4, 'flags': 4099, 'arptype': 1, 'family': 0, 'is_vlan': False, 'name': b'ens801f2'}
+2026-02-24 06:39:31,135 DEBUG probert.network:585 event for link_change: NEW {'ifindex': 5, 'flags': 4099, 'arptype': 1, 'family': 0, 'is_vlan': False, 'name': b'ens801f3'}
+2026-02-24 06:39:31,136 DEBUG probert.network:585 event for link_change: NEW {'ifindex': 6, 'flags': 69699, 'arptype': 1, 'family': 0, 'is_vlan': False, 'name': b'ens4048u4u1c2'}
+2026-02-24 06:39:31,136 DEBUG probert.network:585 event for addr_change: NEW {'ifindex': 1, 'flags': 128, 'family': 2, 'scope': 254, 'local': b'127.0.0.1/8'}
+2026-02-24 06:39:31,136 DEBUG probert.network:585 event for addr_change: NEW {'ifindex': 2, 'flags': 0, 'family': 2, 'scope': 0, 'local': b'10.99.236.95/25'}
+2026-02-24 06:39:31,136 DEBUG probert.network:585 event for addr_change: NEW {'ifindex': 3, 'flags': 0, 'family': 2, 'scope': 0, 'local': b'192.168.100.191/24'}
+2026-02-24 06:39:31,136 DEBUG probert.network:585 event for addr_change: NEW {'ifindex': 1, 'flags': 128, 'family': 10, 'scope': 254, 'local': b'::1'}
+2026-02-24 06:39:31,136 DEBUG probert.network:585 event for addr_change: NEW {'ifindex': 2, 'flags': 128, 'family': 10, 'scope': 253, 'local': b'fe80::527c:6fff:fe01:e9ec/64'}
+2026-02-24 06:39:31,136 DEBUG probert.network:585 event for addr_change: NEW {'ifindex': 3, 'flags': 128, 'family': 10, 'scope': 253, 'local': b'fe80::527c:6fff:fe01:e9ed/64'}
+2026-02-24 06:39:31,137 DEBUG probert.network:585 event for addr_change: NEW {'ifindex': 6, 'flags': 128, 'family': 10, 'scope': 253, 'local': b'fe80::20d2:5ff:fefd:ff45/64'}
+2026-02-24 06:39:31,137 DEBUG probert.network:672 link_change NEW {'ifindex': 1, 'flags': 65609, 'arptype': 772, 'family': 0, 'is_vlan': False, 'name': b'lo'}
+2026-02-24 06:39:31,512 DEBUG subiquitycore.models.network:421 new_link 1 lo lo
+2026-02-24 06:39:31,512 DEBUG subiquitycore.models.network:423 ignoring based on type
+2026-02-24 06:39:31,512 DEBUG probert.network:672 link_change NEW {'ifindex': 2, 'flags': 69699, 'arptype': 1, 'family': 0, 'is_vlan': False, 'name': b'ens801f0'}
+2026-02-24 06:39:31,734 DEBUG subiquitycore.models.network:421 new_link 2 ens801f0 eth
+2026-02-24 06:39:31,734 DEBUG subiquitycore.models.network:454 new_link 2 ens801f0 with config {'dhcp4': True}
+2026-02-24 06:39:31,734 DEBUG root:39 start: subiquity/Network/_send_update: NEW ens801f0
+2026-02-24 06:39:31,734 DEBUG subiquity.server.controllers.network:354 dev_info ens801f0 {'dhcp4': True}
+2026-02-24 06:39:31,734 DEBUG root:39 finish: subiquity/Network/_send_update: SUCCESS: NEW ens801f0
+2026-02-24 06:39:31,734 DEBUG probert.network:672 link_change NEW {'ifindex': 3, 'flags': 69699, 'arptype': 1, 'family': 0, 'is_vlan': False, 'name': b'ens801f1'}
+2026-02-24 06:39:31,919 DEBUG subiquitycore.models.network:421 new_link 3 ens801f1 eth
+2026-02-24 06:39:31,919 DEBUG subiquitycore.models.network:454 new_link 3 ens801f1 with config {'dhcp4': True}
+2026-02-24 06:39:31,920 DEBUG root:39 start: subiquity/Network/_send_update: NEW ens801f1
+2026-02-24 06:39:31,920 DEBUG subiquity.server.controllers.network:354 dev_info ens801f1 {'dhcp4': True}
+2026-02-24 06:39:31,920 DEBUG root:39 finish: subiquity/Network/_send_update: SUCCESS: NEW ens801f1
+2026-02-24 06:39:31,920 DEBUG probert.network:672 link_change NEW {'ifindex': 4, 'flags': 4099, 'arptype': 1, 'family': 0, 'is_vlan': False, 'name': b'ens801f2'}
+2026-02-24 06:39:32,107 DEBUG subiquitycore.models.network:421 new_link 4 ens801f2 eth
+2026-02-24 06:39:32,107 DEBUG subiquitycore.models.network:454 new_link 4 ens801f2 with config {'dhcp4': True}
+2026-02-24 06:39:32,107 DEBUG root:39 start: subiquity/Network/_send_update: NEW ens801f2
+2026-02-24 06:39:32,108 DEBUG subiquity.server.controllers.network:354 dev_info ens801f2 {'dhcp4': True}
+2026-02-24 06:39:32,108 DEBUG root:39 finish: subiquity/Network/_send_update: SUCCESS: NEW ens801f2
+2026-02-24 06:39:32,108 DEBUG probert.network:672 link_change NEW {'ifindex': 5, 'flags': 4099, 'arptype': 1, 'family': 0, 'is_vlan': False, 'name': b'ens801f3'}
+2026-02-24 06:39:32,288 DEBUG subiquitycore.models.network:421 new_link 5 ens801f3 eth
+2026-02-24 06:39:32,288 DEBUG subiquitycore.models.network:454 new_link 5 ens801f3 with config {'dhcp4': True}
+2026-02-24 06:39:32,288 DEBUG root:39 start: subiquity/Network/_send_update: NEW ens801f3
+2026-02-24 06:39:32,288 DEBUG subiquity.server.controllers.network:354 dev_info ens801f3 {'dhcp4': True}
+2026-02-24 06:39:32,288 DEBUG root:39 finish: subiquity/Network/_send_update: SUCCESS: NEW ens801f3
+2026-02-24 06:39:32,288 DEBUG probert.network:672 link_change NEW {'ifindex': 6, 'flags': 69699, 'arptype': 1, 'family': 0, 'is_vlan': False, 'name': b'ens4048u4u1c2'}
+2026-02-24 06:39:32,476 DEBUG subiquitycore.models.network:421 new_link 6 ens4048u4u1c2 eth
+2026-02-24 06:39:32,476 DEBUG subiquitycore.models.network:454 new_link 6 ens4048u4u1c2 with config {'dhcp4': True}
+2026-02-24 06:39:32,476 DEBUG root:39 start: subiquity/Network/_send_update: NEW ens4048u4u1c2
+2026-02-24 06:39:32,476 DEBUG subiquity.server.controllers.network:354 dev_info ens4048u4u1c2 {'dhcp4': True}
+2026-02-24 06:39:32,476 DEBUG root:39 finish: subiquity/Network/_send_update: SUCCESS: NEW ens4048u4u1c2
+2026-02-24 06:39:32,476 DEBUG probert.network:717 addr_change NEW {'ifindex': 1, 'flags': 128, 'family': 2, 'scope': 254, 'local': b'127.0.0.1/8'}
+2026-02-24 06:39:32,476 DEBUG probert.network:717 addr_change NEW {'ifindex': 2, 'flags': 0, 'family': 2, 'scope': 0, 'local': b'10.99.236.95/25'}
+2026-02-24 06:39:32,476 DEBUG root:39 start: subiquity/Network/_send_update: CHANGE ens801f0
+2026-02-24 06:39:32,476 DEBUG subiquity.server.controllers.network:354 dev_info ens801f0 {'dhcp4': True}
+2026-02-24 06:39:32,476 DEBUG root:39 finish: subiquity/Network/_send_update: SUCCESS: CHANGE ens801f0
+2026-02-24 06:39:32,476 DEBUG probert.network:717 addr_change NEW {'ifindex': 3, 'flags': 0, 'family': 2, 'scope': 0, 'local': b'192.168.100.191/24'}
+2026-02-24 06:39:32,476 DEBUG root:39 start: subiquity/Network/_send_update: CHANGE ens801f1
+2026-02-24 06:39:32,476 DEBUG subiquity.server.controllers.network:354 dev_info ens801f1 {'dhcp4': True}
+2026-02-24 06:39:32,476 DEBUG root:39 finish: subiquity/Network/_send_update: SUCCESS: CHANGE ens801f1
+2026-02-24 06:39:32,476 DEBUG probert.network:717 addr_change NEW {'ifindex': 1, 'flags': 128, 'family': 10, 'scope': 254, 'local': b'::1'}
+2026-02-24 06:39:32,477 DEBUG probert.network:717 addr_change NEW {'ifindex': 2, 'flags': 128, 'family': 10, 'scope': 253, 'local': b'fe80::527c:6fff:fe01:e9ec/64'}
+2026-02-24 06:39:32,477 DEBUG root:39 start: subiquity/Network/_send_update: CHANGE ens801f0
+2026-02-24 06:39:32,477 DEBUG subiquity.server.controllers.network:354 dev_info ens801f0 {'dhcp4': True}
+2026-02-24 06:39:32,477 DEBUG root:39 finish: subiquity/Network/_send_update: SUCCESS: CHANGE ens801f0
+2026-02-24 06:39:32,477 DEBUG probert.network:717 addr_change NEW {'ifindex': 3, 'flags': 128, 'family': 10, 'scope': 253, 'local': b'fe80::527c:6fff:fe01:e9ed/64'}
+2026-02-24 06:39:32,477 DEBUG root:39 start: subiquity/Network/_send_update: CHANGE ens801f1
+2026-02-24 06:39:32,477 DEBUG subiquity.server.controllers.network:354 dev_info ens801f1 {'dhcp4': True}
+2026-02-24 06:39:32,477 DEBUG root:39 finish: subiquity/Network/_send_update: SUCCESS: CHANGE ens801f1
+2026-02-24 06:39:32,477 DEBUG probert.network:717 addr_change NEW {'ifindex': 6, 'flags': 128, 'family': 10, 'scope': 253, 'local': b'fe80::20d2:5ff:fefd:ff45/64'}
+2026-02-24 06:39:32,477 DEBUG root:39 start: subiquity/Network/_send_update: CHANGE ens4048u4u1c2
+2026-02-24 06:39:32,477 DEBUG subiquity.server.controllers.network:354 dev_info ens4048u4u1c2 {'dhcp4': True}
+2026-02-24 06:39:32,477 DEBUG root:39 finish: subiquity/Network/_send_update: SUCCESS: CHANGE ens4048u4u1c2
+2026-02-24 06:39:32,477 DEBUG probert.network:731 route_change NEW {'family': 2, 'type': 1, 'table': 254, 'dst': b'default', 'ifindex': 3}
+2026-02-24 06:39:32,477 DEBUG subiquitycore.controller.network:93 default routes {3}
+2026-02-24 06:39:32,479 DEBUG probert.network:731 route_change NEW {'family': 2, 'type': 1, 'table': 254, 'dst': b'10.99.236.0/25', 'ifindex': 2}
+2026-02-24 06:39:32,479 DEBUG probert.network:731 route_change NEW {'family': 2, 'type': 1, 'table': 254, 'dst': b'10.99.236.126', 'ifindex': 2}
+2026-02-24 06:39:32,479 DEBUG probert.network:731 route_change NEW {'family': 2, 'type': 1, 'table': 254, 'dst': b'192.168.100.0/24', 'ifindex': 3}
+2026-02-24 06:39:32,479 DEBUG probert.network:731 route_change NEW {'family': 2, 'type': 1, 'table': 254, 'dst': b'192.168.100.1', 'ifindex': 3}
+2026-02-24 06:39:32,479 DEBUG probert.network:731 route_change NEW {'family': 2, 'type': 3, 'table': 255, 'dst': b'10.99.236.0', 'ifindex': 2}
+2026-02-24 06:39:32,479 DEBUG probert.network:731 route_change NEW {'family': 2, 'type': 2, 'table': 255, 'dst': b'10.99.236.95', 'ifindex': 2}
+2026-02-24 06:39:32,479 DEBUG probert.network:731 route_change NEW {'family': 2, 'type': 3, 'table': 255, 'dst': b'10.99.236.127', 'ifindex': 2}
+2026-02-24 06:39:32,479 DEBUG probert.network:731 route_change NEW {'family': 2, 'type': 3, 'table': 255, 'dst': b'127.0.0.0', 'ifindex': 1}
+2026-02-24 06:39:32,479 DEBUG probert.network:731 route_change NEW {'family': 2, 'type': 2, 'table': 255, 'dst': b'127.0.0.0/8', 'ifindex': 1}
+2026-02-24 06:39:32,479 DEBUG probert.network:731 route_change NEW {'family': 2, 'type': 2, 'table': 255, 'dst': b'127.0.0.1', 'ifindex': 1}
+2026-02-24 06:39:32,479 DEBUG probert.network:731 route_change NEW {'family': 2, 'type': 3, 'table': 255, 'dst': b'127.255.255.255', 'ifindex': 1}
+2026-02-24 06:39:32,479 DEBUG probert.network:731 route_change NEW {'family': 2, 'type': 3, 'table': 255, 'dst': b'192.168.100.0', 'ifindex': 3}
+2026-02-24 06:39:32,479 DEBUG probert.network:731 route_change NEW {'family': 2, 'type': 2, 'table': 255, 'dst': b'192.168.100.191', 'ifindex': 3}
+2026-02-24 06:39:32,479 DEBUG probert.network:731 route_change NEW {'family': 2, 'type': 3, 'table': 255, 'dst': b'192.168.100.255', 'ifindex': 3}
+2026-02-24 06:39:32,479 DEBUG probert.network:731 route_change NEW {'family': 10, 'type': 2, 'table': 254, 'dst': b'::1', 'ifindex': 1}
+2026-02-24 06:39:32,479 DEBUG probert.network:731 route_change NEW {'family': 10, 'type': 1, 'table': 254, 'dst': b'fe80::/64', 'ifindex': 2}
+2026-02-24 06:39:32,479 DEBUG probert.network:731 route_change NEW {'family': 10, 'type': 2, 'table': 255, 'dst': b'::1', 'ifindex': 1}
+2026-02-24 06:39:32,479 DEBUG probert.network:731 route_change NEW {'family': 10, 'type': 2, 'table': 255, 'dst': b'fe80::20d2:5ff:fefd:ff45', 'ifindex': 6}
+2026-02-24 06:39:32,479 DEBUG probert.network:731 route_change NEW {'family': 10, 'type': 2, 'table': 255, 'dst': b'fe80::527c:6fff:fe01:e9ec', 'ifindex': 2}
+2026-02-24 06:39:32,479 DEBUG probert.network:731 route_change NEW {'family': 10, 'type': 2, 'table': 255, 'dst': b'fe80::527c:6fff:fe01:e9ed', 'ifindex': 3}
+2026-02-24 06:39:32,479 DEBUG probert.network:731 route_change NEW {'family': 10, 'type': 1, 'table': 255, 'dst': b'ff00::/8', 'ifindex': 2}
+2026-02-24 06:39:32,642 DEBUG subiquitycore.core:116 controllers started
+2026-02-24 06:39:32,643 INFO root:39 start: subiquity/apply_autoinstall_config: 
+2026-02-24 06:39:32,643 DEBUG root:39 start: subiquity/Early/apply_autoinstall_config: 
+2026-02-24 06:39:32,694 DEBUG root:39 finish: subiquity/Early/apply_autoinstall_config: SUCCESS: 
+2026-02-24 06:39:32,695 DEBUG root:39 start: subiquity/Reporting/apply_autoinstall_config: 
+2026-02-24 06:39:32,695 DEBUG root:39 finish: subiquity/Reporting/apply_autoinstall_config: SUCCESS: 
+2026-02-24 06:39:32,695 DEBUG root:39 start: subiquity/Error/apply_autoinstall_config: 
+2026-02-24 06:39:32,696 DEBUG root:39 finish: subiquity/Error/apply_autoinstall_config: SUCCESS: 
+2026-02-24 06:39:32,696 DEBUG root:39 start: subiquity/Userdata/apply_autoinstall_config: 
+2026-02-24 06:39:32,696 DEBUG root:39 finish: subiquity/Userdata/apply_autoinstall_config: SUCCESS: 
+2026-02-24 06:39:32,697 DEBUG subiquity.models.subiquity:162 model userdata for postinstall is configured, to go {'snaplist', 'ssh', 'timezone', 'identity', 'packages'}
+2026-02-24 06:39:32,697 DEBUG root:39 start: subiquity/Package/apply_autoinstall_config: 
+2026-02-24 06:39:32,697 DEBUG root:39 finish: subiquity/Package/apply_autoinstall_config: SUCCESS: 
+2026-02-24 06:39:32,697 DEBUG subiquity.models.subiquity:162 model packages for postinstall is configured, to go {'snaplist', 'ssh', 'identity', 'timezone'}
+2026-02-24 06:39:32,698 DEBUG root:39 start: subiquity/Debconf/apply_autoinstall_config: 
+2026-02-24 06:39:32,698 DEBUG root:39 finish: subiquity/Debconf/apply_autoinstall_config: SUCCESS: 
+2026-02-24 06:39:32,698 DEBUG subiquity.models.subiquity:162 model debconf_selections for install is configured, to go {'mirror', 'proxy', 'keyboard', 'kernel', 'network', 'filesystem'}
+2026-02-24 06:39:32,698 DEBUG subiquity.server.server:384 apply_autoinstall_config: skipping Locale as interactive
+2026-02-24 06:39:32,698 DEBUG subiquity.server.server:384 apply_autoinstall_config: skipping Refresh as interactive
+2026-02-24 06:39:32,699 DEBUG root:39 start: subiquity/Kernel/apply_autoinstall_config: 
+2026-02-24 06:39:32,699 DEBUG root:39 finish: subiquity/Kernel/apply_autoinstall_config: SUCCESS: 
+2026-02-24 06:39:32,699 DEBUG subiquity.models.subiquity:162 model kernel for install is configured, to go {'mirror', 'proxy', 'keyboard', 'network', 'filesystem'}
+2026-02-24 06:39:32,699 DEBUG subiquity.server.server:384 apply_autoinstall_config: skipping Keyboard as interactive
+2026-02-24 06:39:32,700 DEBUG root:39 start: subiquity/Zdev/apply_autoinstall_config: 
+2026-02-24 06:39:32,700 DEBUG root:39 finish: subiquity/Zdev/apply_autoinstall_config: SUCCESS: 
+2026-02-24 06:39:32,700 DEBUG subiquity.server.server:384 apply_autoinstall_config: skipping Network as interactive
+2026-02-24 06:39:32,700 DEBUG subiquity.server.server:384 apply_autoinstall_config: skipping Proxy as interactive
+2026-02-24 06:39:32,700 DEBUG subiquity.server.server:384 apply_autoinstall_config: skipping Mirror as interactive
+2026-02-24 06:39:32,700 DEBUG subiquity.server.server:384 apply_autoinstall_config: skipping Filesystem as interactive
+2026-02-24 06:39:32,701 DEBUG subiquity.server.server:384 apply_autoinstall_config: skipping Identity as interactive
+2026-02-24 06:39:32,701 DEBUG subiquity.server.server:384 apply_autoinstall_config: skipping SSH as interactive
+2026-02-24 06:39:32,701 DEBUG subiquity.server.server:384 apply_autoinstall_config: skipping SnapList as interactive
+2026-02-24 06:39:32,701 DEBUG subiquity.server.server:384 apply_autoinstall_config: skipping TimeZone as interactive
+2026-02-24 06:39:32,701 DEBUG subiquity.server.server:384 apply_autoinstall_config: skipping Install as interactive
+2026-02-24 06:39:32,701 DEBUG subiquity.server.server:384 apply_autoinstall_config: skipping Updates as interactive
+2026-02-24 06:39:32,701 DEBUG root:39 start: subiquity/Late/apply_autoinstall_config: 
+2026-02-24 06:39:32,701 DEBUG root:39 finish: subiquity/Late/apply_autoinstall_config: SUCCESS: 
+2026-02-24 06:39:32,702 DEBUG subiquity.server.server:384 apply_autoinstall_config: skipping Reboot as interactive
+2026-02-24 06:39:32,702 INFO root:39 finish: subiquity/apply_autoinstall_config: SUCCESS: 
+2026-02-24 06:39:32,703 INFO root:39 finish: subiquity/Meta/status_GET: SUCCESS: 200 {"state": "WAITING", "confirming_tty": "", "error": null, "cloud_init_ok": tr...
+2026-02-24 06:39:32,704 INFO aiohttp.access:206  [24/Feb/2026:06:39:30 +0000] "GET /meta/status?cur=%22CLOUD_INIT_WAIT%22 HTTP/1.1" 200 417 "-" "Python/3.6 aiohttp/3.7.4.post0"
+2026-02-24 06:39:32,704 DEBUG root:39 start: subiquity/Refresh/configure_snapd: 
+2026-02-24 06:39:32,704 DEBUG root:39 start: subiquity/Refresh/configure_snapd/get_details: 
+2026-02-24 06:39:32,712 DEBUG root:39 start: subiquity/Refresh/check_for_update: 
+2026-02-24 06:39:32,730 DEBUG root:39 start: subiquity/Install/install: 
+2026-02-24 06:39:32,732 DEBUG subiquity.server.controllers.snaplist:59 loading list of snaps
+2026-02-24 06:39:32,738 DEBUG urllib3.connectionpool:826 Starting new HTTPS connection (1): geoip.ubuntu.com
+2026-02-24 06:39:32,740 DEBUG root:39 start: subiquity/Filesystem/_probe: 
+2026-02-24 06:39:32,741 DEBUG root:39 start: subiquity/Refresh/check_for_update: 
+2026-02-24 06:39:32,742 DEBUG root:39 start: subiquity/SnapList/loader: 
+2026-02-24 06:39:32,742 DEBUG root:39 start: subiquity/Filesystem/_probe/probe_once: restricted=False
+2026-02-24 06:39:32,745 ERROR root:39 finish: subiquity/Refresh/check_for_update: FAIL: cancelled
+2026-02-24 06:39:32,746 DEBUG root:39 start: subiquity/SnapList/loader/list: 
+2026-02-24 06:39:32,763 INFO root:39 start: subiquity/Meta/status_GET: 
+2026-02-24 06:39:32,766 INFO root:39 finish: subiquity/Meta/status_GET: SUCCESS: 200 {"state": "WAITING", "confirming_tty": "", "error": null, "cloud_init_ok": tr...
+2026-02-24 06:39:32,767 INFO aiohttp.access:206  [24/Feb/2026:06:39:32 +0000] "GET /meta/status?cur=null HTTP/1.1" 200 417 "-" "Python/3.6 aiohttp/3.7.4.post0"
+2026-02-24 06:39:32,769 INFO root:39 start: subiquity/Meta/client_variant_POST: 
+2026-02-24 06:39:32,771 DEBUG subiquity.models.subiquity:162 model timezone for postinstall is configured, to go {'snaplist', 'ssh', 'identity'}
+2026-02-24 06:39:32,771 INFO root:39 finish: subiquity/Meta/client_variant_POST: SUCCESS: 200 null
+2026-02-24 06:39:32,772 INFO aiohttp.access:206  [24/Feb/2026:06:39:32 +0000] "POST /meta/client_variant?variant=%22server%22 HTTP/1.1" 200 195 "-" "Python/3.6 aiohttp/3.7.4.post0"
+2026-02-24 06:39:32,773 INFO root:39 start: subiquity/Meta/status_GET: 
+2026-02-24 06:39:32,775 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/snaps/subiquity HTTP/1.1" 200 959
+2026-02-24 06:39:32,777 DEBUG root:39 start: subiquity/Locale/GET: 
+2026-02-24 06:39:32,781 DEBUG root:39 finish: subiquity/Locale/GET: SUCCESS: 200 "C.UTF-8"
+2026-02-24 06:39:32,781 INFO aiohttp.access:206  [24/Feb/2026:06:39:32 +0000] "GET /locale HTTP/1.1" 200 200 "-" "Python/3.6 aiohttp/3.7.4.post0"
+2026-02-24 06:39:32,783 DEBUG root:39 finish: subiquity/Refresh/configure_snapd/get_details: SUCCESS: current version of snap is: '21.08.2'
+2026-02-24 06:39:32,783 DEBUG root:39 start: subiquity/Refresh/configure_snapd/switching: switching subiquity to stable/ubuntu-18.04.6
+2026-02-24 06:39:32,809 DEBUG urllib3.connectionpool:396 http://localhost:None "POST /v2/snaps/subiquity HTTP/1.1" 202 81
+2026-02-24 06:39:32,819 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:32,932 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:33,046 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:33,051 INFO probert.lvm:120 b'  1 logical volume(s) in volume group "ubuntu-vg" now active\n'
+2026-02-24 06:39:33,169 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:33,200 ERROR probert.multipath:38 Failed to run cmd: ['multipathd', 'show', 'maps', 'raw', 'format', '%w,%d,%N']
+2026-02-24 06:39:33,212 ERROR probert.multipath:38 Failed to run cmd: ['multipathd', 'show', 'paths', 'raw', 'format', '%d,%z,%m,%N,%n,%R,%r,%a']
+2026-02-24 06:39:33,285 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:33,399 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:33,518 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:33,632 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:33,747 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:33,832 DEBUG probert.dasd:131 Probing DASD devies
+2026-02-24 06:39:33,833 DEBUG probert.dasd:134 DASD devices only present on s390x, arch=x86_64
+2026-02-24 06:39:33,862 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:33,879 DEBUG curtin:1294 Extracting storage config from probe data
+2026-02-24 06:39:33,880 DEBUG curtin:73 /dev/sda is multipath device member? False
+2026-02-24 06:39:33,880 DEBUG curtin:86 /dev/sda is multipath device partition? False
+2026-02-24 06:39:33,880 DEBUG curtin:61 /dev/sda is multipath device? False
+2026-02-24 06:39:33,880 DEBUG curtin:86 /dev/sda is multipath device partition? False
+2026-02-24 06:39:33,880 DEBUG curtin:61 /dev/sda is multipath device? False
+2026-02-24 06:39:33,935 DEBUG curtin:73 /dev/sda1 is multipath device member? False
+2026-02-24 06:39:33,935 DEBUG curtin:86 /dev/sda1 is multipath device partition? False
+2026-02-24 06:39:33,935 DEBUG curtin:61 /dev/sda1 is multipath device? False
+2026-02-24 06:39:33,935 DEBUG curtin:86 /dev/sda1 is multipath device partition? False
+2026-02-24 06:39:33,936 DEBUG curtin:86 /dev/sda1 is multipath device partition? False
+2026-02-24 06:39:33,967 DEBUG curtin:73 /dev/sda2 is multipath device member? False
+2026-02-24 06:39:33,967 DEBUG curtin:86 /dev/sda2 is multipath device partition? False
+2026-02-24 06:39:33,967 DEBUG curtin:61 /dev/sda2 is multipath device? False
+2026-02-24 06:39:33,968 DEBUG curtin:86 /dev/sda2 is multipath device partition? False
+2026-02-24 06:39:33,968 DEBUG curtin:86 /dev/sda2 is multipath device partition? False
+2026-02-24 06:39:33,992 DEBUG curtin:73 /dev/sda3 is multipath device member? False
+2026-02-24 06:39:33,992 DEBUG curtin:86 /dev/sda3 is multipath device partition? False
+2026-02-24 06:39:33,992 DEBUG curtin:61 /dev/sda3 is multipath device? False
+2026-02-24 06:39:33,992 DEBUG curtin:86 /dev/sda3 is multipath device partition? False
+2026-02-24 06:39:33,992 DEBUG curtin:86 /dev/sda3 is multipath device partition? False
+2026-02-24 06:39:34,012 DEBUG curtin:73 /dev/nvme0n1 is multipath device member? False
+2026-02-24 06:39:34,012 DEBUG curtin:86 /dev/nvme0n1 is multipath device partition? False
+2026-02-24 06:39:34,012 DEBUG curtin:61 /dev/nvme0n1 is multipath device? False
+2026-02-24 06:39:34,012 DEBUG curtin:86 /dev/nvme0n1 is multipath device partition? False
+2026-02-24 06:39:34,012 DEBUG curtin:61 /dev/nvme0n1 is multipath device? False
+2026-02-24 06:39:34,029 DEBUG curtin:73 /dev/nvme0n1p1 is multipath device member? False
+2026-02-24 06:39:34,030 DEBUG curtin:86 /dev/nvme0n1p1 is multipath device partition? False
+2026-02-24 06:39:34,030 DEBUG curtin:61 /dev/nvme0n1p1 is multipath device? False
+2026-02-24 06:39:34,030 DEBUG curtin:86 /dev/nvme0n1p1 is multipath device partition? False
+2026-02-24 06:39:34,030 DEBUG curtin:86 /dev/nvme0n1p1 is multipath device partition? False
+2026-02-24 06:39:34,049 DEBUG curtin:73 /dev/nvme0n1p2 is multipath device member? False
+2026-02-24 06:39:34,050 DEBUG curtin:86 /dev/nvme0n1p2 is multipath device partition? False
+2026-02-24 06:39:34,050 DEBUG curtin:61 /dev/nvme0n1p2 is multipath device? False
+2026-02-24 06:39:34,050 DEBUG curtin:86 /dev/nvme0n1p2 is multipath device partition? False
+2026-02-24 06:39:34,050 DEBUG curtin:86 /dev/nvme0n1p2 is multipath device partition? False
+2026-02-24 06:39:34,062 DEBUG curtin:73 /dev/nvme0n1p3 is multipath device member? False
+2026-02-24 06:39:34,062 DEBUG curtin:86 /dev/nvme0n1p3 is multipath device partition? False
+2026-02-24 06:39:34,062 DEBUG curtin:61 /dev/nvme0n1p3 is multipath device? False
+2026-02-24 06:39:34,063 DEBUG curtin:86 /dev/nvme0n1p3 is multipath device partition? False
+2026-02-24 06:39:34,063 DEBUG curtin:86 /dev/nvme0n1p3 is multipath device partition? False
+2026-02-24 06:39:34,073 DEBUG curtin:61 /dev/dm-0 is multipath device? False
+2026-02-24 06:39:34,074 DEBUG curtin:86 /dev/dm-0 is multipath device partition? False
+2026-02-24 06:39:34,074 DEBUG curtin:73 /dev/sda is multipath device member? False
+2026-02-24 06:39:34,084 DEBUG curtin:73 /dev/sda1 is multipath device member? False
+2026-02-24 06:39:34,093 DEBUG curtin:73 /dev/sda2 is multipath device member? False
+2026-02-24 06:39:34,102 DEBUG curtin:73 /dev/sda3 is multipath device member? False
+2026-02-24 06:39:34,110 DEBUG curtin:73 /dev/nvme0n1p1 is multipath device member? False
+2026-02-24 06:39:34,117 DEBUG curtin:73 /dev/nvme0n1p2 is multipath device member? False
+2026-02-24 06:39:34,124 DEBUG curtin:73 /dev/dm-0 is multipath device member? False
+2026-02-24 06:39:34,149 DEBUG curtin:1301 Sorting extracted configurations
+2026-02-24 06:39:34,149 INFO curtin:1320 Validating extracted storage config components
+2026-02-24 06:39:34,161 DEBUG curtin:1339 Extracted (unmerged) storage config:
+storage:
+-   id: disk-sda
+    path: /dev/sda
+    ptable: gpt
+    serial: VirtualM_edia_WebISO_0-0:0
+    type: disk
+-   id: disk-nvme0n1
+    path: /dev/nvme0n1
+    ptable: gpt
+    serial: SAMSUNG MZQL27T6HBLA-00A07_S6CKNT0W700868
+    type: disk
+    wwn: eui.36434b30577008680025385400000001
+-   device: disk-sda
+    id: partition-sda1
+    number: 1
+    offset: 32768
+    size: 1015412736
+    type: partition
+-   device: disk-sda
+    flag: boot
+    id: partition-sda2
+    number: 2
+    offset: 1015445504
+    size: 33554432
+    type: partition
+-   device: disk-sda
+    id: partition-sda3
+    number: 3
+    offset: 1048999936
+    size: 307200
+    type: partition
+-   device: disk-nvme0n1
+    flag: boot
+    id: partition-nvme0n1p1
+    number: 1
+    offset: 1048576
+    size: 1127219200
+    type: partition
+-   device: disk-nvme0n1
+    flag: linux
+    id: partition-nvme0n1p2
+    number: 2
+    offset: 1128267776
+    size: 2147483648
+    type: partition
+-   device: disk-nvme0n1
+    flag: linux
+    id: partition-nvme0n1p3
+    number: 3
+    offset: 3275751424
+    size: 7678223974400
+    type: partition
+-   fstype: iso9660
+    id: format-disk-sda
+    type: format
+    volume: disk-sda
+-   fstype: iso9660
+    id: format-partition-sda1
+    type: format
+    volume: partition-sda1
+-   fstype: vfat
+    id: format-partition-sda2
+    type: format
+    volume: partition-sda2
+-   fstype: iso9660
+    id: format-partition-sda3
+    type: format
+    volume: partition-sda3
+-   fstype: vfat
+    id: format-partition-nvme0n1p1
+    type: format
+    volume: partition-nvme0n1p1
+-   fstype: ext4
+    id: format-partition-nvme0n1p2
+    type: format
+    uuid: 6a3d879b-e332-46e5-af2f-450cd7e0e641
+    volume: partition-nvme0n1p2
+-   fstype: ext4
+    id: format-lvm-partition-ubuntu-lv
+    type: format
+    uuid: b13477f1-62b9-4e60-a3cd-9d22d2ff2041
+    volume: lvm-partition-ubuntu-lv
+-   devices:
+    - partition-nvme0n1p3
+    id: lvm-volgroup-ubuntu-vg
+    name: ubuntu-vg
+    type: lvm_volgroup
+-   id: lvm-partition-ubuntu-lv
+    name: ubuntu-lv
+    size: 107374182400B
+    type: lvm_partition
+    volgroup: lvm-volgroup-ubuntu-vg
+-   device: format-disk-sda
+    id: mount-disk-sda
+    path: /cdrom
+    type: mount
+
+2026-02-24 06:39:34,161 DEBUG curtin:1341 Generating storage config dependencies
+2026-02-24 06:39:34,161 DEBUG curtin:239 Validate: partition-sda1:SourceType:partition -> (DepId:disk-sda DepType:disk) in SourceDeps:{'disk', 'raid', 'partition', 'bcache'} ? result=True
+2026-02-24 06:39:34,161 DEBUG curtin:239 Validate: partition-sda2:SourceType:partition -> (DepId:disk-sda DepType:disk) in SourceDeps:{'disk', 'raid', 'partition', 'bcache'} ? result=True
+2026-02-24 06:39:34,162 DEBUG curtin:239 Validate: partition-sda3:SourceType:partition -> (DepId:disk-sda DepType:disk) in SourceDeps:{'disk', 'raid', 'partition', 'bcache'} ? result=True
+2026-02-24 06:39:34,162 DEBUG curtin:239 Validate: partition-nvme0n1p1:SourceType:partition -> (DepId:disk-nvme0n1 DepType:disk) in SourceDeps:{'disk', 'raid', 'partition', 'bcache'} ? result=True
+2026-02-24 06:39:34,162 DEBUG curtin:239 Validate: partition-nvme0n1p2:SourceType:partition -> (DepId:disk-nvme0n1 DepType:disk) in SourceDeps:{'disk', 'raid', 'partition', 'bcache'} ? result=True
+2026-02-24 06:39:34,162 DEBUG curtin:239 Validate: partition-nvme0n1p3:SourceType:partition -> (DepId:disk-nvme0n1 DepType:disk) in SourceDeps:{'disk', 'raid', 'partition', 'bcache'} ? result=True
+2026-02-24 06:39:34,162 DEBUG curtin:239 Validate: format-disk-sda:SourceType:format -> (DepId:disk-sda DepType:disk) in SourceDeps:{'disk', 'raid', 'lvm_partition', 'dm_crypt', 'partition', 'bcache'} ? result=True
+2026-02-24 06:39:34,162 DEBUG curtin:239 Validate: format-partition-sda1:SourceType:format -> (DepId:partition-sda1 DepType:partition) in SourceDeps:{'disk', 'raid', 'lvm_partition', 'dm_crypt', 'partition', 'bcache'} ? result=True
+2026-02-24 06:39:34,162 DEBUG curtin:239 Validate: partition-sda1:SourceType:partition -> (DepId:disk-sda DepType:disk) in SourceDeps:{'disk', 'raid', 'partition', 'bcache'} ? result=True
+2026-02-24 06:39:34,162 DEBUG curtin:239 Validate: format-partition-sda2:SourceType:format -> (DepId:partition-sda2 DepType:partition) in SourceDeps:{'disk', 'raid', 'lvm_partition', 'dm_crypt', 'partition', 'bcache'} ? result=True
+2026-02-24 06:39:34,162 DEBUG curtin:239 Validate: partition-sda2:SourceType:partition -> (DepId:disk-sda DepType:disk) in SourceDeps:{'disk', 'raid', 'partition', 'bcache'} ? result=True
+2026-02-24 06:39:34,162 DEBUG curtin:239 Validate: format-partition-sda3:SourceType:format -> (DepId:partition-sda3 DepType:partition) in SourceDeps:{'disk', 'raid', 'lvm_partition', 'dm_crypt', 'partition', 'bcache'} ? result=True
+2026-02-24 06:39:34,162 DEBUG curtin:239 Validate: partition-sda3:SourceType:partition -> (DepId:disk-sda DepType:disk) in SourceDeps:{'disk', 'raid', 'partition', 'bcache'} ? result=True
+2026-02-24 06:39:34,162 DEBUG curtin:239 Validate: format-partition-nvme0n1p1:SourceType:format -> (DepId:partition-nvme0n1p1 DepType:partition) in SourceDeps:{'disk', 'raid', 'lvm_partition', 'dm_crypt', 'partition', 'bcache'} ? result=True
+2026-02-24 06:39:34,162 DEBUG curtin:239 Validate: partition-nvme0n1p1:SourceType:partition -> (DepId:disk-nvme0n1 DepType:disk) in SourceDeps:{'disk', 'raid', 'partition', 'bcache'} ? result=True
+2026-02-24 06:39:34,162 DEBUG curtin:239 Validate: format-partition-nvme0n1p2:SourceType:format -> (DepId:partition-nvme0n1p2 DepType:partition) in SourceDeps:{'disk', 'raid', 'lvm_partition', 'dm_crypt', 'partition', 'bcache'} ? result=True
+2026-02-24 06:39:34,162 DEBUG curtin:239 Validate: partition-nvme0n1p2:SourceType:partition -> (DepId:disk-nvme0n1 DepType:disk) in SourceDeps:{'disk', 'raid', 'partition', 'bcache'} ? result=True
+2026-02-24 06:39:34,162 DEBUG curtin:239 Validate: format-lvm-partition-ubuntu-lv:SourceType:format -> (DepId:lvm-partition-ubuntu-lv DepType:lvm_partition) in SourceDeps:{'disk', 'raid', 'lvm_partition', 'dm_crypt', 'partition', 'bcache'} ? result=True
+2026-02-24 06:39:34,162 DEBUG curtin:239 Validate: lvm-partition-ubuntu-lv:SourceType:lvm_partition -> (DepId:lvm-volgroup-ubuntu-vg DepType:lvm_volgroup) in SourceDeps:{'lvm_volgroup'} ? result=True
+2026-02-24 06:39:34,162 DEBUG curtin:239 Validate: lvm-volgroup-ubuntu-vg:SourceType:lvm_volgroup -> (DepId:partition-nvme0n1p3 DepType:partition) in SourceDeps:{'disk', 'raid', 'dm_crypt', 'partition', 'bcache'} ? result=True
+2026-02-24 06:39:34,162 DEBUG curtin:239 Validate: partition-nvme0n1p3:SourceType:partition -> (DepId:disk-nvme0n1 DepType:disk) in SourceDeps:{'disk', 'raid', 'partition', 'bcache'} ? result=True
+2026-02-24 06:39:34,162 DEBUG curtin:239 Validate: lvm-volgroup-ubuntu-vg:SourceType:lvm_volgroup -> (DepId:partition-nvme0n1p3 DepType:partition) in SourceDeps:{'disk', 'raid', 'dm_crypt', 'partition', 'bcache'} ? result=True
+2026-02-24 06:39:34,162 DEBUG curtin:239 Validate: partition-nvme0n1p3:SourceType:partition -> (DepId:disk-nvme0n1 DepType:disk) in SourceDeps:{'disk', 'raid', 'partition', 'bcache'} ? result=True
+2026-02-24 06:39:34,162 DEBUG curtin:239 Validate: lvm-partition-ubuntu-lv:SourceType:lvm_partition -> (DepId:lvm-volgroup-ubuntu-vg DepType:lvm_volgroup) in SourceDeps:{'lvm_volgroup'} ? result=True
+2026-02-24 06:39:34,162 DEBUG curtin:239 Validate: lvm-volgroup-ubuntu-vg:SourceType:lvm_volgroup -> (DepId:partition-nvme0n1p3 DepType:partition) in SourceDeps:{'disk', 'raid', 'dm_crypt', 'partition', 'bcache'} ? result=True
+2026-02-24 06:39:34,162 DEBUG curtin:239 Validate: partition-nvme0n1p3:SourceType:partition -> (DepId:disk-nvme0n1 DepType:disk) in SourceDeps:{'disk', 'raid', 'partition', 'bcache'} ? result=True
+2026-02-24 06:39:34,162 DEBUG curtin:239 Validate: mount-disk-sda:SourceType:mount -> (DepId:format-disk-sda DepType:format) in SourceDeps:{'format'} ? result=True
+2026-02-24 06:39:34,162 DEBUG curtin:239 Validate: format-disk-sda:SourceType:format -> (DepId:disk-sda DepType:disk) in SourceDeps:{'disk', 'raid', 'lvm_partition', 'dm_crypt', 'partition', 'bcache'} ? result=True
+2026-02-24 06:39:34,162 DEBUG curtin:1347 Merging storage config dependencies
+2026-02-24 06:39:34,165 DEBUG curtin:1354 Merged storage config:
+storage:
+    config:
+    -   id: disk-nvme0n1
+        path: /dev/nvme0n1
+        ptable: gpt
+        serial: SAMSUNG MZQL27T6HBLA-00A07_S6CKNT0W700868
+        type: disk
+        wwn: eui.36434b30577008680025385400000001
+    -   id: disk-sda
+        path: /dev/sda
+        ptable: gpt
+        serial: VirtualM_edia_WebISO_0-0:0
+        type: disk
+    -   fstype: iso9660
+        id: format-disk-sda
+        type: format
+        volume: disk-sda
+    -   device: format-disk-sda
+        id: mount-disk-sda
+        path: /cdrom
+        type: mount
+    -   device: disk-sda
+        id: partition-sda1
+        number: 1
+        offset: 32768
+        size: 1015412736
+        type: partition
+    -   device: disk-nvme0n1
+        flag: boot
+        id: partition-nvme0n1p1
+        number: 1
+        offset: 1048576
+        size: 1127219200
+        type: partition
+    -   device: disk-sda
+        flag: boot
+        id: partition-sda2
+        number: 2
+        offset: 1015445504
+        size: 33554432
+        type: partition
+    -   device: disk-nvme0n1
+        flag: linux
+        id: partition-nvme0n1p2
+        number: 2
+        offset: 1128267776
+        size: 2147483648
+        type: partition
+    -   device: disk-sda
+        id: partition-sda3
+        number: 3
+        offset: 1048999936
+        size: 307200
+        type: partition
+    -   device: disk-nvme0n1
+        flag: linux
+        id: partition-nvme0n1p3
+        number: 3
+        offset: 3275751424
+        size: 7678223974400
+        type: partition
+    -   fstype: vfat
+        id: format-partition-nvme0n1p1
+        type: format
+        volume: partition-nvme0n1p1
+    -   fstype: ext4
+        id: format-partition-nvme0n1p2
+        type: format
+        uuid: 6a3d879b-e332-46e5-af2f-450cd7e0e641
+        volume: partition-nvme0n1p2
+    -   fstype: iso9660
+        id: format-partition-sda1
+        type: format
+        volume: partition-sda1
+    -   fstype: vfat
+        id: format-partition-sda2
+        type: format
+        volume: partition-sda2
+    -   fstype: iso9660
+        id: format-partition-sda3
+        type: format
+        volume: partition-sda3
+    -   devices:
+        - partition-nvme0n1p3
+        id: lvm-volgroup-ubuntu-vg
+        name: ubuntu-vg
+        type: lvm_volgroup
+    -   id: lvm-partition-ubuntu-lv
+        name: ubuntu-lv
+        size: 107374182400B
+        type: lvm_partition
+        volgroup: lvm-volgroup-ubuntu-vg
+    -   fstype: ext4
+        id: format-lvm-partition-ubuntu-lv
+        type: format
+        uuid: b13477f1-62b9-4e60-a3cd-9d22d2ff2041
+        volume: lvm-partition-ubuntu-lv
+    version: 1
+
+2026-02-24 06:39:34,166 DEBUG subiquity.models.filesystem:1121 exclusions {'format-partition-sda2', 'disk-sda', 'format-partition-sda1', 'format-disk-sda', 'partition-sda1', 'partition-sda3', 'format-partition-sda3', 'partition-sda2'}
+2026-02-24 06:39:34,166 DEBUG root:39 finish: subiquity/Filesystem/_probe/probe_once: SUCCESS: restricted=False
+2026-02-24 06:39:34,166 DEBUG root:39 finish: subiquity/Filesystem/_probe: SUCCESS: 
+2026-02-24 06:39:34,176 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:34,285 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:34,396 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:34,507 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:34,617 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:34,727 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:34,837 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:34,947 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:35,057 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:35,167 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:35,277 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:35,386 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:35,497 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:35,606 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:35,716 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:35,825 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:35,934 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:36,043 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:36,152 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:36,260 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:36,370 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:36,479 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:36,589 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:36,698 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:36,808 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:36,918 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:37,027 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:37,137 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:37,247 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:37,357 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:37,466 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:37,576 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:37,685 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:37,794 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:37,903 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:38,013 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:38,122 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:38,231 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:38,340 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:38,449 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:38,559 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:38,668 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:38,779 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:38,888 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:38,997 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:39,107 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:39,217 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:39,326 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:39,435 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:39,545 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:39,653 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:39,763 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:39,872 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:39,981 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:40,091 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:40,201 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:40,316 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:40,425 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:40,534 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:40,643 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:40,752 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:40,862 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:40,971 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:41,081 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:41,190 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:41,299 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:41,408 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:41,518 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:41,627 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:41,737 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:41,846 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:41,955 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:42,063 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:42,173 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:42,282 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:42,391 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:42,500 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:42,610 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:42,721 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:42,831 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:42,940 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:43,050 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:43,158 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:43,268 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:43,377 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:43,486 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:43,596 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:43,705 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:43,815 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:43,926 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:44,034 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:44,143 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:44,252 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:44,360 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:44,469 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:44,579 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:44,688 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:44,798 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:44,907 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:45,017 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:45,126 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:45,235 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:45,344 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:45,454 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:45,563 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:45,672 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:45,781 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:45,890 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:45,999 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:46,107 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:46,217 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:46,326 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:46,435 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:46,545 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:46,654 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:46,763 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:46,872 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:46,982 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:47,091 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:47,200 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:47,310 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:47,419 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:47,528 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:47,638 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:47,747 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:47,857 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:47,966 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:48,074 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:48,183 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:48,293 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:48,402 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:48,511 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:48,621 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:48,729 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:48,837 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:48,946 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:49,054 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:49,163 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:49,273 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:49,381 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:49,490 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:49,599 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:49,708 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:49,818 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:49,927 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:50,037 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:50,146 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:50,255 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:50,365 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:50,474 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:50,583 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:50,693 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:50,801 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:50,910 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:51,017 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:51,124 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:51,233 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:51,342 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:51,451 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:51,559 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:51,669 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:51,778 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:51,886 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:51,995 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:52,105 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:52,214 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:52,323 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:52,433 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:52,542 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:52,652 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:52,761 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:52,871 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:52,981 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:53,090 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:53,200 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:53,309 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:53,419 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:53,528 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:53,638 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:53,747 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:53,856 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:53,966 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:54,075 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:54,185 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:54,294 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:54,403 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:54,512 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:54,622 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:54,732 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:54,841 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:54,951 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:55,061 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:55,171 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:55,279 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:55,389 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:55,498 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:55,608 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:55,717 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:55,826 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:55,935 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:56,045 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:56,155 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:56,265 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:56,374 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:56,484 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:56,593 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:56,702 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:56,811 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:56,920 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:57,029 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:57,138 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:57,247 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:57,357 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:57,465 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:57,575 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:57,684 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:57,794 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:57,903 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:58,012 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:58,121 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:58,231 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:58,340 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:58,450 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:58,559 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:58,668 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:58,778 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:58,887 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:58,996 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:59,105 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:59,214 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:59,324 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:59,434 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:59,543 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:59,652 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:59,761 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:59,869 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:39:59,978 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:00,088 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:00,197 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:00,307 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:00,416 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:00,525 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:00,634 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:00,743 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:00,853 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:00,962 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:01,071 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:01,180 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:01,290 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:01,400 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:01,509 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:01,618 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:01,727 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:01,837 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:01,947 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:02,057 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:02,166 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:02,275 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:02,385 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:02,494 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:02,603 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:02,712 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:02,822 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:02,932 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:03,041 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:03,150 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:03,259 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:03,369 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:03,479 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:03,589 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:03,698 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:03,807 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:03,917 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:04,026 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:04,135 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:04,245 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:04,354 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:04,463 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:04,572 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:04,682 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:04,792 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:04,901 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:05,011 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:05,120 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:05,229 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:05,339 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:05,448 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:05,558 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:05,667 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:05,776 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:05,885 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:05,995 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:06,104 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:06,214 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:06,323 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:06,433 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:06,542 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:06,652 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:06,762 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:06,870 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:06,979 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:07,089 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 501
+2026-02-24 06:40:07,219 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/changes/4 HTTP/1.1" 200 596
+2026-02-24 06:40:07,222 DEBUG root:39 finish: subiquity/Refresh/configure_snapd/switching: SUCCESS: switched to stable/ubuntu-18.04.6
+2026-02-24 06:40:07,223 DEBUG root:39 finish: subiquity/Refresh/configure_snapd: SUCCESS: 
+2026-02-24 06:40:12,767 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/find?section=server HTTP/1.1" 400 554
+2026-02-24 06:40:12,769 ERROR subiquity.server.controllers.snaplist:80 loading list of snaps failed
+Traceback (most recent call last):
+  File "/snap/subiquity/2651/lib/python3.6/site-packages/subiquity/server/controllers/snaplist.py", line 78, in _load_list
+    'v2/find', section=self.store_section)
+  File "/snap/subiquity/2651/lib/python3.6/site-packages/subiquitycore/snapd.py", line 180, in get
+    response.raise_for_status()
+  File "/snap/subiquity/2651/usr/lib/python3/dist-packages/requests/models.py", line 935, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 400 Client Error: Bad Request for url: http+unix://%2Frun%2Fsnapd.socket/v2/find?section=server
+2026-02-24 06:40:12,773 DEBUG root:39 finish: subiquity/SnapList/loader/list: SUCCESS: 
+2026-02-24 06:40:12,773 DEBUG subiquity.server.controllers.snaplist:67 fetched list of 0 snaps
+2026-02-24 06:40:12,780 DEBUG root:39 finish: subiquity/SnapList/loader: SUCCESS: 
+2026-02-24 06:40:47,242 DEBUG urllib3.connectionpool:396 http://localhost:None "GET /v2/find?select=refresh HTTP/1.1" 500 264
+2026-02-24 06:40:47,244 ERROR subiquity.server.controllers.refresh:173 checking for snap update failed
+Traceback (most recent call last):
+  File "/snap/subiquity/2651/lib/python3.6/site-packages/subiquity/server/controllers/refresh.py", line 171, in check_for_update
+    result = await self.app.snapd.get('v2/find', select='refresh')
+  File "/snap/subiquity/2651/lib/python3.6/site-packages/subiquitycore/snapd.py", line 180, in get
+    response.raise_for_status()
+  File "/snap/subiquity/2651/usr/lib/python3/dist-packages/requests/models.py", line 935, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: http+unix://%2Frun%2Fsnapd.socket/v2/find?select=refresh
+2026-02-24 06:40:47,246 DEBUG root:39 finish: subiquity/Refresh/check_for_update: SUCCESS: checking for snap update failed
+2026-02-24 06:40:52,430 INFO root:39 start: subiquity/Meta/ssh_info_GET: 
+2026-02-24 06:40:52,432 INFO root:39 finish: subiquity/Meta/ssh_info_GET: SUCCESS: 200 null
+2026-02-24 06:40:52,433 INFO aiohttp.access:206  [24/Feb/2026:06:40:52 +0000] "GET /meta/ssh_info HTTP/1.1" 200 195 "-" "Python/3.6 aiohttp/3.7.4.post0"
+2026-02-24 06:43:28,463 DEBUG subiquitycore.utils:48 run_command called: ['udevadm', 'settle', '-t', '0']
+2026-02-24 06:43:28,504 DEBUG subiquitycore.utils:61 run_command ['udevadm', 'settle', '-t', '0'] exited with code 0
+2026-02-24 06:43:28,506 DEBUG probert.network:585 event for addr_change: CHANGE {'ifindex': 3, 'flags': 0, 'family': 2, 'scope': 0, 'local': b'192.168.100.191/24'}
+2026-02-24 06:43:28,506 DEBUG probert.network:717 addr_change CHANGE {'ifindex': 3, 'flags': 0, 'family': 2, 'scope': 0, 'local': b'192.168.100.191/24'}
+2026-02-24 06:43:28,508 DEBUG root:39 start: subiquity/Network/_send_update: CHANGE ens801f1
+2026-02-24 06:43:28,508 DEBUG subiquity.server.controllers.network:354 dev_info ens801f1 {'dhcp4': True}
+2026-02-24 06:43:28,510 DEBUG root:39 finish: subiquity/Network/_send_update: SUCCESS: CHANGE ens801f1
+2026-02-24 06:43:53,549 ERROR subiquity.common.geoip:69 geoip lookup failed
+Traceback (most recent call last):
+  File "/snap/subiquity/2651/usr/lib/python3/dist-packages/urllib3/connection.py", line 144, in _new_conn
+    (self.host, self.port), self.timeout, **extra_kw)
+  File "/snap/subiquity/2651/usr/lib/python3/dist-packages/urllib3/util/connection.py", line 83, in create_connection
+    raise err
+  File "/snap/subiquity/2651/usr/lib/python3/dist-packages/urllib3/util/connection.py", line 73, in create_connection
+    sock.connect(sa)
+TimeoutError: [Errno 110] Connection timed out
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/snap/subiquity/2651/usr/lib/python3/dist-packages/urllib3/connectionpool.py", line 601, in urlopen
+    chunked=chunked)
+  File "/snap/subiquity/2651/usr/lib/python3/dist-packages/urllib3/connectionpool.py", line 346, in _make_request
+    self._validate_conn(conn)
+  File "/snap/subiquity/2651/usr/lib/python3/dist-packages/urllib3/connectionpool.py", line 852, in _validate_conn
+    conn.connect()
+  File "/snap/subiquity/2651/usr/lib/python3/dist-packages/urllib3/connection.py", line 298, in connect
+    conn = self._new_conn()
+  File "/snap/subiquity/2651/usr/lib/python3/dist-packages/urllib3/connection.py", line 153, in _new_conn
+    self, "Failed to establish a new connection: %s" % e)
+urllib3.exceptions.NewConnectionError: <urllib3.connection.VerifiedHTTPSConnection object at 0x7fc392af31d0>: Failed to establish a new connection: [Errno 110] Connection timed out
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/snap/subiquity/2651/usr/lib/python3/dist-packages/requests/adapters.py", line 440, in send
+    timeout=timeout
+  File "/snap/subiquity/2651/usr/lib/python3/dist-packages/urllib3/connectionpool.py", line 639, in urlopen
+    _stacktrace=sys.exc_info()[2])
+  File "/snap/subiquity/2651/usr/lib/python3/dist-packages/urllib3/util/retry.py", line 398, in increment
+    raise MaxRetryError(_pool, url, error or ResponseError(cause))
+urllib3.exceptions.MaxRetryError: HTTPSConnectionPool(host='geoip.ubuntu.com', port=443): Max retries exceeded with url: /lookup (Caused by NewConnectionError('<urllib3.connection.VerifiedHTTPSConnection object at 0x7fc392af31d0>: Failed to establish a new connection: [Errno 110] Connection timed out',))
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/snap/subiquity/2651/lib/python3.6/site-packages/subiquity/server/geoip.py", line 66, in _lookup
+    requests.get, "https://geoip.ubuntu.com/lookup")
+  File "/snap/subiquity/2651/lib/python3.6/site-packages/subiquitycore/async_helpers.py", line 46, in run_in_thread
+    return await loop.run_in_executor(None, func, *args)
+  File "/snap/subiquity/2651/usr/lib/python3.6/concurrent/futures/thread.py", line 56, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/snap/subiquity/2651/usr/lib/python3/dist-packages/requests/api.py", line 72, in get
+    return request('get', url, params=params, **kwargs)
+  File "/snap/subiquity/2651/usr/lib/python3/dist-packages/requests/api.py", line 58, in request
+    return session.request(method=method, url=url, **kwargs)
+  File "/snap/subiquity/2651/usr/lib/python3/dist-packages/requests/sessions.py", line 520, in request
+    resp = self.send(prep, **send_kwargs)
+  File "/snap/subiquity/2651/usr/lib/python3/dist-packages/requests/sessions.py", line 630, in send
+    r = adapter.send(request, **kwargs)
+  File "/snap/subiquity/2651/usr/lib/python3/dist-packages/requests/adapters.py", line 508, in send
+    raise ConnectionError(e, request=request)
+requests.exceptions.ConnectionError: HTTPSConnectionPool(host='geoip.ubuntu.com', port=443): Max retries exceeded with url: /lookup (Caused by NewConnectionError('<urllib3.connection.VerifiedHTTPSConnection object at 0x7fc392af31d0>: Failed to establish a new connection: [Errno 110] Connection timed out',))
+2026-02-24 06:48:27,522 DEBUG subiquitycore.utils:48 run_command called: ['udevadm', 'settle', '-t', '0']
+2026-02-24 06:48:27,560 DEBUG subiquitycore.utils:61 run_command ['udevadm', 'settle', '-t', '0'] exited with code 0
+2026-02-24 06:48:27,561 DEBUG probert.network:585 event for addr_change: CHANGE {'ifindex': 3, 'flags': 0, 'family': 2, 'scope': 0, 'local': b'192.168.100.191/24'}
+2026-02-24 06:48:27,561 DEBUG probert.network:717 addr_change CHANGE {'ifindex': 3, 'flags': 0, 'family': 2, 'scope': 0, 'local': b'192.168.100.191/24'}
+2026-02-24 06:48:27,563 DEBUG root:39 start: subiquity/Network/_send_update: CHANGE ens801f1
+2026-02-24 06:48:27,563 DEBUG subiquity.server.controllers.network:354 dev_info ens801f1 {'dhcp4': True}
+2026-02-24 06:48:27,564 DEBUG root:39 finish: subiquity/Network/_send_update: SUCCESS: CHANGE ens801f1
+2026-02-24 06:53:28,450 DEBUG subiquitycore.utils:48 run_command called: ['udevadm', 'settle', '-t', '0']
+2026-02-24 06:53:28,488 DEBUG subiquitycore.utils:61 run_command ['udevadm', 'settle', '-t', '0'] exited with code 0
+2026-02-24 06:53:28,489 DEBUG probert.network:585 event for addr_change: CHANGE {'ifindex': 3, 'flags': 0, 'family': 2, 'scope': 0, 'local': b'192.168.100.191/24'}
+2026-02-24 06:53:28,489 DEBUG probert.network:717 addr_change CHANGE {'ifindex': 3, 'flags': 0, 'family': 2, 'scope': 0, 'local': b'192.168.100.191/24'}
+2026-02-24 06:53:28,491 DEBUG root:39 start: subiquity/Network/_send_update: CHANGE ens801f1
+2026-02-24 06:53:28,491 DEBUG subiquity.server.controllers.network:354 dev_info ens801f1 {'dhcp4': True}
+2026-02-24 06:53:28,492 DEBUG root:39 finish: subiquity/Network/_send_update: SUCCESS: CHANGE ens801f1

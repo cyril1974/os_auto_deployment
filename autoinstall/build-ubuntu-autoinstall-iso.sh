@@ -8,10 +8,11 @@ Ubuntu Autoinstall ISO Builder
 ===============================
 
 USAGE:
-    $0 <ISO_PATH> [USERNAME] [PASSWORD]
+    $0 <OS_NAME> [USERNAME] [PASSWORD]
 
 PARAMETERS:
-    ISO_PATH    Path to the original Ubuntu Server ISO file (required)
+    OS_NAME     OS name to look up in file_list.json (required)
+                Example: ubuntu-22.04.2-live-server-amd64
     USERNAME    Username for the installed system (default: admin)
     PASSWORD    Password for both user and root (default: ubuntu)
 
@@ -33,13 +34,13 @@ FEATURES:
 
 EXAMPLES:
     # Basic usage with defaults (user: admin, password: ubuntu)
-    $0 ubuntu-22.04.2-live-server-amd64.iso
+    $0 ubuntu-22.04.2-live-server-amd64
 
     # Specify custom username and password
-    $0 ubuntu-22.04.2-live-server-amd64.iso myuser mypassword
+    $0 ubuntu-22.04.2-live-server-amd64 myuser mypassword
 
-    # Using full path to ISO
-    $0 /path/to/ubuntu-22.04.2-live-server-amd64.iso sysadmin SecurePass123
+    # Using different Ubuntu version
+    $0 ubuntu-24.04.1-live-server-amd64 sysadmin SecurePass123
 
 OUTPUT:
     - ISO file: ./output_custom_iso/ubuntu_22.04.2_live_server_amd64_autoinstall.iso
@@ -48,37 +49,124 @@ OUTPUT:
 
 REQUIREMENTS:
     - Root privileges (uses apt to install packages)
-    - Packages: whois, genisoimage, xorriso, isolinux, mtools
+    - Packages: whois, genisoimage, xorriso, isolinux, mtools, jq
+    - file_list.json in iso_repository/ directory
 
 EOF
     exit 0
 }
 
-# Check for help flag
+# Check for help flag or skip-install flag
+SKIP_INSTALL=false
+for arg in "$@"; do
+    if [[ "$arg" == "--skip-install" ]]; then
+        SKIP_INSTALL=true
+        break
+    fi
+done
+
 if [[ "${1:-}" == "-h" ]] || [[ "${1:-}" == "--help" ]] || [[ $# -eq 0 ]]; then
     show_help
 fi
 
 
-ORIG_ISO="${1:-/iso/ubuntu-22.04.5-live-server-amd64.iso}"
-# WORKDIR="${2:-/tmp/ubuntuiso}"
+# Function to lookup ISO path from file_list.json
+lookup_iso_path() {
+    local os_name="$1"
+    local json_file="./iso_repository/file_list.json"
+    
+    if [ ! -f "$json_file" ]; then
+        echo "Error: file_list.json not found at $json_file" >&2
+        exit 1
+    fi
+    
+    # Use jq to find the OS_Path for the given OS_Name
+    local iso_path=$(jq -r ".tree.Ubuntu[] | select(.OS_Name == \"$os_name\") | .OS_Path" "$json_file")
+    
+    if [ -z "$iso_path" ] || [ "$iso_path" == "null" ]; then
+        echo "Error: OS name '$os_name' not found in file_list.json" >&2
+        echo "Available OS names:" >&2
+        jq -r '.tree.Ubuntu[].OS_Name' "$json_file" >&2
+        exit 1
+    fi
+    
+    # Prepend iso_repository/ to the path
+    echo "./iso_repository/$iso_path"
+}
+
+# Check and install necessary packages only if missing
+check_and_install_packages() {
+    local missing_packages=()
+    local required_packages=("whois" "genisoimage" "xorriso" "isolinux" "mtools" "jq")
+    
+    for pkg in "${required_packages[@]}"; do
+        if ! command -v "$pkg" &> /dev/null && ! dpkg -l | grep -q "^ii  $pkg"; then
+            missing_packages+=("$pkg")
+        fi
+    done
+    
+    if [ ${#missing_packages[@]} -gt 0 ]; then
+        echo "[*] Installing missing packages: ${missing_packages[*]}"
+        # Update package lists, ignoring repository errors (exit code 100)
+        echo "[*] Running apt update (ignoring repository errors)..."
+        sudo apt update 2>&1 | grep -v "does not have a stable CLI interface" || true
+        # Install packages even if apt update had some errors
+        echo "[*] Installing packages..."
+        sudo apt -y install "${missing_packages[@]}" || echo "[!] Warning: apt install had errors, but continuing..."
+    else
+        echo "[*] All required packages are already installed"
+    fi
+}
+
+# Install packages if needed (requires root) and not skipped
+if [ "$SKIP_INSTALL" = false ]; then
+    if [ "$EUID" -eq 0 ]; then
+        check_and_install_packages
+    else
+        echo "[*] Skipping package installation (not running as root)"
+        echo "[*] Required packages: whois, genisoimage, xorriso, isolinux, mtools, jq"
+    fi
+else
+    echo "[*] Skipping package installation (--skip-install flag set)"
+fi
+
+
+# Get OS name from first argument
+OS_NAME="${1:-ubuntu-22.04.5-live-server-amd64}"
+USERNAME="${2:-admin}"
+PASSWORD="${3:-ubuntu}"
+
+# Detect if it's Ubuntu 18.04
+IS_1804=false
+if [[ "$OS_NAME" == *"18.04"* ]]; then
+    IS_1804=true
+    echo "[*] Detected Ubuntu 18.04 - Using Preseed automation"
+else
+    echo "[*] Detected Ubuntu 20.04+ - Using Autoinstall automation"
+fi
+
+# Lookup the actual ISO path
+echo "[*] Looking up ISO path for OS: $OS_NAME"
+ORIG_ISO=$(lookup_iso_path "$OS_NAME")
+echo "[*] Found ISO: $ORIG_ISO"
+
 WORKDIR="./workdir_custom_iso"
-# OUT_ISO="${3:-/iso/ubuntu-22.04.5-autoinstall.iso}"
+echo "[*] Cleaning work directory..."
+rm -rf "$WORKDIR"
+mkdir -p "$WORKDIR"
 OUT_ISO_DIR="./output_custom_iso"
 # Extract base filename and create autoinstall version with underscores
 ISO_BASENAME=$(basename "$ORIG_ISO" .iso)
-ISO_AUTOINSTALL="${ISO_BASENAME//-/_}_autoinstall.iso"
+TIMESTAMP=$(date +%Y%m%d%H%M)
+ISO_AUTOINSTALL="${ISO_BASENAME//-/_}_autoinstall_${TIMESTAMP}.iso"
 OUT_ISO="${OUT_ISO_DIR}/${ISO_AUTOINSTALL}"
-USERNAME="${2:-admin}"
-PASSWORD="${3:-ubuntu}"
 
 echo "[*] Clean Work directory and Output Folder"
 rm -rf ${WORKDIR}
 rm -rf ${OUT_ISO_DIR}
+mkdir -p ${OUT_ISO_DIR}
 
-echo "[*] Install Necessary Package ..."
-apt update
-apt -y install whois genisoimage xorriso isolinux mtools
+
 if [ ! -f "$ORIG_ISO" ]; then
   echo "Original ISO not found: $ORIG_ISO" >&2
   exit 1
@@ -95,14 +183,6 @@ echo "[*] Copying ISO contents..."
 rsync -a /mnt/ubuntuiso/ "$WORKDIR/"
 umount /mnt/ubuntuiso
 
-echo "[*] Adding autoinstall cloud-init data..."
-mkdir -p "$WORKDIR/autoinstall"
-
-cat > "$WORKDIR/autoinstall/meta-data" << 'EOF'
-instance-id: ubuntu-autoinstall-001
-local-hostname: ubuntu-auto
-EOF
-
 # Hash password for user-data
 HASH_PASSWORD=$(mkpasswd -m sha-512 ${PASSWORD})
 echo "[*] Hashed Password is ${HASH_PASSWORD}"
@@ -113,6 +193,13 @@ KEY_NAME="id_ed25519_$(date +%Y%m%d_%H%M%S)_$RANDOM"
 ssh-keygen -t ed25519 -f ~/.ssh/${KEY_NAME} -C "admin@ubuntu-autoinstall" -N ""
 PUB_KEY=$(cat ~/.ssh/${KEY_NAME}.pub)
 
+echo "[*] Adding autoinstall cloud-init data..."
+mkdir -p "$WORKDIR/autoinstall"
+
+cat > "$WORKDIR/autoinstall/meta-data" << 'EOF'
+instance-id: ubuntu-autoinstall-001
+local-hostname: ubuntu-auto
+EOF
 
 cat > "$WORKDIR/autoinstall/user-data" << EOF
 #cloud-config
@@ -125,11 +212,15 @@ autoinstall:
   locale: en_US.UTF-8
   keyboard:
     layout: us
+  storage:
+    layout:
+      name: direct
   ssh:
     install-server: true
     authorized-keys:
       - ${PUB_KEY}
     allow-pw: true
+  updates: none
   late-commands:
     - echo 'root:${PASSWORD}' | chroot /target chpasswd
     - curtin in-target --target=/target -- sed -i 's/^#\\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
@@ -140,6 +231,75 @@ autoinstall:
     - curtin in-target --target=/target -- apt-get install -y vim curl net-tools ipmitool htop || true
 EOF
 
+if [ "$IS_1804" = true ]; then
+  echo "[*] Adding Preseed configuration for Ubuntu 18.04 compatibility..."
+  # Generate preseed.cfg (as a fallback or for legacy installer if present)
+  cat > "$WORKDIR/preseed.cfg" << EOF
+# Locale/Keyboard
+d-i debian-installer/locale string en_US.UTF-8
+d-i console-setup/ask_detect boolean false
+d-i keyboard-configuration/xkb-keymap select us
+
+# Network
+d-i netcfg/choose_interface select auto
+d-i netcfg/get_hostname string ubuntu-auto
+d-i netcfg/get_domain string unassigned-domain
+
+# Clock
+d-i clock-setup/utc boolean true
+d-i time/zone string UTC
+
+# Partitioning (Atomic)
+d-i partman-auto/method string regular
+d-i partman-lvm/device_remove_lvm boolean true
+d-i partman-md/device_remove_md boolean true
+d-i partman-lvm/confirm boolean true
+d-i partman-lvm/confirm_nooverwrite boolean true
+d-i partman-auto/choose_recipe select atomic
+d-i partman-partitioning/confirm_write_new_label boolean true
+d-i partman/choose_partition select finish
+d-i partman/confirm boolean true
+d-i partman/confirm_nooverwrite boolean true
+
+# User/Root Setup
+d-i passwd/user-fullname string ${USERNAME}
+d-i passwd/username string ${USERNAME}
+d-i passwd/user-password-password password ${PASSWORD}
+d-i passwd/user-password-again password ${PASSWORD}
+d-i user-setup/allow-password-weak boolean true
+d-i user-setup/encrypt-home boolean false
+
+# Repository
+d-i apt-setup/use_mirror boolean false
+d-i apt-setup/cdrom/set-first boolean false
+d-i apt-setup/cdrom/set-next boolean false
+d-i apt-setup/cdrom/set-failed boolean false
+d-i apt-setup/restricted boolean true
+d-i apt-setup/universe boolean true
+
+# Packages
+tasksel tasksel/first multiselect standard, server
+d-i pkgsel/include string ssh openssh-server vim curl net-tools ipmitool htop
+d-i pkgsel/upgrade select none
+d-i pkgsel/update-policy select none
+
+# Bootloader
+d-i grub-installer/only_debian boolean true
+d-i grub-installer/with_other_os boolean true
+
+# Late commands (SSH config and Sudoers)
+d-i preseed/late_command string \\
+    in-target sed -i 's/^#\\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config; \\
+    in-target sed -i 's/^#\\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config; \\
+    echo '${USERNAME} ALL=(ALL) NOPASSWD:ALL' > /target/etc/sudoers.d/${USERNAME}; \\
+    chmod 440 /target/etc/sudoers.d/${USERNAME}; \\
+    echo "root:${PASSWORD}" | in-target chpasswd
+
+# Finish
+d-i finish-install/reboot_in_progress note
+EOF
+fi
+
 export GRUB_CFG="$WORKDIR/boot/grub/grub.cfg"
 echo "[*] GRUB Config Location :${GRUB_CFG}"
 if [ ! -f "$GRUB_CFG" ]; then
@@ -147,7 +307,7 @@ if [ ! -f "$GRUB_CFG" ]; then
   exit 1
 fi
 
-echo "[*] Patching GRUB configuration for autoinstall..."
+echo "[*] Patching GRUB configuration..."
 
 # Backup original grub
 cp "$GRUB_CFG" "${GRUB_CFG}.orig"
@@ -158,25 +318,44 @@ cp "$GRUB_CFG" "${GRUB_CFG}.orig"
 # 2. change the main menuentry to have autoinstall args
 
 # Ensure default & timeout
-sed -i 's/^set timeout=.*/set timeout=0/' "$GRUB_CFG" || true
+sed -i 's/^set timeout=.*/set timeout=5/' "$GRUB_CFG" || true
 grep -q 'set default=' "$GRUB_CFG" || echo 'set default="0"' >> "$GRUB_CFG"
 
-# Replace the "Try or Install Ubuntu Server" entry with autoinstall version
-# This is a very targeted approach; adjust the pattern if Canonical changes the text.
+# Parameters for the linux line
+if [ "$IS_1804" = true ]; then
+  # For 18.04 Legacy ISO, use standard preseed parameters
+  BOOT_PARAMS='file=/cdrom/preseed.cfg auto=true priority=critical console=ttyS0,115200n8 console=tty0 ---'
+else
+  BOOT_PARAMS='boot=casper autoinstall ds=nocloud;s=/cdrom/autoinstall/ console=ttyS0,115200n8 console=tty0 ---'
+fi
+
 python3 - <<PYEOF
 import re, pathlib
 
 path = pathlib.Path("$GRUB_CFG")
 txt = path.read_text()
 
-pattern = r'(menuentry "Try or Install Ubuntu Server" {[^}]+linux\s+/casper/vmlinuz)([^\n]*)(\n\s*initrd\s+/casper/initrd[^\n]*\n\s*})'
-repl = r'''menuentry "Auto Install Ubuntu Server" {
+# Parameters for the linux line
+# For GRUB, we need to escape the semicolon with a backslash
+boot_params = "${BOOT_PARAMS}".replace(";", "\\\\;")
+
+if "$IS_1804" == "true":
+    pattern = r'(menuentry "(Try or Install |Install )?Ubuntu Server" {[^}]+linux\s+/install/vmlinuz)([^\n]*)(\n\s*initrd\s+/install/initrd.gz[^\n]*\n\s*})'
+    repl = f'''menuentry "Auto Install Ubuntu Server" {{
+    set gfxpayload=keep
+    linux   /install/vmlinuz {boot_params}
+    initrd  /install/initrd.gz
+}}'''
+else:
+    pattern = r'(menuentry "(Try or Install |Install )?Ubuntu Server" {[^}]+linux\s+/casper/vmlinuz)([^\n]*)(\n\s*initrd\s+/casper/initrd[^\n]*\n\s*})'
+    repl = f'''menuentry "Auto Install Ubuntu Server" {{
     set gfxpayload=keep
     search --no-floppy --set=root --file /casper/vmlinuz
-    linux   /casper/vmlinuz autoinstall ds=nocloud\\;s=/cdrom/autoinstall/ --- quiet
+    linux   /casper/vmlinuz {boot_params}
     initrd  /casper/initrd
-}'''
-new_txt, n = re.subn(pattern, repl, txt, flags=re.MULTILINE)
+}}'''
+
+new_txt, n = re.subn(pattern, repl, txt, flags=re.MULTILINE | re.IGNORECASE)
 
 if n == 0:
     print("WARNING: Did not find expected menuentry; grub.cfg not modified.", flush=True)
@@ -189,67 +368,218 @@ new_txt = re.sub(r'^\s*grub_platform\s*$', '', new_txt, flags=re.MULTILINE)
 path.write_text(new_txt)
 PYEOF
 
+# Patch ISOLINUX configuration for BIOS autoinstall
+ISOLINUX_CFG_FILES=("./workdir_custom_iso/isolinux/txt.cfg" "./workdir_custom_iso/isolinux/adtxt.cfg")
+for cfg in "${ISOLINUX_CFG_FILES[@]}"; do
+    if [ -f "$cfg" ]; then
+        echo "[*] Patching ISOLINUX configuration in $cfg..."
+if [ "$IS_1804" = true ]; then
+  # Legacy parameters for 18.04 BIOS boot
+  BOOT_PARAMS='file=/cdrom/preseed.cfg auto=true priority=critical initrd=/install/initrd.gz console=ttyS0,115200n8 console=tty0'
+else
+  # For 20.04+ Autoinstall
+  BOOT_PARAMS='boot=casper autoinstall ds=nocloud;s=/cdrom/autoinstall/ initrd=/casper/initrd console=ttyS0,115200n8 console=tty0'
+fi
+
+python3 - <<PYEOF
+import re, pathlib
+path = pathlib.Path("$cfg")
+txt = path.read_text()
+
+boot_params = "${BOOT_PARAMS}"
+
+if "$IS_1804" == "true":
+    pattern = r'(label\s+install\s+.*?kernel\s+/install/vmlinuz\s+append\s+)(.*?)(\s+---)'
+else:
+    pattern = r'(label\s+live\s+.*?kernel\s+/casper/vmlinuz\s+append\s+)(.*?)(\s+---)'
+
+repl = rf'\1{boot_params} \3'
+
+new_txt, n = re.subn(pattern, repl, txt, flags=re.DOTALL | re.IGNORECASE)
+
+if n > 0:
+    print(f"Patched {n} labels in $cfg.")
+    path.write_text(new_txt)
+else:
+    # Generic fallback: search for ANY append line and inject
+    pattern2 = r'(append\s+)(.*?)(\s+---)'
+    repl2 = rf'\1{boot_params} \2 \3'
+    new_txt2, n2 = re.subn(pattern2, repl2, txt, flags=re.IGNORECASE)
+    if n2 > 0:
+        print(f"Patched {n2} append lines in $cfg using generic pattern.")
+        path.write_text(new_txt2)
+PYEOF
+    fi
+done
+
+echo "[*] Disabling interactive boot menu timeout for ISOLINUX..."
+if [ -f "$WORKDIR/isolinux/isolinux.cfg" ]; then
+    sed -i 's/^timeout.*/timeout 10/' "$WORKDIR/isolinux/isolinux.cfg" || true
+    sed -i 's/^prompt.*/prompt 0/' "$WORKDIR/isolinux/isolinux.cfg" || true
+fi
+
 echo "[*] Rebuilding ISO..."
 
 # Find the volume ID from original ISO (optional; can hardcode)
 VOLID=$(isoinfo -d -i "$ORIG_ISO" | awk -F': ' '/Volume id:/ {print $2}')
 VOLID=${VOLID:-UBUNTU_AUTOINSTALL}
 
-# Extract MBR from original ISO for hybrid boot compatibility
-echo "[*] Extracting MBR from original ISO..."
-MBR_FILE="/tmp/isohdpfx.bin"
-dd if="$ORIG_ISO" bs=1 count=432 of="$MBR_FILE" 2>/dev/null
+if [ "$IS_1804" = true ]; then
+  # IMPORTANT: Do NOT patch boot/grub/efi.img for 18.04!
+  # The original efi.img contains only BOOTx64.EFI and grubx64.efi (no grub.cfg).
+  # grubx64.efi has an embedded script that:
+  #   1. search --file --set=root /.disk/info  (finds the ISO9660 filesystem)
+  #   2. set prefix=($root)/boot/grub
+  #   3. source $prefix/x86_64-efi/grub.cfg   (loads partition module loader)
+  #   4. configfile /boot/grub/grub.cfg        (loads the real menu from ISO9660)
+  # Adding grub.cfg inside efi.img breaks this chain because GRUB would load
+  # the config in the EFI FAT partition context where /install/vmlinuz doesn't exist.
+  # The patched grub.cfg on the ISO9660 filesystem (/boot/grub/grub.cfg) is sufficient.
+  echo "[*] 18.04 Legacy ISO: using original efi.img (no modification needed)"
 
-# Try to use system isolinux MBR if available, otherwise use extracted one
-if [ -f "/usr/lib/ISOLINUX/isohdpfx.bin" ]; then
-  MBR_FILE="/usr/lib/ISOLINUX/isohdpfx.bin"
-elif [ -f "/usr/lib/syslinux/isohdpfx.bin" ]; then
-  MBR_FILE="/usr/lib/syslinux/isohdpfx.bin"
+  echo "[*] Modification is ok"
+  echo "[*] Generate customize ISO"
+
+  # Extract the isohybrid MBR from the original 18.04 ISO (first 432 bytes = MBR bootstrap code)
+  echo "[*] Extracting isohybrid MBR from original ISO..."
+  MBR_FILE="/tmp/isohdpfx_1804.bin"
+  dd if="$ORIG_ISO" bs=1 count=432 of="$MBR_FILE" 2>/dev/null
+  echo "[*] MBR extracted to: $MBR_FILE"
+
+  (
+    cd "$WORKDIR"
+    # Use the EXACT same xorriso parameters as the original 18.04 ISO reports
+    # (obtained via: xorriso -indev ubuntu-18.04.6-server-amd64.iso -report_el_torito as_mkisofs)
+    xorriso -as mkisofs \
+      -r \
+      -V "$VOLID" \
+      -J -l \
+      -isohybrid-mbr "$MBR_FILE" \
+      -partition_cyl_align on \
+      -partition_offset 0 \
+      -partition_hd_cyl 64 \
+      -partition_sec_hd 32 \
+      --mbr-force-bootable \
+      -apm-block-size 2048 \
+      -iso_mbr_part_type 0x00 \
+      -c isolinux/boot.cat \
+      -b isolinux/isolinux.bin \
+      -no-emul-boot \
+      -boot-load-size 4 \
+      -boot-info-table \
+      -eltorito-alt-boot \
+      -e boot/grub/efi.img \
+      -no-emul-boot \
+      -boot-load-size 4800 \
+      -isohybrid-gpt-basdat \
+      -isohybrid-apm-hfsplus \
+      -o "../$OUT_ISO" .
+  )
+
+else
+  # ---- 20.04+ Modern approach ----
+  echo "[*] 20.04+ Modern ISO: building external EFI partition..."
+
+  # Extract MBR from original ISO for hybrid boot compatibility
+  echo "[*] Extracting MBR from original ISO..."
+  MBR_FILE="/tmp/isohdpfx.bin"
+  dd if="$ORIG_ISO" bs=1 count=432 of="$MBR_FILE" 2>/dev/null
+
+  # Try to use system isolinux MBR if available, otherwise use extracted one
+  if [ -f "/usr/lib/ISOLINUX/isohdpfx.bin" ]; then
+    MBR_FILE="/usr/lib/ISOLINUX/isohdpfx.bin"
+  elif [ -f "/usr/lib/syslinux/isohdpfx.bin" ]; then
+    MBR_FILE="/usr/lib/syslinux/isohdpfx.bin"
+  fi
+  echo "[*] Using MBR file: $MBR_FILE"
+
+  # Create EFI boot image for GPT partition with GRUB modules and config
+  EFI_IMG="/tmp/efi.img"
+  echo "[*] Creating EFI boot image (64MB)..."
+  ( cd "$WORKDIR"
+    dd if=/dev/zero of="$EFI_IMG" bs=1M count=64 2>/dev/null
+    mkfs.vfat "$EFI_IMG" >/dev/null 2>&1
+    mmd -i "$EFI_IMG" ::/EFI ::/EFI/BOOT ::/boot ::/boot/grub
+
+    copy_file_robust() {
+      local src_pattern="$1"
+      local dest_path="$2"
+      local found_file
+      found_file=$(find . -iname "$src_pattern" 2>/dev/null | head -n 1)
+      if [ -n "$found_file" ]; then
+        echo "[*] Copying $found_file to $dest_path"
+        mcopy -v -i "$EFI_IMG" "$found_file" "$dest_path"
+      else
+        echo "[!] Warning: $src_pattern not found"
+      fi
+    }
+
+    copy_file_robust "bootx64.efi" "::/EFI/BOOT/bootx64.efi"
+    copy_file_robust "grubx64.efi" "::/EFI/BOOT/grubx64.efi"
+    copy_file_robust "mmx64.efi" "::/EFI/BOOT/mmx64.efi"
+
+    if [ -d "boot/grub" ]; then
+      echo "[*] Copying GRUB configuration and assets..."
+      find boot/grub -maxdepth 1 -type f -exec mcopy -i "$EFI_IMG" {} ::/boot/grub/ \;
+      if [ -f "boot/grub/grub.cfg" ]; then
+        mcopy -i "$EFI_IMG" boot/grub/grub.cfg ::/EFI/BOOT/grub.cfg
+      fi
+    fi
+
+    if [ -d "boot/grub/x86_64-efi" ]; then
+      echo "[*] Copying GRUB modules..."
+      mcopy -s -i "$EFI_IMG" boot/grub/x86_64-efi ::/boot/grub/
+    fi
+
+    if [ -d "boot/grub/fonts" ]; then
+      echo "[*] Copying GRUB fonts directory..."
+      mcopy -s -i "$EFI_IMG" boot/grub/fonts ::/boot/grub/
+    fi
+  )
+  echo "[*] EFI boot image created: $EFI_IMG"
+
+  echo "[*] Modification is ok"
+  echo "[*] Generate customize ISO"
+
+  # Find BIOS boot image
+  BIOS_BOOT_IMG=""
+  if [ -f "$WORKDIR/boot/grub/i386-pc/eltorito.img" ]; then
+    BIOS_BOOT_IMG="boot/grub/i386-pc/eltorito.img"
+  elif [ -f "$WORKDIR/isolinux/isolinux.bin" ]; then
+    BIOS_BOOT_IMG="isolinux/isolinux.bin"
+  fi
+
+  echo "[*] Using BIOS boot image: $BIOS_BOOT_IMG"
+
+  (
+    cd "$WORKDIR"
+    XORRISO_ARGS=(
+      -as mkisofs
+      -r
+      -V "$VOLID"
+      -J -l
+      -c boot.catalog
+      -no-emul-boot
+      -boot-load-size 4
+      -boot-info-table
+      -eltorito-alt-boot
+      -e --interval:appended_partition_2:all::
+      -no-emul-boot
+      -append_partition 2 0xEF "$EFI_IMG"
+      --grub2-mbr "$MBR_FILE"
+      -partition_offset 16
+      -appended_part_as_gpt
+      -iso_mbr_part_type a2a0d0ebe5b9334487c068b6b72699c7
+      -o "../$OUT_ISO" .
+    )
+
+    if [ -n "$BIOS_BOOT_IMG" ]; then
+      xorriso "${XORRISO_ARGS[@]:0:5}" -b "$BIOS_BOOT_IMG" "${XORRISO_ARGS[@]:5}"
+    else
+      xorriso "${XORRISO_ARGS[@]}"
+    fi
+  )
+
 fi
-echo "[*] Using MBR file: $MBR_FILE"
-
-echo "[*] Creating EFI boot image..."
-# Create EFI boot image for GPT partition with GRUB modules and config
-EFI_IMG="/tmp/efi.img"
-( cd "$WORKDIR" && \
-  dd if=/dev/zero of="$EFI_IMG" bs=1M count=20 2>/dev/null && \
-  mkfs.vfat "$EFI_IMG" >/dev/null 2>&1 && \
-  mmd -i "$EFI_IMG" ::/EFI ::/EFI/boot ::/boot ::/boot/grub && \
-  mcopy -i "$EFI_IMG" EFI/boot/bootx64.efi ::/EFI/boot/ && \
-  mcopy -i "$EFI_IMG" EFI/boot/grubx64.efi ::/EFI/boot/ && \
-  mcopy -i "$EFI_IMG" EFI/boot/mmx64.efi ::/EFI/boot/ && \
-  mcopy -i "$EFI_IMG" boot/grub/grub.cfg ::/boot/grub/ && \
-  mcopy -s -i "$EFI_IMG" boot/grub/x86_64-efi ::/boot/grub/ && \
-  mcopy -s -i "$EFI_IMG" boot/grub/fonts ::/boot/grub/ 2>/dev/null
-)
-echo "[*] EFI boot image created: $EFI_IMG"
-
-echo "[*] Modification is ok"
-echo "[*] Generate customize ISO"
-
-(
-  cd "$WORKDIR"
-
-  xorriso -as mkisofs \
-    -r \
-    -V "$VOLID" \
-    -J -l \
-    -b boot/grub/i386-pc/eltorito.img \
-    -c boot.catalog \
-    -no-emul-boot \
-    -boot-load-size 4 \
-    -boot-info-table \
-    -eltorito-alt-boot \
-    -e --interval:appended_partition_2:all:: \
-    -no-emul-boot \
-    -append_partition 2 0xEF "$EFI_IMG" \
-    --grub2-mbr "$MBR_FILE" \
-    -partition_offset 16 \
-    -appended_part_as_gpt \
-    -iso_mbr_part_type a2a0d0ebe5b9334487c068b6b72699c7 \
-    -o "../$OUT_ISO" .
-)
 
 echo "[*] Done. Autoinstall ISO created at: $OUT_ISO"
-# sed -n '1,80p' "$WORKDIR/autoinstall/user-data"
-# sed -n '1,40p' "$WORKDIR/boot/grub/grub.cfg"

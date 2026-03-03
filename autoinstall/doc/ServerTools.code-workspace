@@ -1,0 +1,18 @@
+{
+	"folders": [
+		{
+			"path": "../../../../../ServerTools"
+		},
+		{
+			"path": "../../../../Self_Study"
+		},
+		{
+			"path": "../.."
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"*.nsh": "bat"
+		}
+	}
+}

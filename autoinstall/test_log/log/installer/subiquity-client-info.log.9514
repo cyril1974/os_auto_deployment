@@ -1,0 +1,5 @@
+2026-02-24 06:39:29,533 INFO subiquity:118 Starting Subiquity revision 2651
+2026-02-24 06:39:29,533 INFO subiquity:119 Arguments passed: ['/snap/subiquity/2651/usr/bin/subiquity']
+2026-02-24 06:39:32,773 INFO subiquity/Serial:100 start: starting UI
+2026-02-24 06:39:32,774 INFO subiquity/Serial:105 finish: (skipped) SUCCESS
+2026-02-24 06:39:32,774 INFO subiquity/Welcome:100 start: starting UI

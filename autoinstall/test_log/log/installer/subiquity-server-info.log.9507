@@ -1,0 +1,97 @@
+2026-02-24 06:39:29,735 INFO subiquity:102 Starting Subiquity server revision 2651
+2026-02-24 06:39:29,736 INFO subiquity:103 Arguments passed: ['/snap/subiquity/2651/usr/bin/subiquity-server']
+2026-02-24 06:39:30,550 INFO aiohttp.access:206  [24/Feb/2026:06:39:30 +0000] "GET /meta/status HTTP/1.1" 200 425 "-" "Python/3.6 aiohttp/3.7.4.post0"
+2026-02-24 06:39:32,643 INFO root:39 start: subiquity/apply_autoinstall_config: 
+2026-02-24 06:39:32,702 INFO root:39 finish: subiquity/apply_autoinstall_config: SUCCESS: 
+2026-02-24 06:39:32,703 INFO root:39 finish: subiquity/Meta/status_GET: SUCCESS: 200 {"state": "WAITING", "confirming_tty": "", "error": null, "cloud_init_ok": tr...
+2026-02-24 06:39:32,704 INFO aiohttp.access:206  [24/Feb/2026:06:39:30 +0000] "GET /meta/status?cur=%22CLOUD_INIT_WAIT%22 HTTP/1.1" 200 417 "-" "Python/3.6 aiohttp/3.7.4.post0"
+2026-02-24 06:39:32,745 ERROR root:39 finish: subiquity/Refresh/check_for_update: FAIL: cancelled
+2026-02-24 06:39:32,763 INFO root:39 start: subiquity/Meta/status_GET: 
+2026-02-24 06:39:32,766 INFO root:39 finish: subiquity/Meta/status_GET: SUCCESS: 200 {"state": "WAITING", "confirming_tty": "", "error": null, "cloud_init_ok": tr...
+2026-02-24 06:39:32,767 INFO aiohttp.access:206  [24/Feb/2026:06:39:32 +0000] "GET /meta/status?cur=null HTTP/1.1" 200 417 "-" "Python/3.6 aiohttp/3.7.4.post0"
+2026-02-24 06:39:32,769 INFO root:39 start: subiquity/Meta/client_variant_POST: 
+2026-02-24 06:39:32,771 INFO root:39 finish: subiquity/Meta/client_variant_POST: SUCCESS: 200 null
+2026-02-24 06:39:32,772 INFO aiohttp.access:206  [24/Feb/2026:06:39:32 +0000] "POST /meta/client_variant?variant=%22server%22 HTTP/1.1" 200 195 "-" "Python/3.6 aiohttp/3.7.4.post0"
+2026-02-24 06:39:32,773 INFO root:39 start: subiquity/Meta/status_GET: 
+2026-02-24 06:39:32,781 INFO aiohttp.access:206  [24/Feb/2026:06:39:32 +0000] "GET /locale HTTP/1.1" 200 200 "-" "Python/3.6 aiohttp/3.7.4.post0"
+2026-02-24 06:39:33,051 INFO probert.lvm:120 b'  1 logical volume(s) in volume group "ubuntu-vg" now active\n'
+2026-02-24 06:39:33,200 ERROR probert.multipath:38 Failed to run cmd: ['multipathd', 'show', 'maps', 'raw', 'format', '%w,%d,%N']
+2026-02-24 06:39:33,212 ERROR probert.multipath:38 Failed to run cmd: ['multipathd', 'show', 'paths', 'raw', 'format', '%d,%z,%m,%N,%n,%R,%r,%a']
+2026-02-24 06:39:34,149 INFO curtin:1320 Validating extracted storage config components
+2026-02-24 06:40:12,769 ERROR subiquity.server.controllers.snaplist:80 loading list of snaps failed
+Traceback (most recent call last):
+  File "/snap/subiquity/2651/lib/python3.6/site-packages/subiquity/server/controllers/snaplist.py", line 78, in _load_list
+    'v2/find', section=self.store_section)
+  File "/snap/subiquity/2651/lib/python3.6/site-packages/subiquitycore/snapd.py", line 180, in get
+    response.raise_for_status()
+  File "/snap/subiquity/2651/usr/lib/python3/dist-packages/requests/models.py", line 935, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 400 Client Error: Bad Request for url: http+unix://%2Frun%2Fsnapd.socket/v2/find?section=server
+2026-02-24 06:40:47,244 ERROR subiquity.server.controllers.refresh:173 checking for snap update failed
+Traceback (most recent call last):
+  File "/snap/subiquity/2651/lib/python3.6/site-packages/subiquity/server/controllers/refresh.py", line 171, in check_for_update
+    result = await self.app.snapd.get('v2/find', select='refresh')
+  File "/snap/subiquity/2651/lib/python3.6/site-packages/subiquitycore/snapd.py", line 180, in get
+    response.raise_for_status()
+  File "/snap/subiquity/2651/usr/lib/python3/dist-packages/requests/models.py", line 935, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: http+unix://%2Frun%2Fsnapd.socket/v2/find?select=refresh
+2026-02-24 06:40:52,430 INFO root:39 start: subiquity/Meta/ssh_info_GET: 
+2026-02-24 06:40:52,432 INFO root:39 finish: subiquity/Meta/ssh_info_GET: SUCCESS: 200 null
+2026-02-24 06:40:52,433 INFO aiohttp.access:206  [24/Feb/2026:06:40:52 +0000] "GET /meta/ssh_info HTTP/1.1" 200 195 "-" "Python/3.6 aiohttp/3.7.4.post0"
+2026-02-24 06:43:53,549 ERROR subiquity.common.geoip:69 geoip lookup failed
+Traceback (most recent call last):
+  File "/snap/subiquity/2651/usr/lib/python3/dist-packages/urllib3/connection.py", line 144, in _new_conn
+    (self.host, self.port), self.timeout, **extra_kw)
+  File "/snap/subiquity/2651/usr/lib/python3/dist-packages/urllib3/util/connection.py", line 83, in create_connection
+    raise err
+  File "/snap/subiquity/2651/usr/lib/python3/dist-packages/urllib3/util/connection.py", line 73, in create_connection
+    sock.connect(sa)
+TimeoutError: [Errno 110] Connection timed out
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/snap/subiquity/2651/usr/lib/python3/dist-packages/urllib3/connectionpool.py", line 601, in urlopen
+    chunked=chunked)
+  File "/snap/subiquity/2651/usr/lib/python3/dist-packages/urllib3/connectionpool.py", line 346, in _make_request
+    self._validate_conn(conn)
+  File "/snap/subiquity/2651/usr/lib/python3/dist-packages/urllib3/connectionpool.py", line 852, in _validate_conn
+    conn.connect()
+  File "/snap/subiquity/2651/usr/lib/python3/dist-packages/urllib3/connection.py", line 298, in connect
+    conn = self._new_conn()
+  File "/snap/subiquity/2651/usr/lib/python3/dist-packages/urllib3/connection.py", line 153, in _new_conn
+    self, "Failed to establish a new connection: %s" % e)
+urllib3.exceptions.NewConnectionError: <urllib3.connection.VerifiedHTTPSConnection object at 0x7fc392af31d0>: Failed to establish a new connection: [Errno 110] Connection timed out
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/snap/subiquity/2651/usr/lib/python3/dist-packages/requests/adapters.py", line 440, in send
+    timeout=timeout
+  File "/snap/subiquity/2651/usr/lib/python3/dist-packages/urllib3/connectionpool.py", line 639, in urlopen
+    _stacktrace=sys.exc_info()[2])
+  File "/snap/subiquity/2651/usr/lib/python3/dist-packages/urllib3/util/retry.py", line 398, in increment
+    raise MaxRetryError(_pool, url, error or ResponseError(cause))
+urllib3.exceptions.MaxRetryError: HTTPSConnectionPool(host='geoip.ubuntu.com', port=443): Max retries exceeded with url: /lookup (Caused by NewConnectionError('<urllib3.connection.VerifiedHTTPSConnection object at 0x7fc392af31d0>: Failed to establish a new connection: [Errno 110] Connection timed out',))
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/snap/subiquity/2651/lib/python3.6/site-packages/subiquity/server/geoip.py", line 66, in _lookup
+    requests.get, "https://geoip.ubuntu.com/lookup")
+  File "/snap/subiquity/2651/lib/python3.6/site-packages/subiquitycore/async_helpers.py", line 46, in run_in_thread
+    return await loop.run_in_executor(None, func, *args)
+  File "/snap/subiquity/2651/usr/lib/python3.6/concurrent/futures/thread.py", line 56, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/snap/subiquity/2651/usr/lib/python3/dist-packages/requests/api.py", line 72, in get
+    return request('get', url, params=params, **kwargs)
+  File "/snap/subiquity/2651/usr/lib/python3/dist-packages/requests/api.py", line 58, in request
+    return session.request(method=method, url=url, **kwargs)
+  File "/snap/subiquity/2651/usr/lib/python3/dist-packages/requests/sessions.py", line 520, in request
+    resp = self.send(prep, **send_kwargs)
+  File "/snap/subiquity/2651/usr/lib/python3/dist-packages/requests/sessions.py", line 630, in send
+    r = adapter.send(request, **kwargs)
+  File "/snap/subiquity/2651/usr/lib/python3/dist-packages/requests/adapters.py", line 508, in send
+    raise ConnectionError(e, request=request)
+requests.exceptions.ConnectionError: HTTPSConnectionPool(host='geoip.ubuntu.com', port=443): Max retries exceeded with url: /lookup (Caused by NewConnectionError('<urllib3.connection.VerifiedHTTPSConnection object at 0x7fc392af31d0>: Failed to establish a new connection: [Errno 110] Connection timed out',))

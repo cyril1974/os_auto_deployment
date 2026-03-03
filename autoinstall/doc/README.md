@@ -10,6 +10,21 @@ This directory contains comprehensive documentation for the Ubuntu Autoinstall I
 2. **[Workflow](02_workflow.md)** - Build process flow, installation workflow, and error handling
 3. **[Development Progress](03_development_progress.md)** - Project timeline, bug fixes, and feature status
 4. **[Debugging Guide](04_debugging_guide.md)** - Troubleshooting, common issues, and solutions
+5. **[Build Script Modification](05_build_script_modification.md)** - OS name lookup functionality and JSON integration
+6. **[Ubuntu 18.04 Compatibility](06_ubuntu_18_04_compatibility.md)** - General overview
+7. **[Preseed Implementation Plan](07_preseed_implementation_plan.md)** - Architectural plan for 18.04
+8. **[UEFI Boot Fix](08_uefi_boot_fix.md)** - Solving EFI path/casing issues
+9. **[BIOS Boot Image Detection](09_bios_boot_image_detection.md)** - Dynamic loader discovery
+10. **[GRUB Font Loading Fix](10_grub_font_loading_fix.md)** - Resolving missing font errors
+11. **[Kernel Boot Parameter Fix](11_kernel_boot_parameter_fix.md)** - Setting `boot=casper`
+12. **[ISOLINUX Patching (BIOS)](12_isolinux_patching_bios.md)** - Legacy bootloader customization
+13. **[Preseed Support (18.04)](13_preseed_support_18_04.md)** - Legacy automation details
+14. **[Legacy 18.04 Boot Fixes](14_legacy_18_04_boot_fixes.md)** - Debugging and resolving boot failures with 18.04 unattended installations
+15. **[ISO Comparison & EFI Boot Fix](15_iso_comparison_and_efi_boot_fix.md)** - Deep ISO comparison, UEFI boot chain analysis, and three rounds of boot failure resolution
+
+### Change Log
+
+- **[Change Log](change_log.md)** - Detailed record of all project changes and modifications
 
 ## Quick Links
 
@@ -78,6 +93,11 @@ When updating documentation:
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0 | 2026-02-10 | Initial documentation release |
+| 1.1 | 2026-02-10 | Added OS name lookup functionality |
+| 1.2 | 2026-02-23 | Added Ubuntu 18.04 compatibility fixes |
+| 1.3 | 2026-02-24 | Added Preseed implementation plan for 18.04 |
+| 1.4 | 2026-02-24 | Added Legacy 18.04 boot fixes documentation |
+| 1.5 | 2026-02-25 | Added ISO comparison & EFI boot fix analysis, change log |
 
 ## Support
 
