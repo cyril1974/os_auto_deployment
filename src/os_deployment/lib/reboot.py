@@ -4,7 +4,7 @@ import json
 import urllib3
 import urllib3.exceptions
 
-import mcup_deployer.lib.state_manager as state_manager
+import os_deployment.lib.state_manager as state_manager
 from . import auth
 from . import utils
 

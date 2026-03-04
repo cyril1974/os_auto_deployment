@@ -16,7 +16,7 @@ from .lib import reboot
 # from .lib import utility_mount
 from .lib import utils
 from .lib import auth
-# from .lib import constants
+from .lib import constants
 from .lib import generation
 
 
@@ -164,7 +164,7 @@ def main():
     
     # Execute the build script with sudo (requires root for apt and ISO operations)
     try:
-        print(f"[{utils.formatted_time()}] Executing: sudo {build_script} {os} {osuser} ****")
+        print(f"[{utils.formatted_time()}] Executing: sudo {build_script.name} {os} {osuser} ****")
         result = subprocess.run(
             ["sudo", str(build_script), os, osuser, ospasswd],
             cwd=str(script_dir),
@@ -295,14 +295,13 @@ def main():
         print(f"FAIL {e}")
         sys.exit(f"Remote Mount Image {mount_path} FAIL !! Exit")    
     
-    sys.exit("DEBUG!!!")
        
     ## Reboot to CD-ROM ##
     from_timestamp  = 0 
     if not no_reboot:
         print(f"[{utils.formatted_time()}] Ready to Reboot Target Server ({bmcip}) .....")
         #try:
-        from_datetime = reboot.reboot_cdrom(target,config_json)
+        from_datetime = reboot.reboot_cdrom(bmcip,config_json)
         print(f"[{utils.formatted_time()}] Return TimeStamp after reboot {from_datetime}") 
         if from_datetime is None:
             raise RuntimeError("Reboot Server Fail (TimeOut)")
@@ -315,7 +314,7 @@ def main():
     is_complete = False
     
     if from_timestamp is None or int(from_timestamp) <= 0:
-        from_timestamp = current_timestamp = int(utils.getTargetBMCDateTime(target,auth_string)["data"]["timestamp"])
+        from_timestamp = current_timestamp = int(utils.getTargetBMCDateTime(bmcip,auth_string)["data"]["timestamp"])
     stop_timestamp = from_timestamp + constants.PROCESS_TIMEOUT
     current_timestamp = from_timestamp
     # print(f"From TimeStamp : {from_timestamp} , Date Time String {datetime.fromtimestamp(from_timestamp).strftime('%Y-%m-%d %H:%M:%S')}")
@@ -326,75 +325,22 @@ def main():
     cpld_log_got = False
     sup_updating_reboot = False
     last_log_id = ""
-    reboot.set_boot_cdrom(target,auth_string)
+    reboot.set_boot_cdrom(bmcip,auth_string)
     print(f"[{utils.formatted_time()}] Get Event Log From Timestamp {datetime.fromtimestamp(from_timestamp).isoformat()} ({from_timestamp})")
-    # sys.exit("DEBUG")
+    
     while not is_complete and current_timestamp < stop_timestamp:
         # print(f"[{datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')}] Check Redfish API...")
-        if utils.check_redfish_api(target,auth_string): 
+        if utils.check_redfish_api(bmcip,auth_string): 
             # print(f"[{datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')}]Redfish API is available")
-            if utils.reboot_detect(target,auth_string,current_timestamp):
-               
-                bmcDateTime = utils.getTargetBMCDateTime(target,auth_string)
-                waitfromtime = int(bmcDateTime["data"]["timestamp"])
-                waitfromtimestring = bmcDateTime["data"]["string"]
-                print(f"[{waitfromtimestring}] Server Automatically Reboot is detected , wait for reboot complete...")
-                returnData = utils.wait_for_reboot(target,auth_string,waitfromtime)
-                current_timestamp = int(datetime.fromisoformat(returnData["booted_time"]).timestamp())
-                mount_loss = False
-                if cpld_updating:
-                    support_category = constants.VERSION_GET_API.keys()
-                    updated_ver_info = {cate: utils.get_version(target, auth_string, cate) for cate in support_category}
-                    utils.print_message(target,auth_string,"Print Updated Versions")
-                    print("Updated Version :")
-                    print(utils.print_board_version(updated_ver_info))
-                data_check_inband = utils.check_mount_status(target,auth_string,constants.INBAND_MEDIA,allData=True)
-                if data_check_inband  and "Inserted" in data_check_inband and data_check_inband["Inserted"]==False:
-                    mount_loss = True
-                    size = data_check_inband["Oem"]["OpenBMC"]["ImageSize"]
-                    print("Utility Mount is Loss !!")
-                    print(f"ImageSize : {size}")
-                    print(f"Mount Image Again...",end="")
-                    if int(size) > 128:
-                        print("(Mount Only !!)")
-                        utility_mount.mount_ivm(target,auth_string)
-                    else:
-                        print("(Create Image and Mount !!)")
-                        if cpld_updating:
-                            utility_mount.mount_utility(target,config_json,option="sup_updated") 
-                        elif  bios_updating:
-                            utility_mount.mount_utility(target,config_json,option="bios_updated")   
-                        else:
-                            utility_mount.mount_utility(target,config_json)    
-                
-                cpld_updating = False if cpld_updating else cpld_updating
-                bios_updating = False if bios_updating else bios_updating
-                bmc_updating = False if bmc_updating else bmc_updating
-                rot_updating = False if rot_updating else rot_updating
-                if utils.check_mount_status(target,auth_string,use_endpoint) == False:
-                    mount_loss = True
-                    print("Image Mount is Loss !!")
-                    print(f"Mount Image Again...")
-                    # utils.umount_media(target,auth_string,use_endpoint)
-                    remote_mount.mount_image(mount_path,target,config_json)
-               
-                if mount_loss:
-                    reboot_datetime = reboot.reboot_cdrom(target,config_json)     
-                else:
-                    reboot.set_boot_cdrom(target,auth_string)
-                    reboot_datetime = utils.getTargetBMCDateTime(target,auth_string)["data"]["string"]
-                current_timestamp = int(datetime.fromisoformat(reboot_datetime).timestamp())    
+            if utils.reboot_detect(bmcip,auth_string,current_timestamp):
+               pass
             
-            result = utils.getSystemEventLog(target,auth_string,from_timestamp)
+            result = utils.getSystemEventLog(bmcip,auth_string,from_timestamp)
             export = utils.filter_custom_event(result)
             # print(f"Get {len(result)} Event Log from {from_timestamp}")
             # print(f"Export {len(export)} Event Log from {from_timestamp}")
             # print(f"{export}")
             check_power_restore = utils.filter_message_event(result,constants.POWER_RESTORE_EVENT)
-            if sup_updating and len(check_power_restore) > 0:
-                eventTime = check_power_restore[0]["Created"][:19]
-                eventString = "Server is Reboot OK ... Board Firmware Update Complete"
-                sup_updating = False
             currentID =last_log_id 
             for item in export:
                 # if int(item["Id"]) >last_log_id:
@@ -436,8 +382,6 @@ def main():
                     
             last_log_id = currentID   
         else:
-            if sup_updating:
-               sup_updating_reboot = True  
             current_time_string = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
             print(f"[{current_time_string}] Server is Unavailable ... (Unable to connect to BMC)")    
             sleep(5)        

@@ -30,3 +30,6 @@ __pycache__/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Runtime configuration (contains environment-specific values)
+config.json

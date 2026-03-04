@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "os_deployment"
+version = "0.0.1"
+description = "Automatically Deploy OS  to Server"
+authors = ["Cyril Chang <cyril1974.chang@mic.com.tw>"]
+readme = "README.md"
+packages = [{include = "os_deployment", from = "src"}]
+
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+[tool.poetry.dependencies]
+python = ">=3.9,<4.0"
+typer = "^0.9.0"        # for building a CLI
+requests = "^2.32.3"
+aiohttp = "^3.11.18"
+
+[tool.poetry.scripts]
+os-deploy = "os_deployment.main:main"
+

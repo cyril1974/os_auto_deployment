@@ -133,7 +133,7 @@ fi
 
 # Get OS name from first argument
 OS_NAME="${1:-ubuntu-22.04.5-live-server-amd64}"
-USERNAME="${2:-admin}"
+USERNAME="${2:-autoinstall}"
 PASSWORD="${3:-ubuntu}"
 
 # Detect if it's Ubuntu 18.04
