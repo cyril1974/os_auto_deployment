@@ -37,3 +37,4 @@ config.json
 # UEFI utility binaries (not needed in repo)
 src/os_deployment/lib/uefi_utility/
 src/os_deployment/lib/uefi_utility.zip
+src/os_deployment/lib/utility_mount.py
