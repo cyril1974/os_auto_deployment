@@ -374,12 +374,7 @@ def main():
                         
                         is_complete = True  
                     print(f"[{eventTime}] {eventString}")
-                currentID = item["Id"]
-                if cpld_updating and not cpld_log_got:
-                    utils.print_message(target,auth_string,"Collect Logs Before CPLD update force reboot...")
-                    result = utils.log_collect(target,auth_string,constants.DEFAULT_LOG_PATH,local_path=LOG_SAVE_LOCAL_PATH)
-                    cpld_log_got = result
-                    
+                currentID = item["Id"]      
             last_log_id = currentID   
         else:
             current_time_string = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
