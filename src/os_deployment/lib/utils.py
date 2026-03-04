@@ -8,7 +8,6 @@ import zipfile
 # from . import auth
 from . import constants
 from . import redfish
-from . import utility_mount
 import os_deployment.lib.state_manager as state_manager
 from time import sleep
 from datetime import datetime, timezone

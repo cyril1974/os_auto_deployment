@@ -4,7 +4,6 @@ import urllib3.exceptions
 # from . import auth
 from . import constants
 from . import redfish
-from . import utility_mount
 from . import utils
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)

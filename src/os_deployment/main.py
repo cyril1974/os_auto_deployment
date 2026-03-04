@@ -74,7 +74,7 @@ def main():
     parser.add_argument("-BP","--bmcpasswd",help="BMC Login Password")
     parser.add_argument("-N","--nfsip", required=True, help="NFS IP (NFS information should be defined in config.json)")
     parser.add_argument("-O","--os", required=True, help="Specific OS ISO Name (Support Ubuntu Only)")
-    parser.add_argument("-OU","--osuser", default="admin",help="Specific OS Login User")
+    parser.add_argument("-OU","--osuser", default="autoinstall",help="Specific OS Login User")
     parser.add_argument("-OP","--ospasswd", default="ubuntu",help="Specific OS Login Password")
     parser.add_argument(
         "-c", "--config", default="config.json",
@@ -380,7 +380,7 @@ def main():
             current_time_string = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
             print(f"[{current_time_string}] Server is Unavailable ... (Unable to connect to BMC)")    
             sleep(5)        
-            
+        current_timestamp = int(utils.getTargetBMCDateTime(bmcip,auth_string)["data"]["timestamp"])    
     
 if __name__ == "__main__":
     main()    

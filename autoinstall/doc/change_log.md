@@ -2,6 +2,100 @@
 
 ---
 
+## 2026-03-04: Fix Ubuntu 22.04 Autoinstall Boot Errors and Add BMC SEL Logging
+
+**File:** `build-ubuntu-autoinstall-iso.sh`
+
+---
+
+### 1. Fix: Schema Validation Error — `updates: none` Invalid
+
+**Symptom:** ISO boot failed immediately with:
+```
+finish: subiquity/Updates/load_autoinstall_data: 'none' is not one of ['security', 'all']
+Failed validating 'enum' in schema
+```
+
+**Root Cause:** Ubuntu 22.04's Subiquity autoinstall schema only accepts `security` or `all` for the `updates` field. The previous value `none` was invalid.
+
+**Fix:** Changed `updates: none` → `updates: security`
+
+---
+
+### 2. Fix: openssh-server Installation Failure (Exit Code 100)
+
+**Symptom:** Installation progressed but failed at:
+```
+install_openssh-server/cmd-system-install: curtin command system-install
+'openssh-server'] returned non-zero exit status 100
+```
+
+**Root Cause:** The `updates: security` setting caused Subiquity to configure online security repos. When the target server had no internet access, apt's state became broken, preventing even ISO-bundled packages (`pool/main/o/openssh/openssh-server_8.9p1-3ubuntu0.1_amd64.deb`) from being installed.
+
+**Fix:** Added `apt` section to autoinstall `user-data`:
+```yaml
+apt:
+  fallback: offline-install
+  geoip: false
+```
+
+Also made `apt-get update` in `late-commands` non-fatal: `apt-get update || true`
+
+---
+
+### 3. Fix: Installation Stuck at Unattended Security Upgrades
+
+**Symptom:** Installation hung indefinitely at:
+```
+run_unattended_upgrades: downloading and installing security updates
+run_unattended_upgrades/cmd-in-target: curtin command in-target
+```
+
+**Root Cause:** `updates: security` triggered the `run_unattended_upgrades` step which attempted to download security updates from the internet. With no or slow network, this step hung indefinitely.
+
+**Fix:** Set the apt security source URI to empty, so there are no security mirrors to download from:
+```yaml
+apt:
+  security:
+    - arches: [amd64, i386]
+      uri: ""
+```
+This satisfies the `updates: security` schema requirement while effectively disabling security update downloads.
+
+---
+
+### 4. Feature: BMC SEL Logging for OS Installation Events
+
+**Change:** Added IPMI-based System Event Log (SEL) entries to track OS installation lifecycle via the BMC.
+
+**Implementation:**
+- **`early-commands`** (before install): Loads IPMI kernel modules (`ipmi_devintf`, `ipmi_si`, `ipmi_msghandler`), installs `ipmitool`, and writes a **"OS Installation Starting"** SEL entry
+- **`late-commands`** (after install): Writes an **"OS Installation Completed"** SEL entry
+
+**SEL Entry Details:**
+- Uses IPMI "Add SEL Entry" command (`NetFn=0x0a, Cmd=0x44`)
+- Record Type: `0x02` (System Event)
+- Sensor Type: `0x1F` (OS Boot)
+- Event Data: `0x01` = Starting, `0x02` = Completed
+
+**Safety:** All IPMI commands use `2>/dev/null || true` to never block the installation if IPMI is unavailable.
+
+---
+
+### Summary of All File Changes (2026-03-04)
+
+| File | Change Type | Description |
+|------|-------------|-------------|
+| `build-ubuntu-autoinstall-iso.sh` | Modified | Fix `updates: none` → `updates: security` (schema validation) |
+| `build-ubuntu-autoinstall-iso.sh` | Modified | Add `apt: fallback: offline-install` for offline package installation |
+| `build-ubuntu-autoinstall-iso.sh` | Modified | Disable security update downloads via empty security URI |
+| `build-ubuntu-autoinstall-iso.sh` | Modified | Add `early-commands` with BMC SEL "Installation Starting" entry |
+| `build-ubuntu-autoinstall-iso.sh` | Modified | Add BMC SEL "Installation Completed" entry to `late-commands` |
+| `build-ubuntu-autoinstall-iso.sh` | Modified | Make `apt-get update` in `late-commands` non-fatal |
+| `doc/change_log.md` | Modified | Document all changes |
+
+---
+
 ## 2026-02-10: Create ISO Repository File List Generator
 
 **Files:** `generate_file_list.py` (New), `iso_repository/file_list.json` (New)
