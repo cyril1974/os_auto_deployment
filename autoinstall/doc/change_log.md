@@ -2,6 +2,49 @@
 
 ---
 
+## 2026-03-07: Fix Cross-version apt Isolation for ipmitool Package Download
+
+**File:** `build-ubuntu-autoinstall-iso.sh`
+
+---
+
+### Problem Description
+
+When the build machine runs a **different Ubuntu version** than the target ISO, the `download_ipmitool_packages()` function fails to download the correct packages.
+
+**Observed failure:** Build machine running **Ubuntu 25.04 (plucky)**, building ISO for **Ubuntu 22.04 (jammy)**:
+```
+E: Can't find a source to download version '1.8.19-7.1ubuntu0.2' of 'ipmitool:amd64'
+Resolved dependencies: init-system-helpers libc6 libfreeipmi17 libreadline8t64 libssl3t64
+```
+
+**Root cause:** `apt` was reading the **host system's** `/var/lib/dpkg/status`, which caused:
+1. `apt-get download ipmitool` tried to download plucky's version (`1.8.19`) from the jammy repo (doesn't exist there — jammy has `1.8.18`)
+2. `apt-cache depends` resolved plucky dependency names (`libreadline8t64`, `libssl3t64`) instead of jammy ones (`libreadline8`, `libssl3`)
+
+---
+
+### Fix
+
+| Change | Purpose |
+|---|---|
+| `touch "$apt_state/status"` | Creates **empty** dpkg status file so apt thinks no packages are installed |
+| `-o Dir::State::status="$apt_state/status"` | Explicitly points apt to the empty file instead of host's `/var/lib/dpkg/status` |
+| `-t "${codename}"` flag on `apt-get download` | Forces package resolution from the **target release** (e.g., jammy), not the host |
+| `APT_OPTS` array | Consolidates all isolation options into a reusable array for consistency |
+
+### Result
+
+The build machine can now run **any** Ubuntu version and correctly download packages for **any** target release:
+
+```
+Build Machine (plucky)  →  Target ISO (jammy)  →  Downloads ipmitool 1.8.18 + jammy deps  ✅
+Build Machine (plucky)  →  Target ISO (noble)  →  Downloads ipmitool 1.8.19 + noble deps  ✅
+Build Machine (jammy)   →  Target ISO (noble)  →  Downloads ipmitool 1.8.19 + noble deps  ✅
+```
+
+---
+
 ## 2026-03-07: Bundle ipmitool Packages into ISO for Offline Early-commands Installation
 
 **File:** `build-ubuntu-autoinstall-iso.sh`
