@@ -160,21 +160,17 @@ download_ipmitool_packages() {
     echo "[*] Downloading ipmitool packages for Ubuntu ${codename}..."
     mkdir -p "$extra_pool"
 
-    # ipmitool dependencies (common across Ubuntu 20.04-25.04):
-    #   ipmitool, freeipmi-common, libfreeipmi17, libopenipmi0,
-    #   libsensors-config, libsensors5, libsnmp-base, libsnmp40, openipmi
-    #
-    # Note: Package names may vary between Ubuntu versions:
+    # ipmitool dependencies vary between Ubuntu versions due to ABI transitions:
     #   - Ubuntu 20.04 (focal): libsnmp35, libopenipmi0
     #   - Ubuntu 22.04 (jammy): libsnmp40, libopenipmi0
     #   - Ubuntu 24.04 (noble): libsnmp40t64, libopenipmi0t64, libfreeipmi17t64
-    #   - Ubuntu 25.04 (plucky): similar to 24.04 (t64 transition)
     #
-    # We use apt-get download with a temporary sources config pointing to
-    # the target version's archive, so apt resolves the correct package names
-    # and versions automatically.
+    # IMPORTANT: The build machine may run a different Ubuntu version than the target.
+    # We must fully isolate apt from the host's dpkg status database, otherwise
+    # apt will try to download the HOST's package versions from the TARGET's repo.
+    # (e.g., trying to find plucky's ipmitool 1.8.19 in the jammy repo → fails)
 
-    # Create a temporary apt configuration for the target codename
+    # Create a fully isolated temporary apt environment
     local apt_conf_dir
     apt_conf_dir="$(mktemp -d)"
     local apt_sources="$apt_conf_dir/sources.list"
@@ -184,6 +180,11 @@ download_ipmitool_packages() {
 
     mkdir -p "$apt_cache/archives/partial" "$apt_state/lists/partial" "$apt_etc/apt.conf.d" "$apt_etc/preferences.d" "$apt_etc/trusted.gpg.d"
 
+    # Create EMPTY dpkg status file — this is critical!
+    # Without this, apt reads the HOST's /var/lib/dpkg/status and resolves
+    # packages based on the host's installed versions, not the target's.
+    touch "$apt_state/status"
+
     # Copy trusted GPG keys from the host system
     if [ -d /etc/apt/trusted.gpg.d ]; then
         cp /etc/apt/trusted.gpg.d/*.gpg "$apt_etc/trusted.gpg.d/" 2>/dev/null || true
@@ -191,6 +192,16 @@ download_ipmitool_packages() {
     if [ -f /etc/apt/trusted.gpg ]; then
         cp /etc/apt/trusted.gpg "$apt_etc/" 2>/dev/null || true
     fi
+
+    # Common apt options to fully isolate from host system
+    local APT_OPTS=(
+        -o Dir::Etc::sourcelist="$apt_sources"
+        -o Dir::Etc::sourceparts="/dev/null"
+        -o Dir::Cache="$apt_cache"
+        -o Dir::State="$apt_state"
+        -o Dir::State::status="$apt_state/status"
+        -o Dir::Etc="$apt_etc"
+    )
 
     # Set up sources for the target version (main + universe where ipmitool lives)
     cat > "$apt_sources" << APTEOF
@@ -200,48 +211,28 @@ APTEOF
 
     # Download packages using the target version's repository
     echo "[*] Fetching package index for ${codename}..."
-    if apt-get -o Dir::Etc::sourcelist="$apt_sources" \
-               -o Dir::Etc::sourceparts="/dev/null" \
-               -o Dir::Cache="$apt_cache" \
-               -o Dir::State="$apt_state" \
-               -o Dir::Etc="$apt_etc" \
-               update 2>&1 | tail -3; then
+    if apt-get "${APT_OPTS[@]}" update 2>&1 | tail -3; then
 
         echo "[*] Downloading ipmitool and dependencies..."
         cd "$tmp_download"
-        # Resolve and download ipmitool + all dependencies
-        apt-get -o Dir::Etc::sourcelist="$apt_sources" \
-                -o Dir::Etc::sourceparts="/dev/null" \
-                -o Dir::Cache="$apt_cache" \
-                -o Dir::State="$apt_state" \
-                -o Dir::Etc="$apt_etc" \
-                download ipmitool 2>&1 || true
 
-        # Also download known dependencies
-        # Use apt-cache to find the actual dependency names for this version
+        # Use -t to force resolution from the target codename's release
+        apt-get "${APT_OPTS[@]}" -t "${codename}" download ipmitool 2>&1 || true
+
+        # Resolve the actual dependency names for this target version
         local deps
-        deps=$(apt-cache -o Dir::Etc::sourcelist="$apt_sources" \
-                         -o Dir::Etc::sourceparts="/dev/null" \
-                         -o Dir::Cache="$apt_cache" \
-                         -o Dir::State="$apt_state" \
-                         -o Dir::Etc="$apt_etc" \
-                         depends ipmitool 2>/dev/null \
+        deps=$(apt-cache "${APT_OPTS[@]}" depends ipmitool 2>/dev/null \
                | grep -E '^\s*(Depends|PreDepends):' \
                | sed 's/.*: //' | tr -d ' ' | sort -u || true)
 
         if [ -n "$deps" ]; then
-            echo "[*] Resolved dependencies: $deps"
+            echo "[*] Resolved dependencies for ${codename}: $deps"
             for dep in $deps; do
-                # Skip virtual packages and packages already in the base system
+                # Skip virtual packages and packages already in the live installer base system
                 case "$dep" in
                     libc6|libgcc*|debconf*|dpkg|bash|coreutils|install-info) continue ;;
                 esac
-                apt-get -o Dir::Etc::sourcelist="$apt_sources" \
-                        -o Dir::Etc::sourceparts="/dev/null" \
-                        -o Dir::Cache="$apt_cache" \
-                        -o Dir::State="$apt_state" \
-                        -o Dir::Etc="$apt_etc" \
-                        download "$dep" 2>/dev/null || true
+                apt-get "${APT_OPTS[@]}" -t "${codename}" download "$dep" 2>/dev/null || true
             done
         fi
         cd - > /dev/null
@@ -252,7 +243,7 @@ APTEOF
         if [ "$deb_count" -gt 0 ]; then
             mv "$tmp_download"/*.deb "$extra_pool/"
             echo "[*] Bundled $deb_count ipmitool package(s) into ISO ($extra_pool/):"
-            ls -la "$extra_pool/"/*.deb | awk '{print "    " $NF " (" $5 " bytes)"}'
+            ls -la "$extra_pool/"*.deb | awk '{print "    " $NF " (" $5 " bytes)"}'
         else
             echo "[!] WARNING: Failed to download ipmitool packages for ${codename}"
             echo "[!] The early-commands ipmitool SEL write will not work."
