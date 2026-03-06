@@ -381,12 +381,11 @@ autoinstall:
     # Packages are version-matched for the target Ubuntu release during ISO build.
     - dpkg -i /cdrom/pool/extra/*.deb 2>/dev/null || true
     # Write SEL entry - OS Installation Starting
-    # Uses Add SEL Entry (NetFn=Storage 0x0a, Cmd=0x44)
-    # Record Type 0x02 (System Event), Sensor Type 0x1F (OS Boot)
+    # Uses Platform Event Message (NetFn=Sensor/Event 0x04, Cmd=0x02)
+    # instead of Add SEL Entry (0x0a 0x44) to avoid duplicate SEL records.
+    # Format: EvMRev(0x04) SensorType(0x1F) SensorNum(0x01) EventType(0x6f) EvData1 EvData2 EvData3
     # Event Data 0x01 = Installation starting marker
-    # Note: YAML plain scalars cannot contain colon-space, so avoid echo messages.
-    # If ipmitool is not installed, the command fails silently via || true.
-    - ipmitool raw 0x0a 0x44 0x00 0x00 0x02 0x00 0x00 0x00 0x00 0x21 0x00 0x04 0x1F 0x01 0x6f 0x01 0xff 0xff 2>/dev/null || true
+    - ipmitool raw 0x04 0x02 0x04 0x1F 0x01 0x6f 0x01 0xff 0xff 2>/dev/null || true
   late-commands:
     - echo 'root:${PASSWORD}' | chroot /target chpasswd
     - curtin in-target --target=/target -- sed -i 's/^#\\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
@@ -399,8 +398,8 @@ autoinstall:
     - curtin in-target --target=/target -- sh -c 'apt-get update || true'
     - curtin in-target --target=/target -- sh -c 'apt-get install -y vim curl net-tools ipmitool htop || true'
     # Write SEL entry - OS Installation Completed (Event Data 0x02)
-    # Run ipmitool from target chroot where it was installed by apt-get above
-    - chroot /target ipmitool raw 0x0a 0x44 0x00 0x00 0x02 0x00 0x00 0x00 0x00 0x21 0x00 0x04 0x1F 0x01 0x6f 0x02 0xff 0xff 2>/dev/null || true
+    # Uses Platform Event Message to produce a single SEL entry per write
+    - chroot /target ipmitool raw 0x04 0x02 0x04 0x1F 0x01 0x6f 0x02 0xff 0xff 2>/dev/null || true
 EOF
 
 if [ "$IS_1804" = true ]; then
