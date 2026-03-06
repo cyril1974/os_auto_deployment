@@ -4,17 +4,78 @@
 
 ## 2026-03-07: Fix IPMI SEL Logging — Commands Were Silently Failing
 
-**File:** `build-ubuntu-autoinstall-iso.sh`
+**File:** `build-ubuntu-autoinstall-iso.sh`  
+**Log files reviewed:** `test_log/install_log_20260306/installer-journal.txt`, `test_log/install_log_20260306/subiquity-server-debug.log`
 
 ---
 
 ### Problem Description
 
-IPMI SEL (System Event Log) entries for "OS Installation Starting" and "OS Installation Completed" were never actually written to the BMC, despite the installer reporting `SUCCESS` for both commands. The `|| true` and `2>/dev/null` error suppression masked the failures.
+IPMI SEL (System Event Log) entries for "OS Installation Starting" (`early-commands`) and "OS Installation Completed" (`late-commands`) were never actually written to the BMC, despite the installer reporting `SUCCESS` for both commands. The `|| true` and `2>/dev/null` error suppression masked the failures completely.
 
-**Evidence from `subiquity-server-debug.log`:**
-- Both `ipmitool raw` commands completed in ~20ms (too fast for real IPMI communication)
-- A genuine IPMI raw command takes 100-200ms+ to communicate with the BMC
+---
+
+### Log Review — Evidence of Silent Failure
+
+#### 1. Early-commands: `apt-get install ipmitool` — Network Unreachable
+
+**Log:** `installer-journal.txt`
+
+At `01:24:19`, the early-command for ipmitool installation started:
+```
+line 3763: subiquity/Early/run/command_4: apt-get install -y ipmitool 2>/dev/null || dpkg -i /cdrom/pool/main/i/ipmitool/*.deb 2>/dev/null || true
+```
+
+All package download attempts failed with network errors (lines 3849–3864):
+```
+line 3849: Err:1 http://archive.ubuntu.com/ubuntu jammy/main amd64 freeipmi-common all 1.6.9-2
+line 3850:   Cannot initiate the connection to archive.ubuntu.com:80 (2a06:bc80:0:1000::17). - connect (101: Network is unreachable)
+line 3853: Err:3 http://archive.ubuntu.com/ubuntu jammy/universe amd64 ipmitool amd64 1.8.18-11ubuntu2
+line 3864:   Cannot initiate the connection to archive.ubuntu.com:80 (2620:2d:4002:1::101). - connect (101: Network is unreachable)
+```
+
+Despite the failure, the command was reported as SUCCESS (due to `|| true`):
+```
+line 4027: finish: subiquity/Early/run/command_4: SUCCESS: apt-get install -y ipmitool 2>/dev/null || dpkg -i /cdrom/pool/main/i/ipmitool/*.deb 2>/dev/null || true
+```
+
+#### 2. Early-commands: `ipmitool raw` — Command Not Found (Masked)
+
+**Log:** `installer-journal.txt`, `subiquity-server-debug.log`
+
+The SEL write command started and finished in same timestamp (lines 4028–4029):
+```
+line 4028: start:  subiquity/Early/run/command_5: ipmitool raw 0x0a 0x44 ... 2>/dev/null || true
+line 4029: finish: subiquity/Early/run/command_5: SUCCESS: ipmitool raw 0x0a 0x44 ... 2>/dev/null || true
+```
+
+**Timing analysis:** Both start and finish occurred at `01:25:51` with ~23ms elapsed — a real IPMI raw command communicating with the BMC takes 100–200ms+. This proves `ipmitool` was not found and `command not found` was silenced by `2>/dev/null || true`.
+
+#### 3. Late-commands: `ipmitool` installed in target chroot — but ran in live env
+
+**Log:** `installer-journal.txt`
+
+The `apt-get install ipmitool` via `curtin in-target` **succeeded** inside the target chroot (lines 9419–9529):
+```
+line 9419: subiquity/Late/run/command_7: curtin in-target --target=/target -- sh -c 'apt-get install -y vim curl net-tools ipmitool htop || true'
+line 9443: Get:3 http://archive.ubuntu.com/ubuntu jammy-updates/universe amd64 ipmitool amd64 1.8.18-11ubuntu2.2 [410 kB]
+line 9498: Setting up ipmitool (1.8.18-11ubuntu2.2) ...
+line 9529: subiquity/Late/run/command_7: ... SUCCESS
+```
+
+However, the subsequent `ipmitool raw` command ran **outside** the target chroot — in the live installer environment where ipmitool was never installed:
+
+**Log:** `subiquity-server-debug.log` (lines 1168–1171)
+```
+line 1168: 02:07:20,321 start:  subiquity/Late/run/command_8: ipmitool raw 0x0a 0x44 ... 2>/dev/null || true
+line 1169: 02:07:20,322 arun_command called: ['systemd-cat', ..., 'sh', '-c', 'ipmitool raw ... 2>/dev/null || true']
+line 1170: 02:07:20,341 arun_command [...] exited with code 0
+line 1171: 02:07:20,342 finish: subiquity/Late/run/command_8: SUCCESS: ipmitool raw ... 2>/dev/null || true
+```
+
+**Timing analysis:** Command started at `02:07:20,321` and exited at `02:07:20,341` — **only 20ms**. Confirmed `ipmitool: command not found`, masked by `2>/dev/null || true`.
+
+**Key evidence the command ran in live env, not chroot:** Line 1169 shows `arun_command` was called directly with `['sh', '-c', 'ipmitool raw ...']` — there is no `chroot`, `curtin in-target`, or `/target` prefix. Compare this to line 1165 where the `apt-get install` correctly uses `curtin in-target --target=/target`.
 
 ---
 
