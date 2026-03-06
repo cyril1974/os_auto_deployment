@@ -224,9 +224,6 @@ autoinstall:
   apt:
     fallback: offline-install
     geoip: false
-    security:
-      - arches: [amd64, i386]
-        uri: ""
   early-commands:
     # Load IPMI kernel modules for BMC communication
     - modprobe ipmi_devintf 2>/dev/null || true
@@ -234,22 +231,30 @@ autoinstall:
     - modprobe ipmi_msghandler 2>/dev/null || true
     - sleep 2
     # Try to install ipmitool in live environment
-    - apt-get install -y ipmitool 2>/dev/null || dpkg -i /cdrom/pool/main/i/ipmitool/*.deb 2>/dev/null || true
+    # Note: apt-get may fail if network is not yet available during early boot.
+    # The ISO pool does not include ipmitool (it is in the 'universe' repo),
+    # so the dpkg fallback from /cdrom also fails on standard Server ISOs.
+    - apt-get install -y ipmitool 2>/dev/null || true
     # Write SEL entry: "OS Installation Starting"
     # Uses Add SEL Entry (NetFn=Storage 0x0a, Cmd=0x44)
     # Record Type 0x02 (System Event), Sensor Type 0x1F (OS Boot)
     # Event Data 0x01 = Installation starting marker
-    - ipmitool raw 0x0a 0x44 0x00 0x00 0x02 0x00 0x00 0x00 0x00 0x21 0x00 0x04 0x1F 0x01 0x6f 0x01 0xff 0xff 2>/dev/null || true
+    # Only attempt if ipmitool was successfully installed
+    - sh -c 'which ipmitool >/dev/null 2>&1 && ipmitool raw 0x0a 0x44 0x00 0x00 0x02 0x00 0x00 0x00 0x00 0x21 0x00 0x04 0x1F 0x01 0x6f 0x01 0xff 0xff || echo "WARN: ipmitool not available, skipping SEL write (OS Installation Starting)"' 2>/dev/null || true
   late-commands:
     - echo 'root:${PASSWORD}' | chroot /target chpasswd
     - curtin in-target --target=/target -- sed -i 's/^#\\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
     - curtin in-target --target=/target -- sed -i 's/^#\\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
     - echo '${USERNAME} ALL=(ALL) NOPASSWD:ALL' > /target/etc/sudoers.d/${USERNAME}
     - chmod 440 /target/etc/sudoers.d/${USERNAME}
-    - curtin in-target --target=/target -- apt-get update || true
-    - curtin in-target --target=/target -- apt-get install -y vim curl net-tools ipmitool htop || true
+    # Ensure DNS resolution is available in the target chroot
+    - cp /etc/resolv.conf /target/etc/resolv.conf
+    # Use sh -c wrapper so || true is properly handled inside curtin in-target
+    - curtin in-target --target=/target -- sh -c 'apt-get update || true'
+    - curtin in-target --target=/target -- sh -c 'apt-get install -y vim curl net-tools ipmitool htop || true'
     # Write SEL entry: "OS Installation Completed" (Event Data 0x02)
-    - ipmitool raw 0x0a 0x44 0x00 0x00 0x02 0x00 0x00 0x00 0x00 0x21 0x00 0x04 0x1F 0x01 0x6f 0x02 0xff 0xff 2>/dev/null || true
+    # Run ipmitool from target chroot where it was installed by apt-get above
+    - sh -c 'chroot /target ipmitool raw 0x0a 0x44 0x00 0x00 0x02 0x00 0x00 0x00 0x00 0x21 0x00 0x04 0x1F 0x01 0x6f 0x02 0xff 0xff || echo "WARN: ipmitool SEL write failed (OS Installation Completed)"' 2>/dev/null || true
 EOF
 
 if [ "$IS_1804" = true ]; then

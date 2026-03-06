@@ -2,6 +2,143 @@
 
 ---
 
+## 2026-03-07: Fix IPMI SEL Logging — Commands Were Silently Failing
+
+**File:** `build-ubuntu-autoinstall-iso.sh`
+
+---
+
+### Problem Description
+
+IPMI SEL (System Event Log) entries for "OS Installation Starting" and "OS Installation Completed" were never actually written to the BMC, despite the installer reporting `SUCCESS` for both commands. The `|| true` and `2>/dev/null` error suppression masked the failures.
+
+**Evidence from `subiquity-server-debug.log`:**
+- Both `ipmitool raw` commands completed in ~20ms (too fast for real IPMI communication)
+- A genuine IPMI raw command takes 100-200ms+ to communicate with the BMC
+
+---
+
+### Issue 1: Early-commands — `ipmitool` installation fails (no network)
+
+**Root Cause:** During `early-commands`, the network interfaces are still being configured. The `apt-get install -y ipmitool` command cannot reach `archive.ubuntu.com` and times out. The fallback `dpkg -i /cdrom/pool/main/i/ipmitool/*.deb` also fails because `ipmitool` is in the Ubuntu `universe` repository, not in the ISO's local package pool under `main/`.
+
+**Fix:** 
+- Removed the incorrect `dpkg -i` fallback path
+- Added `which ipmitool` check before attempting the SEL write
+- Added a visible warning message when ipmitool is unavailable instead of silent failure
+
+```yaml
+- apt-get install -y ipmitool 2>/dev/null || true
+- sh -c 'which ipmitool >/dev/null 2>&1 && ipmitool raw 0x0a 0x44 ... || echo "WARN: ipmitool not available, skipping SEL write (OS Installation Starting)"' 2>/dev/null || true
+```
+
+**Note:** The early-commands SEL write may still fail if network is unavailable. This is expected — the early-commands run before network configuration is complete.
+
+---
+
+### Issue 2: Late-commands — `ipmitool` runs in wrong environment
+
+**Root Cause:** The `ipmitool raw ...` command in `late-commands` ran in the **live installer environment** (not inside the target chroot). While `ipmitool` was successfully installed inside the target system via `curtin in-target -- apt-get install -y ipmitool`, it was **not** available in the live environment where the raw `ipmitool` command was executed.
+
+**Fix:** Changed the late-command to use `chroot /target ipmitool raw ...` so that it runs the `ipmitool` binary from inside the target chroot where it was installed:
+
+```yaml
+- sh -c 'chroot /target ipmitool raw 0x0a 0x44 ... || echo "WARN: ipmitool SEL write failed (OS Installation Completed)"' 2>/dev/null || true
+```
+
+---
+
+### Impact
+
+- **Before fix:** Both SEL entries were silently skipped, giving a false "SUCCESS"
+- **After fix:** Late-commands SEL write will succeed (uses target chroot). Early-commands SEL write will produce a visible warning if ipmitool is unavailable.
+
+---
+
+## 2026-03-06: Fix Curtin In-Target `apt-get update` Failure (Exit Status 100)
+
+**File:** `build-ubuntu-autoinstall-iso.sh`
+
+---
+
+### Problem Description
+
+When booting the custom autoinstall ISO (`ubuntu_22.04.2_live_server_amd64_autoinstall_202603051721.iso`), the installation crashed at the `configure_apt` late-command phase with:
+
+```
+subiquity/Install/install/configure_apt/cmd-in-target: curtin command in-target
+'apt-get', 'update'] returned non-zero exit status 100
+An error occurred. Press enter to start a shell
+```
+
+**Key observation:** After dropping to a shell, network connectivity was confirmed working (`ping 8.8.8.8` succeeded) and manually running `apt update` also completed successfully. The failure only occurred when curtin executed `apt-get update` inside the target chroot.
+
+---
+
+### 1. Fix: Remove Broken Empty Security URI in `apt` Configuration
+
+**Root Cause:** The `apt.security` section had an empty URI:
+```yaml
+apt:
+  security:
+    - arches: [amd64, i386]
+      uri: ""
+```
+This was originally added (2026-03-04) to prevent `run_unattended_upgrades` from hanging. However, the empty `uri: ""` caused subiquity to generate an invalid `sources.list` inside the target, which made `apt-get update` fail with exit status 100 when curtin ran it in-target.
+
+**Fix:** Removed the entire `security` sub-section. The `fallback: offline-install` setting already handles the offline scenario sufficiently:
+```yaml
+apt:
+  fallback: offline-install
+  geoip: false
+```
+
+---
+
+### 2. Fix: Copy DNS Resolution Configuration into Target Chroot
+
+**Root Cause:** When `curtin in-target` executes commands inside the `/target` chroot, the chroot does not automatically inherit the live installer environment's DNS configuration. The file `/target/etc/resolv.conf` was either missing or empty, causing all DNS lookups (e.g., for `archive.ubuntu.com`) to fail inside the chroot — even though the host network was fully operational.
+
+**Fix:** Added a step to copy the live environment's DNS config into the target before running apt commands:
+```yaml
+late-commands:
+    # ... (existing commands)
+    # Ensure DNS resolution is available in the target chroot
+    - cp /etc/resolv.conf /target/etc/resolv.conf
+    # ... (apt commands follow)
+```
+
+---
+
+### 3. Fix: Wrap `apt-get` Commands with `sh -c` for Proper Error Suppression
+
+**Root Cause:** The previous `|| true` was not being interpreted correctly:
+```yaml
+# BEFORE — || true evaluated by outer shell, but curtin still fails fatally
+- curtin in-target --target=/target -- apt-get update || true
+```
+Subiquity processes each `late-commands` entry as a command list. The `|| true` was parsed by the outer YAML/shell layer, but `curtin in-target` itself still raised a fatal error when the inner `apt-get` returned non-zero. This caused the entire installation to crash.
+
+**Fix:** Wrapped the commands with `sh -c` so the `|| true` is executed inside the curtin chroot context:
+```yaml
+# AFTER — || true handled inside sh, curtin sees exit code 0
+- curtin in-target --target=/target -- sh -c 'apt-get update || true'
+- curtin in-target --target=/target -- sh -c 'apt-get install -y vim curl net-tools ipmitool htop || true'
+```
+
+---
+
+### Summary of All File Changes (2026-03-06)
+
+| File | Change Type | Description |
+|------|-------------|-------------|
+| `build-ubuntu-autoinstall-iso.sh` | Modified | Remove broken `apt.security` empty URI configuration |
+| `build-ubuntu-autoinstall-iso.sh` | Modified | Add `cp /etc/resolv.conf /target/etc/resolv.conf` to late-commands |
+| `build-ubuntu-autoinstall-iso.sh` | Modified | Wrap `apt-get` commands with `sh -c '... \|\| true'` for proper error handling |
+| `doc/change_log.md` | Modified | Document all changes |
+
+---
+
 ## 2026-03-04: Fix Ubuntu 22.04 Autoinstall Boot Errors and Add BMC SEL Logging
 
 **File:** `build-ubuntu-autoinstall-iso.sh`
