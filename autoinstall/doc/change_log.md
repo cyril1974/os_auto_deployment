@@ -2,6 +2,70 @@
 
 ---
 
+## 2026-03-07: Bundle ipmitool Packages into ISO for Offline Early-commands Installation
+
+**File:** `build-ubuntu-autoinstall-iso.sh`
+
+---
+
+### Problem Description
+
+The `early-commands` SEL logging requires `ipmitool`, but installing it via `apt-get` fails because the network is not yet available during the early boot phase. The previous approach relied on network availability which was inherently unreliable.
+
+---
+
+### Solution: Pre-bundle ipmitool .deb Files into the ISO
+
+During ISO build time (when the build machine has internet), the script now:
+1. Detects the target Ubuntu **codename** from the OS_NAME (e.g., `22.04` → `jammy`, `24.04` → `noble`)
+2. Creates a **temporary apt configuration** pointing to the correct Ubuntu archive for that release
+3. Downloads `ipmitool` and **all its dependencies** using `apt-cache depends` to resolve the correct package names
+4. Bundles the `.deb` files into the ISO under `/pool/extra/`
+
+The `early-commands` then install from these bundled packages:
+```yaml
+- sh -c 'dpkg -i /cdrom/pool/extra/*.deb 2>/dev/null || true'
+```
+
+---
+
+### Cross-version Dependency Handling
+
+Package names and versions vary between Ubuntu releases due to ABI transitions:
+
+| Dependency | Ubuntu 20.04 (focal) | Ubuntu 22.04 (jammy) | Ubuntu 24.04+ (noble) |
+|---|---|---|---|
+| `libsnmp` | `libsnmp35` | `libsnmp40` | `libsnmp40t64` |
+| `libopenipmi` | `libopenipmi0` | `libopenipmi0` | `libopenipmi0t64` |
+| `libfreeipmi` | `libfreeipmi17` | `libfreeipmi17` | `libfreeipmi17t64` |
+
+By using `apt-cache depends` with a target-version-specific repository configuration, the correct package names are resolved automatically for each Ubuntu release. This avoids hard-coding package names that would break on different versions.
+
+---
+
+### Supported Ubuntu Codenames
+
+| Version | Codename |
+|---|---|
+| 18.04 | bionic (skipped — uses preseed, not early-commands) |
+| 20.04 | focal |
+| 22.04 | jammy |
+| 23.04 | lunar |
+| 23.10 | mantic |
+| 24.04 | noble |
+| 24.10 | oracular |
+| 25.04 | plucky |
+
+---
+
+### Impact
+
+- **Before:** Early-commands `ipmitool` install depended on network → always failed
+- **After:** `ipmitool` is pre-bundled in the ISO → installs offline, no network needed
+- **ISO size increase:** ~2-3 MB (ipmitool + dependencies)
+
+---
+
 ## 2026-03-07: Fix IPMI SEL Logging — Commands Were Silently Failing
 
 **File:** `build-ubuntu-autoinstall-iso.sh`  

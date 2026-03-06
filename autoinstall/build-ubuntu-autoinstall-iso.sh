@@ -118,6 +118,154 @@ check_and_install_packages() {
     fi
 }
 
+# Detect Ubuntu codename from OS_NAME for downloading correct packages
+# Maps version numbers to their Ubuntu codenames (archive repository names)
+get_ubuntu_codename() {
+    local os_name="$1"
+    if [[ "$os_name" == *"25.04"* ]]; then
+        echo "plucky"
+    elif [[ "$os_name" == *"24.10"* ]]; then
+        echo "oracular"
+    elif [[ "$os_name" == *"24.04"* ]]; then
+        echo "noble"
+    elif [[ "$os_name" == *"23.10"* ]]; then
+        echo "mantic"
+    elif [[ "$os_name" == *"23.04"* ]]; then
+        echo "lunar"
+    elif [[ "$os_name" == *"22.10"* ]]; then
+        echo "kinetic"
+    elif [[ "$os_name" == *"22.04"* ]]; then
+        echo "jammy"
+    elif [[ "$os_name" == *"20.04"* ]]; then
+        echo "focal"
+    elif [[ "$os_name" == *"18.04"* ]]; then
+        echo "bionic"
+    else
+        # Default to jammy if version cannot be determined
+        echo "jammy"
+    fi
+}
+
+# Download ipmitool and its dependencies for the target Ubuntu version.
+# Packages are downloaded from the correct Ubuntu archive matching the target ISO's
+# distribution, avoiding cross-version dependency issues.
+# The .deb files are saved into the ISO work directory under /pool/extra/.
+download_ipmitool_packages() {
+    local workdir="$1"
+    local codename="$2"
+    local extra_pool="$workdir/pool/extra"
+    local tmp_download
+    tmp_download="$(mktemp -d)"
+
+    echo "[*] Downloading ipmitool packages for Ubuntu ${codename}..."
+    mkdir -p "$extra_pool"
+
+    # ipmitool dependencies (common across Ubuntu 20.04-25.04):
+    #   ipmitool, freeipmi-common, libfreeipmi17, libopenipmi0,
+    #   libsensors-config, libsensors5, libsnmp-base, libsnmp40, openipmi
+    #
+    # Note: Package names may vary between Ubuntu versions:
+    #   - Ubuntu 20.04 (focal): libsnmp35, libopenipmi0
+    #   - Ubuntu 22.04 (jammy): libsnmp40, libopenipmi0
+    #   - Ubuntu 24.04 (noble): libsnmp40t64, libopenipmi0t64, libfreeipmi17t64
+    #   - Ubuntu 25.04 (plucky): similar to 24.04 (t64 transition)
+    #
+    # We use apt-get download with a temporary sources config pointing to
+    # the target version's archive, so apt resolves the correct package names
+    # and versions automatically.
+
+    # Create a temporary apt configuration for the target codename
+    local apt_conf_dir
+    apt_conf_dir="$(mktemp -d)"
+    local apt_sources="$apt_conf_dir/sources.list"
+    local apt_cache="$apt_conf_dir/cache"
+    local apt_state="$apt_conf_dir/state"
+    local apt_etc="$apt_conf_dir/etc"
+
+    mkdir -p "$apt_cache/archives/partial" "$apt_state/lists/partial" "$apt_etc/apt.conf.d" "$apt_etc/preferences.d" "$apt_etc/trusted.gpg.d"
+
+    # Copy trusted GPG keys from the host system
+    if [ -d /etc/apt/trusted.gpg.d ]; then
+        cp /etc/apt/trusted.gpg.d/*.gpg "$apt_etc/trusted.gpg.d/" 2>/dev/null || true
+    fi
+    if [ -f /etc/apt/trusted.gpg ]; then
+        cp /etc/apt/trusted.gpg "$apt_etc/" 2>/dev/null || true
+    fi
+
+    # Set up sources for the target version (main + universe where ipmitool lives)
+    cat > "$apt_sources" << APTEOF
+deb [trusted=yes] http://archive.ubuntu.com/ubuntu ${codename} main universe
+deb [trusted=yes] http://archive.ubuntu.com/ubuntu ${codename}-updates main universe
+APTEOF
+
+    # Download packages using the target version's repository
+    echo "[*] Fetching package index for ${codename}..."
+    if apt-get -o Dir::Etc::sourcelist="$apt_sources" \
+               -o Dir::Etc::sourceparts="/dev/null" \
+               -o Dir::Cache="$apt_cache" \
+               -o Dir::State="$apt_state" \
+               -o Dir::Etc="$apt_etc" \
+               update 2>&1 | tail -3; then
+
+        echo "[*] Downloading ipmitool and dependencies..."
+        cd "$tmp_download"
+        # Resolve and download ipmitool + all dependencies
+        apt-get -o Dir::Etc::sourcelist="$apt_sources" \
+                -o Dir::Etc::sourceparts="/dev/null" \
+                -o Dir::Cache="$apt_cache" \
+                -o Dir::State="$apt_state" \
+                -o Dir::Etc="$apt_etc" \
+                download ipmitool 2>&1 || true
+
+        # Also download known dependencies
+        # Use apt-cache to find the actual dependency names for this version
+        local deps
+        deps=$(apt-cache -o Dir::Etc::sourcelist="$apt_sources" \
+                         -o Dir::Etc::sourceparts="/dev/null" \
+                         -o Dir::Cache="$apt_cache" \
+                         -o Dir::State="$apt_state" \
+                         -o Dir::Etc="$apt_etc" \
+                         depends ipmitool 2>/dev/null \
+               | grep -E '^\s*(Depends|PreDepends):' \
+               | sed 's/.*: //' | tr -d ' ' | sort -u || true)
+
+        if [ -n "$deps" ]; then
+            echo "[*] Resolved dependencies: $deps"
+            for dep in $deps; do
+                # Skip virtual packages and packages already in the base system
+                case "$dep" in
+                    libc6|libgcc*|debconf*|dpkg|bash|coreutils|install-info) continue ;;
+                esac
+                apt-get -o Dir::Etc::sourcelist="$apt_sources" \
+                        -o Dir::Etc::sourceparts="/dev/null" \
+                        -o Dir::Cache="$apt_cache" \
+                        -o Dir::State="$apt_state" \
+                        -o Dir::Etc="$apt_etc" \
+                        download "$dep" 2>/dev/null || true
+            done
+        fi
+        cd - > /dev/null
+
+        # Move all downloaded .deb files to the ISO pool
+        local deb_count
+        deb_count=$(find "$tmp_download" -name '*.deb' | wc -l)
+        if [ "$deb_count" -gt 0 ]; then
+            mv "$tmp_download"/*.deb "$extra_pool/"
+            echo "[*] Bundled $deb_count ipmitool package(s) into ISO ($extra_pool/):"
+            ls -la "$extra_pool/"/*.deb | awk '{print "    " $NF " (" $5 " bytes)"}'
+        else
+            echo "[!] WARNING: Failed to download ipmitool packages for ${codename}"
+            echo "[!] The early-commands ipmitool SEL write will not work."
+        fi
+    else
+        echo "[!] WARNING: Failed to fetch package index for ${codename}"
+        echo "[!] The early-commands ipmitool SEL write will not work."
+    fi
+
+    # Cleanup temporary directories
+    rm -rf "$tmp_download" "$apt_conf_dir"
+}
+
 # Install packages if needed (requires root) and not skipped
 if [ "$SKIP_INSTALL" = false ]; then
     if [ "$EUID" -eq 0 ]; then
@@ -183,6 +331,14 @@ echo "[*] Copying ISO contents..."
 rsync -a /mnt/ubuntuiso/ "$WORKDIR/"
 umount /mnt/ubuntuiso
 
+# Download and bundle ipmitool packages for the target Ubuntu version (20.04+ only)
+# Ubuntu 18.04 uses preseed which installs packages during normal apt phase
+if [ "$IS_1804" != true ]; then
+    UBUNTU_CODENAME=$(get_ubuntu_codename "$OS_NAME")
+    echo "[*] Target Ubuntu codename: $UBUNTU_CODENAME"
+    download_ipmitool_packages "$WORKDIR" "$UBUNTU_CODENAME"
+fi
+
 # Hash password for user-data
 HASH_PASSWORD=$(mkpasswd -m sha-512 ${PASSWORD})
 echo "[*] Hashed Password is ${HASH_PASSWORD}"
@@ -230,11 +386,10 @@ autoinstall:
     - modprobe ipmi_si 2>/dev/null || true
     - modprobe ipmi_msghandler 2>/dev/null || true
     - sleep 2
-    # Try to install ipmitool in live environment
-    # Note: apt-get may fail if network is not yet available during early boot.
-    # The ISO pool does not include ipmitool (it is in the 'universe' repo),
-    # so the dpkg fallback from /cdrom also fails on standard Server ISOs.
-    - apt-get install -y ipmitool 2>/dev/null || true
+    # Install ipmitool from pre-bundled .deb files on ISO (no network needed)
+    # Packages are version-matched for the target Ubuntu release during ISO build.
+    # The dpkg install ignores dependency errors; dependencies are bundled together.
+    - sh -c 'dpkg -i /cdrom/pool/extra/*.deb 2>/dev/null || true'
     # Write SEL entry: "OS Installation Starting"
     # Uses Add SEL Entry (NetFn=Storage 0x0a, Cmd=0x44)
     # Record Type 0x02 (System Event), Sensor Type 0x1F (OS Boot)
