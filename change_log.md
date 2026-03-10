@@ -2,6 +2,50 @@
 
 ---
 
+## 2026-03-09: Feature: Add `--iso` Parameter to Bypass ISO Generation
+
+**File:** `src/os_deployment/main.py` (Modified)
+
+---
+
+### Description
+
+Added a new optional `--iso` command-line parameter that allows users to provide a path to a pre-built ISO file. When specified, the entire ISO generation process (autoinstall script execution) is bypassed, and the provided ISO is used directly for deployment.
+
+Additionally, `-O/--os` is now **conditionally required**: it is only required when `--iso` is not provided. When `--iso` is used, `-O` can be omitted since no ISO generation is needed.
+
+### Behavior
+
+| Scenario | Action |
+|---|---|
+| `--iso` **not provided**, `-O` **provided** | Normal flow: generates a custom autoinstall ISO via `build-ubuntu-autoinstall-iso.sh` |
+| `--iso` **not provided**, `-O` **not provided** | Exits with error: `-O/--os is required when --iso is not provided.` |
+| `--iso /path/to/file.iso` (with or without `-O`) | Validates the file exists → bypasses ISO generation → uses the provided ISO |
+| `--iso /invalid/path.iso` | Exits with error: `Pre-built ISO not found: /invalid/path.iso` |
+| `--iso /path/to/directory/` | Exits with error: `Pre-built ISO path is not a file: /path/to/directory/` |
+
+### Usage Example
+
+```bash
+# Normal flow (generates ISO, -O is required)
+os-deploy -B 10.x.x.x -BU admin -BP password -N 10.y.y.y -O ubuntu-22.04.2-live-server-amd64
+
+# With pre-built ISO (skips generation, -O is optional)
+os-deploy -B 10.x.x.x -BU admin -BP password -N 10.y.y.y \
+    --iso ./output_custom_iso/ubuntu_22.04.2_autoinstall_20260306.iso
+```
+
+### Output (when `--iso` is used)
+
+```
+Option --iso is set: ./output_custom_iso/ubuntu_22.04.2_autoinstall_20260306.iso
+[2026-03-09T11:00:00] *** Bypassing ISO generation (--iso provided) ***
+[2026-03-09T11:00:00] Using pre-built ISO: /absolute/path/to/iso
+```
+
+---
+
+
 ## 2026-03-03: Add BMC Authentication Validation
 
 **Files:** `src/os_deployment/lib/utils.py` (Modified), `src/os_deployment/main.py` (Modified)

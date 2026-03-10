@@ -2,7 +2,225 @@
 
 ---
 
-## 2026-03-07: Fix Cross-version apt Isolation for ipmitool Package Download
+## 2026-03-09: Fix Installation Stall — Disable Unattended Security Updates
+
+**File:** `build-ubuntu-autoinstall-iso.sh`
+
+---
+
+### Problem
+
+The installation process stalls for a very long time at the `run_unattended_upgrades` step:
+```
+start: subiquity/.../run_unattended_upgrades: downloading and installing security updates
+start: subiquity/.../run_unattended_upgrades/cmd-in-target: curtin command in-target
+```
+The installer downloads and installs **all available security updates** during the OS installation,
+which can take 30+ minutes depending on the number of updates and network speed. The installation
+does eventually complete, but the delay is unacceptable for automated deployments.
+
+---
+
+### Fix
+
+Changed the `updates` setting in the autoinstall configuration:
+
+| Before | After |
+|---|---|
+| `updates: security` | `updates: none` |
+
+This skips the `run_unattended_upgrades` step entirely, significantly reducing installation time.
+
+### Note
+
+Security updates should be applied **post-deployment** as part of the server provisioning process
+(e.g., via `apt-get update && apt-get upgrade` in a separate automation step), rather than blocking
+the installer.
+
+---
+
+## 2026-03-09: Feature: Log System IP Address to SEL via OEM Record
+
+**File:** `build-ubuntu-autoinstall-iso.sh`
+
+---
+
+### Description
+
+Added a new OEM SEL entry in `late-commands` that captures the system's IP address and writes it
+to the BMC's System Event Log. This allows administrators to identify the deployed server's IP
+address directly from the SEL, without needing to access the OS.
+
+---
+
+### Why OEM Record?
+
+The standard System Event Record (type `0x02`) only provides **3 bytes** of event data (`EvData1-3`),
+but an IPv4 address requires **4 bytes**. The IPMI 2.0 spec defines **OEM Timestamped Records**
+(Record Type `0xC0-0xDF`) which provide **6 bytes** of OEM-defined data — sufficient for a full
+IPv4 address plus metadata.
+
+---
+
+### OEM Timestamped SEL Record Layout (16 bytes)
+
+| Byte(s) | Value | Meaning |
+|---|---|---|
+| 1-2 | `0x00 0x00` | Record ID (auto-assigned by BMC) |
+| 3 | `0xC0` | Record Type = OEM Timestamped |
+| 4-7 | `0x00 0x00 0x00 0x00` | Timestamp (auto-filled by BMC) |
+| 8-10 | `0x00 0x00 0x00` | Manufacturer ID |
+| 11-14 | *dynamic* | **IPv4 address** (4 octets in hex) |
+| 15 | `0x03` | Event marker = Network Ready |
+| 16 | `0xff` | Reserved |
+
+### Example
+
+For a system with IP `10.249.72.100`:
+```bash
+ipmitool raw 0x0a 0x44 0x00 0x00 0xC0 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x0a 0xf9 0x48 0x64 0x03 0xff
+#                                 ^^^^                               ^^^^ ^^^^^^^^^^^^^^^^^^^^ ^^^^
+#                                 OEM                                MfgID  IP: 10.249.72.100   Marker
+```
+
+### Implementation
+
+The shell one-liner in `late-commands`:
+1. Extracts the first IP from `hostname -I`
+2. Splits into 4 octets using `IFS=.`
+3. Converts each octet to hex via `printf "0x%02x"`
+4. Writes the OEM SEL entry using `ipmitool raw 0x0a 0x44`
+
+```yaml
+- chroot /target sh -c 'IP=$(hostname -I | awk "{print \$1}"); IFS=. read -r o1 o2 o3 o4 <<< "$IP"; ipmitool raw 0x0a 0x44 0x00 0x00 0xC0 0x00 0x00 0x00 0x00 0x00 0x00 0x00 $(printf "0x%02x 0x%02x 0x%02x 0x%02x" $o1 $o2 $o3 $o4) 0x03 0xff 2>/dev/null || true'
+```
+
+### Reading the IP Back from SEL
+
+```bash
+ipmitool sel list
+```
+Decode bytes 11-14 of the OEM record from hex to decimal to recover the IP address
+(e.g., `0x0a 0xf9 0x48 0x64` → `10.249.72.100`).
+
+---
+
+## 2026-03-09: Fix SEL Event Logging — Use Add SEL Entry with Correct Generator ID
+
+**File:** `build-ubuntu-autoinstall-iso.sh`
+
+---
+
+### Problem Description
+
+SEL (System Event Log) entries for "OS Installation Starting" and "OS Installation Completed"
+were not being written to the BMC's SEL as expected. Two issues were identified:
+
+1. **Original `Add SEL Entry` (0x0a 0x44) failed silently:** The command used BMC Generator ID
+   `0x20 0x00`, which is **explicitly prohibited** by the MiTAC BMC firmware (Table 70, footnote 1:
+   *"Adding SEL entries using the BMC Generator ID (0x20) is prohibited"*).
+
+2. **Replacement `Platform Event Message` (0x04 0x02) was unreliable:** While this command goes
+   through the BMC's normal event pipeline, it does **not guarantee** the event is written to the
+   SEL — the BMC may filter it based on event filter configuration.
+
+---
+
+### Root Cause Analysis (from MiTAC BMC Firmware EPS)
+
+| Reference | Finding |
+|---|---|
+| Table 48 (p.8) | `Add SEL Entry` = Code 44h, Net Function = Storage (0Ah) |
+| Table 64 (p.46) | `Add SEL Entry` requires **Operator** privilege |
+| Table 70 (p.48) | Both `Platform Event` (04h/02h) and `Add SEL Entry` (0Ah/44h) are available via SMM |
+| Table 70, footnote 1 (p.49) | **"Adding SEL entries using the BMC Generator ID (0x20) is prohibited"** |
+
+The original failure was **not** due to the `Add SEL Entry` command itself, but due to using the
+prohibited BMC Generator ID `0x20`. The fix is to use a **software generator ID** `0x21` instead.
+
+---
+
+### Fix
+
+Reverted from `Platform Event Message` (0x04 0x02) back to `Add SEL Entry` (0x0a 0x44) with the
+correct **software generator ID** (0x21 0x00):
+
+| Byte(s) | Value | Meaning |
+|---|---|---|
+| 1-2 | `0x00 0x00` | Record ID (auto-assigned by BMC) |
+| 3 | `0x02` | Record Type = System Event |
+| 4-7 | `0x00 0x00 0x00 0x00` | Timestamp (auto-filled by BMC) |
+| 8-9 | `0x21 0x00` | **Generator ID = Software ID 0x01** (NOT 0x20!) |
+| 10 | `0x04` | EvMRev (IPMI 2.0) |
+| 11 | `0x12` | Sensor Type = System Event |
+| 12 | `0x00` | Sensor Number |
+| 13 | `0x6f` | Event Type = sensor-specific, assertion |
+| 14 | `0x01` / `0x02` | Event Data 1: Starting / Completed |
+| 15-16 | `0xff 0xff` | Event Data 2-3 (unspecified) |
+
+**Before (unreliable — Platform Event may not write to SEL):**
+```bash
+ipmitool raw 0x04 0x02 0x04 0x1F 0x01 0x6f 0x01 0xff 0xff
+```
+
+**After (correct — Add SEL Entry with software generator ID):**
+```bash
+ipmitool raw 0x0a 0x44 0x00 0x00 0x02 0x00 0x00 0x00 0x00 0x21 0x00 0x04 0x12 0x00 0x6f 0x01 0xff 0xff
+```
+
+### Verification
+
+After deploying the updated ISO, confirm that SEL entries are correctly created:
+```bash
+ipmitool sel list
+```
+Expected output should show entries with Sensor Type `System Event` and Event Data indicating
+installation start (0x01) and completion (0x02), with a software generator ID source.
+
+---
+
+## 2026-03-09: Fix YAML Parsing Error in early/late-commands (Boot Failure)
+
+**File:** `build-ubuntu-autoinstall-iso.sh`
+
+---
+
+### Problem Description
+
+The generated autoinstall ISO failed to boot with the error:
+```
+Failed validating 'type' in schema['items']:
+    {'items': {'type': 'string'}, 'type': ['string', 'array']}
+On instance[5]:
+    {'sh -c \'which ipmitool ...'} is not of type 'string', 'array'
+```
+
+**Root cause:** The YAML `early-commands` and `late-commands` entries contained **colon-space (`: `)** within `echo` messages (e.g., `echo "WARN: ipmitool not available..."`). In YAML, `: ` is a **mapping key-value separator**, so the YAML parser interpreted the command as a dict `{key: value}` instead of a string, causing schema validation failure.
+
+---
+
+### Fix
+
+Removed the complex `sh -c` wrappers with `echo "WARN: ..."` messages and replaced with simple direct commands:
+
+| Before (broken YAML) | After (valid YAML) |
+|---|---|
+| `sh -c 'dpkg -i /cdrom/pool/extra/*.deb 2>/dev/null \|\| true'` | `dpkg -i /cdrom/pool/extra/*.deb 2>/dev/null \|\| true` |
+| `sh -c 'which ipmitool && ipmitool raw ... \|\| echo "WARN: ..."' 2>/dev/null \|\| true` | `ipmitool raw ... 2>/dev/null \|\| true` |
+| `sh -c 'chroot /target ipmitool raw ... \|\| echo "WARN: ..."' 2>/dev/null \|\| true` | `chroot /target ipmitool raw ... 2>/dev/null \|\| true` |
+
+### YAML Rule
+
+In YAML plain scalars (unquoted strings), these characters have special meaning and must be avoided:
+- **`: `** (colon-space) → mapping separator
+- **`#`** (after space) → comment
+- **`{`** / **`}`** → flow mapping
+
+The `|| true` suffix already handles command failures silently, so the `echo "WARN: ..."` messages were unnecessary.
+
+---
+
+## 2026-03-09: Fix Cross-version apt Isolation for ipmitool Package Download
 
 **File:** `build-ubuntu-autoinstall-iso.sh`
 
@@ -45,7 +263,7 @@ Build Machine (jammy)   →  Target ISO (noble)  →  Downloads ipmitool 1.8.19 
 
 ---
 
-## 2026-03-07: Bundle ipmitool Packages into ISO for Offline Early-commands Installation
+## 2026-03-09: Bundle ipmitool Packages into ISO for Offline Early-commands Installation
 
 **File:** `build-ubuntu-autoinstall-iso.sh`
 
@@ -109,7 +327,7 @@ By using `apt-cache depends` with a target-version-specific repository configura
 
 ---
 
-## 2026-03-07: Fix IPMI SEL Logging — Commands Were Silently Failing
+## 2026-03-09: Fix IPMI SEL Logging — Commands Were Silently Failing
 
 **File:** `build-ubuntu-autoinstall-iso.sh`  
 **Log files reviewed:** `test_log/install_log_20260306/installer-journal.txt`, `test_log/install_log_20260306/subiquity-server-debug.log`

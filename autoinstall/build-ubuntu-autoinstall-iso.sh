@@ -367,7 +367,7 @@ autoinstall:
     authorized-keys:
       - ${PUB_KEY}
     allow-pw: true
-  updates: security
+  updates: none
   apt:
     fallback: offline-install
     geoip: false
@@ -381,11 +381,13 @@ autoinstall:
     # Packages are version-matched for the target Ubuntu release during ISO build.
     - dpkg -i /cdrom/pool/extra/*.deb 2>/dev/null || true
     # Write SEL entry - OS Installation Starting
-    # Uses Platform Event Message (NetFn=Sensor/Event 0x04, Cmd=0x02)
-    # instead of Add SEL Entry (0x0a 0x44) to avoid duplicate SEL records.
-    # Format: EvMRev(0x04) SensorType(0x1F) SensorNum(0x01) EventType(0x6f) EvData1 EvData2 EvData3
-    # Event Data 0x01 = Installation starting marker
-    - ipmitool raw 0x04 0x02 0x04 0x1F 0x01 0x6f 0x01 0xff 0xff 2>/dev/null || true
+    # Uses Add SEL Entry (NetFn=Storage 0x0a, Cmd=0x44) to directly write to the SEL.
+    # MiTAC BMC prohibits using BMC Generator ID (0x20); we use software ID (0x21).
+    # 16-byte format: RecordID[2] RecType Timestamp[4] GenID[2] EvMRev SensorType SensorNum EventType EvData1 EvData2 EvData3
+    # RecordID=0x0000(auto) RecType=0x02(SystemEvent) Timestamp=0x00000000(auto)
+    # GenID=0x2100(SWid=0x01) EvMRev=0x04 SensorType=0x12(SystemEvent) SensorNum=0x00
+    # EventType=0x6f(sensor-specific,assertion) EvData1=0x01(Starting) EvData2=0xff EvData3=0xff
+    - ipmitool raw 0x0a 0x44 0x00 0x00 0x02 0x00 0x00 0x00 0x00 0x21 0x00 0x04 0x12 0x00 0x6f 0x01 0xff 0xff 2>/dev/null || true
   late-commands:
     - echo 'root:${PASSWORD}' | chroot /target chpasswd
     - curtin in-target --target=/target -- sed -i 's/^#\\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
@@ -397,9 +399,15 @@ autoinstall:
     # Use sh -c wrapper so || true is properly handled inside curtin in-target
     - curtin in-target --target=/target -- sh -c 'apt-get update || true'
     - curtin in-target --target=/target -- sh -c 'apt-get install -y vim curl net-tools ipmitool htop || true'
-    # Write SEL entry - OS Installation Completed (Event Data 0x02)
-    # Uses Platform Event Message to produce a single SEL entry per write
-    - chroot /target ipmitool raw 0x04 0x02 0x04 0x1F 0x01 0x6f 0x02 0xff 0xff 2>/dev/null || true
+    # Write SEL entry - OS Installation Completed
+    # Uses Add SEL Entry with software generator ID (0x21) - BMC Generator ID (0x20) is prohibited.
+    # EvData1=0x02(Completed) - all other fields same as early-commands SEL entry above.
+    - chroot /target ipmitool raw 0x0a 0x44 0x00 0x00 0x02 0x00 0x00 0x00 0x00 0x21 0x00 0x04 0x12 0x00 0x6f 0x02 0xff 0xff 2>/dev/null || true
+    # Write OEM SEL entry - Network Ready with IP address
+    # Uses OEM Timestamped Record (RecType=0xC0) which provides 6 bytes of OEM data.
+    # Format: RecordID[2] RecType(0xC0) Timestamp[4] MfgID[3] IP[4] Marker(0x03) Reserved(0xFF)
+    # The IP address is extracted from the installed system via hostname -I.
+    - chroot /target sh -c 'IP=$(hostname -I | awk "{print \$1}"); IFS=. read -r o1 o2 o3 o4 <<< "$IP"; ipmitool raw 0x0a 0x44 0x00 0x00 0xC0 0x00 0x00 0x00 0x00 0x00 0x00 0x00 $(printf "0x%02x 0x%02x 0x%02x 0x%02x" $o1 $o2 $o3 $o4) 0x03 0xff 2>/dev/null || true'
 EOF
 
 if [ "$IS_1804" = true ]; then

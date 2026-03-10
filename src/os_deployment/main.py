@@ -73,7 +73,9 @@ def main():
     parser.add_argument("-BU","--bmcuser",help="BMC Login User")
     parser.add_argument("-BP","--bmcpasswd",help="BMC Login Password")
     parser.add_argument("-N","--nfsip", required=True, help="NFS IP (NFS information should be defined in config.json)")
-    parser.add_argument("-O","--os", required=True, help="Specific OS ISO Name (Support Ubuntu Only)")
+    parser.add_argument("-O","--os", required=False, default=None,
+                        help="Specific OS ISO Name (Support Ubuntu Only). "
+                             "Required unless --iso is provided.")
     parser.add_argument("-OU","--osuser", default="autoinstall",help="Specific OS Login User")
     parser.add_argument("-OP","--ospasswd", default="ubuntu",help="Specific OS Login Password")
     parser.add_argument(
@@ -83,6 +85,11 @@ def main():
     parser.add_argument(
         "--no-reboot", action="store_true",
         help="Skip rebooting the target server"
+    )
+    parser.add_argument(
+        "--iso", default=None,
+        help="Path to a pre-built ISO file. When provided, the ISO generation "
+             "step is skipped and the specified ISO is used directly for deployment."
     )
     args = parser.parse_args()
     
@@ -95,8 +102,16 @@ def main():
     ospasswd = args.ospasswd
     config_path = args.config
     no_reboot = args.no_reboot
+    pre_built_iso = args.iso
+
+    # Validate: -O is required when --iso is not provided
+    if not pre_built_iso and not os:
+        parser.error("-O/--os is required when --iso is not provided.")
+
     if no_reboot:
-        print("Otion no-reboot is set !!")
+        print("Option no-reboot is set !!")
+    if pre_built_iso:
+        print(f"Option --iso is set: {pre_built_iso}")
     ## Load Config ##
     try:
         # Ensure args.config is a string
@@ -151,67 +166,79 @@ def main():
         print("FAIL")
         sys.exit(f"BMC Auth Validation Failed: {auth_result['message']} (Please check your parameter or config.json)")
 
-    # Generate Custom ISO
-    print(f"[{utils.formatted_time()}] Generating custom autoinstall ISO...")
-    print(f"OS: {os}, User: {osuser}")
-    
-    # Path to the build script
-    script_dir = pathlib.Path(__file__).parent.parent.parent / "autoinstall"
-    build_script = script_dir / "build-ubuntu-autoinstall-iso.sh"
-    
-    if not build_script.exists():
-        sys.exit(f"Build script not found: {build_script}")
-    
-    # Execute the build script with sudo (requires root for apt and ISO operations)
-    try:
-        print(f"[{utils.formatted_time()}] Executing: sudo {build_script.name} {os} {osuser} ****")
-        result = subprocess.run(
-            ["sudo", str(build_script), os, osuser, ospasswd],
-            cwd=str(script_dir),
-            capture_output=True,
-            text=True,
-            check=True
-        )
+    # Generate Custom ISO or use pre-built ISO
+    if pre_built_iso:
+        # --iso option provided: validate and use the pre-built ISO
+        iso_path = pathlib.Path(pre_built_iso)
+        if not iso_path.exists():
+            sys.exit(f"Pre-built ISO not found: {pre_built_iso}")
+        if not iso_path.is_file():
+            sys.exit(f"Pre-built ISO path is not a file: {pre_built_iso}")
+        iso = str(iso_path.resolve())
+        print(f"[{utils.formatted_time()}] *** Bypassing ISO generation (--iso provided) ***")
+        print(f"[{utils.formatted_time()}] Using pre-built ISO: {iso}")
+    else:
+        # Normal flow: generate custom autoinstall ISO
+        print(f"[{utils.formatted_time()}] Generating custom autoinstall ISO...")
+        print(f"OS: {os}, User: {osuser}")
         
-        # Print script output
-        if result.stdout:
-            print(result.stdout)
+        # Path to the build script
+        script_dir = pathlib.Path(__file__).parent.parent.parent / "autoinstall"
+        build_script = script_dir / "build-ubuntu-autoinstall-iso.sh"
         
-        # Print stderr if any (warnings, etc.)
-        if result.stderr:
-            print(f"Script warnings/errors:\n{result.stderr}", file=sys.stderr)
+        if not build_script.exists():
+            sys.exit(f"Build script not found: {build_script}")
         
-        # Extract the generated ISO path from the output
-        # Looking for line: "[*] Done. Autoinstall ISO created at: ./output_custom_iso/..."
-        iso_path = None
-        for line in result.stdout.split('\n'):
-            if "Autoinstall ISO created at:" in line:
-                iso_path = line.split("Autoinstall ISO created at:")[-1].strip()
-                break
-        
-        if not iso_path:
-            print("ERROR: Failed to extract ISO path from build script output")
-            print("Script output was:")
-            print(result.stdout)
-            sys.exit("Failed to extract ISO path from build script output")
-        
-        # Convert relative path to absolute
-        iso = str((script_dir / iso_path).resolve())
-        print(f"[{utils.formatted_time()}] Custom ISO generated: {iso}")
-        
-    except subprocess.CalledProcessError as e:
-        print(f"\n{'='*60}")
-        print(f"BUILD SCRIPT FAILED")
-        print(f"{'='*60}")
-        print(f"Return code: {e.returncode}")
-        if e.stdout:
-            print(f"\nStdout:\n{e.stdout}")
-        if e.stderr:
-            print(f"\nStderr:\n{e.stderr}")
-        print(f"{'='*60}")
-        sys.exit(f"Failed to generate custom autoinstall ISO (exit code: {e.returncode})")
-    except Exception as e:
-        sys.exit(f"Error executing build script: {e}")
+        # Execute the build script with sudo (requires root for apt and ISO operations)
+        try:
+            print(f"[{utils.formatted_time()}] Executing: sudo {build_script.name} {os} {osuser} ****")
+            result = subprocess.run(
+                ["sudo", str(build_script), os, osuser, ospasswd],
+                cwd=str(script_dir),
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            
+            # Print script output
+            if result.stdout:
+                print(result.stdout)
+            
+            # Print stderr if any (warnings, etc.)
+            if result.stderr:
+                print(f"Script warnings/errors:\n{result.stderr}", file=sys.stderr)
+            
+            # Extract the generated ISO path from the output
+            # Looking for line: "[*] Done. Autoinstall ISO created at: ./output_custom_iso/..."
+            iso_path = None
+            for line in result.stdout.split('\n'):
+                if "Autoinstall ISO created at:" in line:
+                    iso_path = line.split("Autoinstall ISO created at:")[-1].strip()
+                    break
+            
+            if not iso_path:
+                print("ERROR: Failed to extract ISO path from build script output")
+                print("Script output was:")
+                print(result.stdout)
+                sys.exit("Failed to extract ISO path from build script output")
+            
+            # Convert relative path to absolute
+            iso = str((script_dir / iso_path).resolve())
+            print(f"[{utils.formatted_time()}] Custom ISO generated: {iso}")
+            
+        except subprocess.CalledProcessError as e:
+            print(f"\n{'='*60}")
+            print(f"BUILD SCRIPT FAILED")
+            print(f"{'='*60}")
+            print(f"Return code: {e.returncode}")
+            if e.stdout:
+                print(f"\nStdout:\n{e.stdout}")
+            if e.stderr:
+                print(f"\nStderr:\n{e.stderr}")
+            print(f"{'='*60}")
+            sys.exit(f"Failed to generate custom autoinstall ISO (exit code: {e.returncode})")
+        except Exception as e:
+            sys.exit(f"Error executing build script: {e}")
     
     
 
