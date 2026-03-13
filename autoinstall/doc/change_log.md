@@ -2,6 +2,41 @@
 
 ---
 
+## 2026-03-13: Fix Autoinstall Activation and Disk Detection Robustness
+
+**File:** `build-ubuntu-autoinstall-iso.sh`
+
+---
+
+### Issues Fixed
+
+1. **YAML Syntax Error (Indentation):**
+   - **Problem:** Inconsistent indentation in the `early-commands` section (some lines at 4 spaces, others at 6) caused the YAML parser to fail. This led to the autoinstall configuration being ignored entirely.
+   - **Fix:** Standardized all YAML list items and blocks to 4-space indentation.
+
+2. **Target Command Expansion (Shell Escaping):**
+   - **Problem:** Shell variables and command substitutions (like `$(lsblk)` and `$IP`) within the `user-data` heredoc were being expanded by the **build machine**'s shell during ISO generation. This resulted in hardcoded build-machine disks (e.g., `loop0`) and local IP addresses being baked into the ISO.
+   - **Fix:** Escaped all `$` signs (`\$`) and command substitutions (`\$(...)`) in the `early-commands` and `late-commands` blocks. This ensures the logic executes on the **target hardware** during installation.
+
+3. **Storage Configuration (Ubuntu 24.04 Compatibility):**
+   - **Problem:** The `match: serial: __ID_SERIAL__` block was incorrectly nested under `layout`. In newer Subiquity versions (like Ubuntu 24.04), `match` must be a sibling of the `layout` key.
+   - **Fix:** Corrected the `storage` schema to place `match` at the correct level.
+
+4. **Disk Detection Logic (POSIX Compatibility):**
+   - **Problem:** Used Bash-specific process substitution (`while read ... < <(lsblk)`) which is often unsupported in the installer's minimal `/bin/sh` environment.
+   - **Fix:** Rewrote detection as a shell-compatible function `find_empty_disk_serial()` using a standard `for` loop and portable check for zeroed disks (`dd | tr | wc`).
+
+5. **Config File Resolution:**
+   - **Problem:** The `sed` command targeting `/autoinstall.yaml` was unreliable as Subiquity often moves the working config to `/run/subiquity/autoinstall.yaml`.
+   - **Fix:** Updated the script to probe multiple potential paths (`/autoinstall.yaml`, `/run/subiquity/autoinstall.yaml`, `/tmp/autoinstall.yaml`) when patching the disk serial.
+
+6. **Force Stop on Failure:**
+   - **Problem:** If a suitable empty disk was not found, the installation might proceed incorrectly.
+   - **Fix:** Added a failure path that returns exit code `1` if detection fails, which halts the automated installation progress for manual inspection.
+
+---
+
+
 ## 2026-03-09: Fix Installation Stall — Disable Unattended Security Updates
 
 **File:** `build-ubuntu-autoinstall-iso.sh`

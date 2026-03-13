@@ -360,6 +360,8 @@ autoinstall:
   keyboard:
     layout: us
   storage:
+    match:
+      serial: __ID_SERIAL__
     layout:
       name: direct
   ssh:
@@ -372,6 +374,66 @@ autoinstall:
     fallback: offline-install
     geoip: false
   early-commands:
+    - |
+      #!/bin/sh
+      find_empty_disk_serial() {
+          # Get all disk devices (sh-compatible, no process substitution)
+          for disk in \$(lsblk -nd -o NAME --exclude 1,2,11 2>/dev/null); do
+              device="/dev/\$disk"
+
+              # Skip if device doesn't exist
+              [ -b "\$device" ] || continue
+
+              # Check if disk has any partitions
+              partition_count=\$(lsblk -n -o TYPE "\$device" 2>/dev/null | grep -c "part")
+              if [ "\$partition_count" -gt 0 ]; then
+                  continue
+              fi
+
+              # Check if disk has any filesystem signatures
+              signatures=\$(wipefs "\$device" 2>/dev/null | grep -v "^offset")
+              if [ -n "\$signatures" ]; then
+                  continue
+              fi
+
+              # Check if first 1MB is all zeros (sh-compatible)
+              empty_bytes=\$(dd if="\$device" bs=1M count=1 2>/dev/null | tr -d '\0' | wc -c)
+              if [ "\$empty_bytes" -gt 0 ]; then
+                  continue
+              fi
+
+              # Get ID_SERIAL using udevadm
+              serial=\$(udevadm info --query=property --name="\$device" 2>/dev/null | grep "^ID_SERIAL=" | cut -d'=' -f2)
+
+              if [ -n "\$serial" ]; then
+                  echo "\$serial"
+                  return 0
+              else
+                  sys_path=\$(udevadm info --query=property --name="\$device" 2>/dev/null | grep "^DEVPATH=" | cut -d'=' -f2)
+                  serial=\$(cat "/sys\${sys_path}/../serial" 2>/dev/null || cat "/sys\${sys_path}/device/serial" 2>/dev/null)
+                  if [ -n "\$serial" ]; then
+                      echo "\$serial"
+                      return 0
+                  fi
+              fi
+          done
+          return 1
+      }
+
+      serial=\$(find_empty_disk_serial)
+      if [ \$? -eq 0 ]; then
+          # Update the serial in the configuration files
+          # In Ubuntu 24.04, subiquity might use one of these locations
+          for cfg in /autoinstall.yaml /run/subiquity/autoinstall.yaml /tmp/autoinstall.yaml; do
+              if [ -f "\$cfg" ]; then
+                  sed -i "s/__ID_SERIAL__/\${serial}/g" "\$cfg"
+              fi
+          done
+      else
+          echo "No empty storage device found. Stopping installation."
+          return 1
+      fi
+
     # Load IPMI kernel modules for BMC communication
     - modprobe ipmi_devintf 2>/dev/null || true
     - modprobe ipmi_si 2>/dev/null || true
@@ -407,7 +469,7 @@ autoinstall:
     # Uses OEM Timestamped Record (RecType=0xC0) which provides 6 bytes of OEM data.
     # Format: RecordID[2] RecType(0xC0) Timestamp[4] MfgID[3] IP[4] Marker(0x03) Reserved(0xFF)
     # The IP address is extracted from the installed system via hostname -I.
-    - chroot /target sh -c 'IP=$(hostname -I | awk "{print \$1}"); IFS=. read -r o1 o2 o3 o4 <<< "$IP"; ipmitool raw 0x0a 0x44 0x00 0x00 0xC0 0x00 0x00 0x00 0x00 0x00 0x00 0x00 $(printf "0x%02x 0x%02x 0x%02x 0x%02x" $o1 $o2 $o3 $o4) 0x03 0xff 2>/dev/null || true'
+    - chroot /target sh -c 'IP=\$(hostname -I | awk "{print \$1}"); IFS=. read -r o1 o2 o3 o4 <<< "\$IP"; ipmitool raw 0x0a 0x44 0x00 0x00 0xC0 0x00 0x00 0x00 0x00 0x00 0x00 0x00 \$(printf "0x%02x 0x%02x 0x%02x 0x%02x" \$o1 \$o2 \$o3 \$o4) 0x03 0xff 2>/dev/null || true'
 EOF
 
 if [ "$IS_1804" = true ]; then

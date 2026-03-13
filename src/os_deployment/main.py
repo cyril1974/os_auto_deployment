@@ -224,7 +224,7 @@ def main():
             
             # Convert relative path to absolute
             iso = str((script_dir / iso_path).resolve())
-            print(f"[{utils.formatted_time()}] Custom ISO generated: {iso}")
+            print(f"[{utils.formatted_time()}] \nCustom ISO generated:\n Path: {iso}")
             
         except subprocess.CalledProcessError as e:
             print(f"\n{'='*60}")
