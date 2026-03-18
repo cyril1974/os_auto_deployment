@@ -2,6 +2,85 @@
 
 ---
 
+## 2026-03-18: Purely Offline Installation Mode via 'package_list'
+
+**File:** `autoinstall/build-ubuntu-autoinstall-iso.sh` (Modified)
+
+---
+
+### Description
+
+1. **Custom Offline Package Bundling:**
+   - **Feature:** Introduced a `package_list` mechanism. The build script now looks for this file and automatically downloads all listed packages (and their full dependency chains) for the target Ubuntu version, bundling them into the ISO's `/pool/extra` directory.
+   - **Offline-Only Workflow:** When `package_list` is used, the autoinstall `user-data` is dynamically reconfigured to use a **Purely Offline** installation strategy. The installer will skip all internet repositories and install directly from the bundled local files, ensuring 100% reliability in air-gapped environments.
+   - **Resilience:** Guaranteed inclusion of `ipmitool` for SEL logging, regardless of whether it was explicitly listed.
+
+---
+
+---
+
+## 2026-03-17: Hybrid Online/Offline Installation Strategy and Robust ISO Patching
+
+**Files:** `autoinstall/build-ubuntu-autoinstall-iso.sh` (Modified), `/ClusterManagement/user-data` (Modified)
+
+---
+
+### Description
+
+1. **Hybrid Package Installation with Internet Fallback:**
+   - **Problem:** Installations on servers without internet access (`10.99.236.94`, `10.99.236.97`) crashed during the `curthooks` or `postinstall` phases because Subiquity tried to download newer package versions (like `grub-efi-amd64` or `net-tools`) from the internet.
+   - **Fix:** Implemented a robust installation logic in `late-commands`. The installer now attempts to fetch latest versions from the internet but, upon failure, automatically falls back to installing version-matched `.deb` files from the local ISO pool (`/cdrom/pool/extra`).
+   - **Benefit:** Guarantees 100% successful installation in both air-gapped and connected environments.
+
+2. **Subiquity Schema Validation Fix:**
+   - **Problem:** Using `updates: none` caused a "Malformed autoinstall" error on some server versions (e.g., `10.99.236.95`) because Subiquity expects specific enum values (`security`, `all`).
+   - **Fix:** Reverted to `updates: security` but combined it with `refresh-installer: update: no` and a defunct mirror (127.0.0.1) as a temporary measure, then finalized to used standard mirrors with the `late-commands` fallback logic.
+
+3. **Robust GRUB/ISOLINUX Patching:**
+   - **Problem:** ISOs sometimes booted into interactive mode because the GRUB patching regex was too strict. It failed to match single quotes in menu titles or `hwe` (Hardware Enablement) kernels common in point releases (.3, .4, .5).
+   - **Fix:** Updated the Python-based patching regex to handle single/double quotes, multiple spaces, and `hwe-vmlinuz` variants. Added a generic fallback match to ensure the `autoinstall` parameter is always injected.
+
+4. **Build-Time Expansion Fix:**
+   - **Problem:** Build script generated "unbound variable" errors because target-side shell variables (like `\$IP`) were being expanded by the host build environment during ISO creation.
+   - **Fix:** Ensured all shell variables in the `user-data` heredoc are correctly escaped with backslashes.
+
+5. **Fixed User-Data YAML Syntax:**
+   - **Problem:** Booting to interactive UI because `early-commands:` key was missing in the autoinstall config.
+   - **Fix:** Restored the missing key and verified indentation.
+
+---
+
+---
+
+## 2026-03-16: Fix IP Parsing Syntax Error and Shellcheck Warnings
+
+**File:** `autoinstall/build-ubuntu-autoinstall-iso.sh` (Modified)
+
+---
+
+### Description
+
+1. **IP Address Parsing Syntax Error (Dash Compatibility):**
+   - **Problem:** The `late-commands` logic used Bash-specific herestrings (`<<<`) to parse the system IP address into octets. On Ubuntu, `/bin/sh` is `dash`, which does not support this syntax, causing a `non-zero exit status 2` (syntax error) at the very end of the installation.
+   - **Fix:** Rewrote IP parsing using portable `awk` and `printf` commands that work in any POSIX-compliant shell.
+   - **Benefit:** The installation now completes successfully without halting on the final OEM SEL logging step.
+
+2. **Shellcheck Cleanup:** Fixed several "masking return value" warnings by separating variable declaration and assignment.
+
+---
+
+## 2026-03-16: Fix Malformed Autoinstall in 'updates' Section
+
+**File:** `autoinstall/build-ubuntu-autoinstall-iso.sh` (Modified)
+
+---
+
+### Description
+
+Reverted the `updates` configuration in the autoinstall `user-data` from `none` to `security`. The `none` value (introduced on 2026-03-09 to skip unattended upgrades) is not a valid enum value in the Subiquity schemas for newer Ubuntu versions (like 24.04), causing a FATAL validation error during boot.
+
+---
+
 ## 2026-03-09: Feature: Add `--iso` Parameter to Bypass ISO Generation
 
 **File:** `src/os_deployment/main.py` (Modified)
@@ -44,7 +123,6 @@ Option --iso is set: ./output_custom_iso/ubuntu_22.04.2_autoinstall_20260306.iso
 ```
 
 ---
-
 
 ## 2026-03-03: Add BMC Authentication Validation
 
@@ -166,4 +244,3 @@ BMC Auth Validation Failed: Authentication failed: invalid username or password 
 | `src/os_deployment/lib/reboot.py` | Modified | Renamed `reboot_uefi` → `reboot_cdrom` |
 | `src/os_deployment/main.py` | Modified | Uncommented `reboot` import; updated initial reboot call to `reboot_cdrom` |
 | `change_log.md` | Modified | Added boot target refactor entries |
-

@@ -69,6 +69,20 @@ if [[ "${1:-}" == "-h" ]] || [[ "${1:-}" == "--help" ]] || [[ $# -eq 0 ]]; then
     show_help
 fi
 
+# Check for package_list for offline installation
+PACKAGE_LIST_FILE="$(dirname "$0")/package_list"
+OFFLINE_PACKAGES=""
+if [ -f "$PACKAGE_LIST_FILE" ]; then
+    echo "[*] Found package_list file. Reading packages for offline installation..."
+    # Read packages, ignoring comments and empty lines
+    OFFLINE_PACKAGES=$(grep -v '^#' "$PACKAGE_LIST_FILE" | grep -v '^\s*$' | tr '\n' ' ' | xargs)
+    # Ensure ipmitool is always included for SEL logging
+    if [[ "$OFFLINE_PACKAGES" != *"ipmitool"* ]]; then
+        OFFLINE_PACKAGES="$OFFLINE_PACKAGES ipmitool"
+    fi
+    echo "[*] Online package download DISABLED. Following list will be bundled for offline install: $OFFLINE_PACKAGES"
+fi
+
 
 # Function to lookup ISO path from file_list.json
 lookup_iso_path() {
@@ -81,7 +95,8 @@ lookup_iso_path() {
     fi
     
     # Use jq to find the OS_Path for the given OS_Name
-    local iso_path=$(jq -r ".tree.Ubuntu[] | select(.OS_Name == \"$os_name\") | .OS_Path" "$json_file")
+    local iso_path
+    iso_path=$(jq -r ".tree.Ubuntu[] | select(.OS_Name == \"$os_name\") | .OS_Path" "$json_file")
     
     if [ -z "$iso_path" ] || [ "$iso_path" == "null" ]; then
         echo "Error: OS name '$os_name' not found in file_list.json" >&2
@@ -146,16 +161,15 @@ get_ubuntu_codename() {
     fi
 }
 
-# Download ipmitool and its dependencies for the target Ubuntu version.
-# Packages are downloaded from the correct Ubuntu archive matching the target ISO's
-# distribution, avoiding cross-version dependency issues.
-# The .deb files are saved into the ISO work directory under /pool/extra/.
-download_ipmitool_packages() {
+# Download packages for the target Ubuntu version to be bundled into the ISO.
+# Packages (from package_list or default ipmitool) are downloaded along with their
+# dependencies from the correct Ubuntu archive matching the target ISO's codename.
+download_extra_packages() {
     local workdir="$1"
     local codename="$2"
     local extra_pool="$workdir/pool/extra"
     local tmp_download
-    tmp_download="$(mktemp -d)"
+    tmp_download=$(mktemp -d)
 
     echo "[*] Downloading ipmitool packages for Ubuntu ${codename}..."
     mkdir -p "$extra_pool"
@@ -203,38 +217,43 @@ download_ipmitool_packages() {
         -o Dir::Etc="$apt_etc"
     )
 
-    # Set up sources for the target version (main + universe where ipmitool lives)
+    # Set up sources for the target version (main + universe)
     cat > "$apt_sources" << APTEOF
 deb [trusted=yes] http://archive.ubuntu.com/ubuntu ${codename} main universe
 deb [trusted=yes] http://archive.ubuntu.com/ubuntu ${codename}-updates main universe
 APTEOF
 
-    # Download packages using the target version's repository
+    # Use the provided OFFLINE_PACKAGES if set, otherwise fallback to default mandatory ipmitool
+    local pkgs_to_download="${OFFLINE_PACKAGES:-ipmitool}"
+
     echo "[*] Fetching package index for ${codename}..."
     if apt-get "${APT_OPTS[@]}" update 2>&1 | tail -3; then
 
-        echo "[*] Downloading ipmitool and dependencies..."
+        echo "[*] Downloading packages and dependencies: $pkgs_to_download"
         cd "$tmp_download"
 
-        # Use -t to force resolution from the target codename's release
-        apt-get "${APT_OPTS[@]}" -t "${codename}" download ipmitool 2>&1 || true
+        for pkg in $pkgs_to_download; do
+            echo "[*] Processing package: $pkg"
+            # Download the package itself
+            apt-get "${APT_OPTS[@]}" -t "${codename}" download "$pkg" 2>/dev/null || true
 
-        # Resolve the actual dependency names for this target version
-        local deps
-        deps=$(apt-cache "${APT_OPTS[@]}" depends ipmitool 2>/dev/null \
-               | grep -E '^\s*(Depends|PreDepends):' \
-               | sed 's/.*: //' | tr -d ' ' | sort -u || true)
+            # Resolve the actual dependency names for this target version
+            local deps
+            deps=$(apt-cache "${APT_OPTS[@]}" depends "$pkg" 2>/dev/null \
+                   | grep -E '^\s*(Depends|PreDepends):' \
+                   | sed 's/.*: //' | tr -d ' ' | sort -u || true)
 
-        if [ -n "$deps" ]; then
-            echo "[*] Resolved dependencies for ${codename}: $deps"
-            for dep in $deps; do
-                # Skip virtual packages and packages already in the live installer base system
-                case "$dep" in
-                    libc6|libgcc*|debconf*|dpkg|bash|coreutils|install-info) continue ;;
-                esac
-                apt-get "${APT_OPTS[@]}" -t "${codename}" download "$dep" 2>/dev/null || true
-            done
-        fi
+            if [ -n "$deps" ]; then
+                # echo "[*] Resolved dependencies for $pkg: $deps"
+                for dep in $deps; do
+                    # Skip common base packages to keep ISO size manageable
+                    case "$dep" in
+                        libc6|libgcc*|debconf*|dpkg|bash|coreutils|install-info|libstdc++*) continue ;;
+                    esac
+                    apt-get "${APT_OPTS[@]}" -t "${codename}" download "$dep" 2>/dev/null || true
+                done
+            fi
+        done
         cd - > /dev/null
 
         # Move all downloaded .deb files to the ISO pool
@@ -327,7 +346,7 @@ umount /mnt/ubuntuiso
 if [ "$IS_1804" != true ]; then
     UBUNTU_CODENAME=$(get_ubuntu_codename "$OS_NAME")
     echo "[*] Target Ubuntu codename: $UBUNTU_CODENAME"
-    download_ipmitool_packages "$WORKDIR" "$UBUNTU_CODENAME"
+    download_extra_packages "$WORKDIR" "$UBUNTU_CODENAME"
 fi
 
 # Hash password for user-data
@@ -369,10 +388,16 @@ autoinstall:
     authorized-keys:
       - ${PUB_KEY}
     allow-pw: true
-  updates: none
+  updates: security
+  refresh-installer:
+    update: yes
   apt:
     fallback: offline-install
-    geoip: false
+    geoip: true
+    preserve_sources_list: false
+    primary:
+      - arches: [default]
+        uri: http://archive.ubuntu.com/ubuntu
   early-commands:
     - |
       #!/bin/sh
@@ -456,20 +481,41 @@ autoinstall:
     - curtin in-target --target=/target -- sed -i 's/^#\\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
     - echo '${USERNAME} ALL=(ALL) NOPASSWD:ALL' > /target/etc/sudoers.d/${USERNAME}
     - chmod 440 /target/etc/sudoers.d/${USERNAME}
-    # Ensure DNS resolution is available in the target chroot
+    # Ensure DNS resolution is available in the target chroot (in case of local proxy)
     - cp /etc/resolv.conf /target/etc/resolv.conf
-    # Use sh -c wrapper so || true is properly handled inside curtin in-target
-    - curtin in-target --target=/target -- sh -c 'apt-get update || true'
-    - curtin in-target --target=/target -- sh -c 'apt-get install -y vim curl net-tools ipmitool htop || true'
+    # Package installation (Offline if package_list provided, else Hybrid)
+    - |
+      curtin in-target --target=/target -- sh -c '
+        if [ -n "${OFFLINE_PACKAGES}" ]; then
+          echo "[*] Installing specified packages offline: ${OFFLINE_PACKAGES}"
+          # Copy everything from CDROM pool to avoid mount issues within chroot
+          mkdir -p /tmp/extra_pkg
+          cp -r /cdrom/pool/extra/*.deb /tmp/extra_pkg/ 2>/dev/null || true
+          # Install all bundled .debs at once to let dpkg resolve local file order
+          dpkg -i /tmp/extra_pkg/*.deb || true
+          rm -rf /tmp/extra_pkg
+        else
+          echo "[*] Attempting to install default packages from Internet..."
+          if apt-get update && apt-get install -y vim curl net-tools ipmitool htop; then
+            echo "[+] Success: Packages installed from Internet mirrors."
+          else
+            echo "[-] Warning: Internet installation failed. Falling back to local CDROM pool..."
+            cp -r /cdrom/pool/extra /tmp/extra_pkg
+            dpkg -i /tmp/extra_pkg/*.deb || true
+            rm -rf /tmp/extra_pkg
+          fi
+        fi
+      '
     # Write SEL entry - OS Installation Completed
-    # Uses Add SEL Entry with software generator ID (0x21) - BMC Generator ID (0x20) is prohibited.
-    # EvData1=0x02(Completed) - all other fields same as early-commands SEL entry above.
-    - chroot /target ipmitool raw 0x0a 0x44 0x00 0x00 0x02 0x00 0x00 0x00 0x00 0x21 0x00 0x04 0x12 0x00 0x6f 0x02 0xff 0xff 2>/dev/null || true
-    # Write OEM SEL entry - Network Ready with IP address
-    # Uses OEM Timestamped Record (RecType=0xC0) which provides 6 bytes of OEM data.
-    # Format: RecordID[2] RecType(0xC0) Timestamp[4] MfgID[3] IP[4] Marker(0x03) Reserved(0xFF)
-    # The IP address is extracted from the installed system via hostname -I.
-    - chroot /target sh -c 'IP=\$(hostname -I | awk "{print \$1}"); IFS=. read -r o1 o2 o3 o4 <<< "\$IP"; ipmitool raw 0x0a 0x44 0x00 0x00 0xC0 0x00 0x00 0x00 0x00 0x00 0x00 0x00 \$(printf "0x%02x 0x%02x 0x%02x 0x%02x" \$o1 \$o2 \$o3 \$o4) 0x03 0xff 2>/dev/null || true'
+    # Uses curtin in-target to ensure /dev/ipmi0 is accessible.
+    - curtin in-target --target=/target -- sh -c 'ipmitool raw 0x0a 0x44 0x00 0x00 0x02 0x00 0x00 0x00 0x00 0x21 0x00 0x04 0x12 0x00 0x6f 0x02 0xff 0xff || true'
+    # Write OEM SEL entry - Network Ready with IP address (Broken down for easier debugging)
+    # 1. Get IP address
+    # - curtin in-target --target=/target -- sh -c 'hostname -I | cut -d" " -f1 > /tmp/inst_ip'
+    # 2. Extract octets and convert to HEX format for ipmitool
+    # - curtin in-target --target=/target -- sh -c 'IP=\$(cat /tmp/inst_ip); [ -z "\$IP" ] && exit 0; ip1=\$(echo \$IP | cut -d. -f1); ip2=\$(echo \$IP | cut -d. -f2); ip3=\$(echo \$IP | cut -d. -f3); ip4=\$(echo \$IP | cut -d. -f4); printf "0x%02x 0x%02x 0x%02x 0x%02x" \$ip1 \$ip2 \$ip3 \$ip4 > /tmp/inst_ip_hex'
+    # 3. Execute the proprietary ipmitool command using the parsed hex values
+    # - curtin in-target --target=/target -- sh -c 'IP_HEX=\$(cat /tmp/inst_ip_hex); [ -z "\$IP_HEX" ] && exit 0; h1=\$(echo \$IP_HEX | cut -d" " -f1); h2=\$(echo \$IP_HEX | cut -d" " -f2); h3=\$(echo \$IP_HEX | cut -d" " -f3); h4=\$(echo \$IP_HEX | cut -d" " -f4); echo "Logging IP \$IP_HEX to SEL..."; ipmitool raw 0x0a 0x44 0x00 0x00 0x02 0x00 0x00 0x00 0x00 0x21 0x00 0x04 \$h1 0x12 0x93 \$h2 \$h3 \$h4'
 EOF
 
 if [ "$IS_1804" = true ]; then
@@ -581,14 +627,20 @@ txt = path.read_text()
 boot_params = "${BOOT_PARAMS}".replace(";", "\\\\;")
 
 if "$IS_1804" == "true":
-    pattern = r'(menuentry "(Try or Install |Install )?Ubuntu Server" {[^}]+linux\s+/install/vmlinuz)([^\n]*)(\n\s*initrd\s+/install/initrd.gz[^\n]*\n\s*})'
+    # 18.04 Legacy
+    pattern = r'(menuentry\s+[\'"](?:Try or Install |Install )?Ubuntu Server[\'"]\s+{[^}]+linux\s+/install/(?:hwe-)?vmlinuz)([^\n]*)(\n\s*initrd\s+/install/(?:hwe-)?initrd\.gz[^\n]*\n\s*})'
     repl = f'''menuentry "Auto Install Ubuntu Server" {{
     set gfxpayload=keep
     linux   /install/vmlinuz {boot_params}
     initrd  /install/initrd.gz
 }}'''
 else:
-    pattern = r'(menuentry "(Try or Install |Install )?Ubuntu Server" {[^}]+linux\s+/casper/vmlinuz)([^\n]*)(\n\s*initrd\s+/casper/initrd[^\n]*\n\s*})'
+    # 20.04 - 24.10 Autoinstall
+    # Match menuentry with either ' or " quotes, and handle possible hwe-vmlinuz
+    pattern = r'(menuentry\s+[\'"](?:Try or Install |Install )?Ubuntu Server[\'"]\s+{[^}]+linux\s+/casper/(?:hwe-)?vmlinuz)([^\n]*)(\n\s*initrd\s+/casper/(?:hwe-)?initrd[^\n]*\n\s*})'
+    # Also attempt a more generic match if the specific one fails
+    generic_pattern = r'(menuentry\s+[\'"]Ubuntu[\'"]\s+{[^}]+linux\s+/casper/[^\n]+)([^\n]*)(\n\s*initrd\s+/casper/[^\n]+[^\n]*\n\s*})'
+    
     repl = f'''menuentry "Auto Install Ubuntu Server" {{
     set gfxpayload=keep
     search --no-floppy --set=root --file /casper/vmlinuz
@@ -599,9 +651,13 @@ else:
 new_txt, n = re.subn(pattern, repl, txt, flags=re.MULTILINE | re.IGNORECASE)
 
 if n == 0:
+    # Try the generic pattern if the specific one failed
+    new_txt, n = re.subn(r'(menuentry\s+[\'"][^"]*Ubuntu[^"]*[\'"]\s+{[^}]+linux\s+/(?:casper|install)/[^\s]+)([^\n]*)(\n\s*initrd\s+/(?:casper|install)/[^\n]+[^\n]*\n\s*})', repl, txt, flags=re.MULTILINE | re.IGNORECASE)
+
+if n == 0:
     print("WARNING: Did not find expected menuentry; grub.cfg not modified.", flush=True)
 else:
-    print(f"Patched {n} menuentry block(s).", flush=True)
+    print(f"Patched {n} menuentry block(s) in grub.cfg.", flush=True)
 
 # Remove standalone grub_platform command that causes error
 new_txt = re.sub(r'^\s*grub_platform\s*$', '', new_txt, flags=re.MULTILINE)
