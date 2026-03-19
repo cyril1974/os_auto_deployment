@@ -1,5 +1,11 @@
+ipmitool
 vim
 curl
 net-tools
-ipmitool
 htop
+docker
+kubelet
+kubeadm
+kubectl
+apt-transport-https
+ca-certificates

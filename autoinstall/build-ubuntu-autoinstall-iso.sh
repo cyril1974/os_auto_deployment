@@ -76,11 +76,13 @@ if [ -f "$PACKAGE_LIST_FILE" ]; then
     echo "[*] Found package_list file. Reading packages for offline installation..."
     # Read packages, ignoring comments and empty lines
     OFFLINE_PACKAGES=$(grep -v '^#' "$PACKAGE_LIST_FILE" | grep -v '^\s*$' | tr '\n' ' ' | xargs)
-    # Ensure ipmitool, vim, curl, net-tools, htop, docker are always included
-    # These are common utilities or critical for SEL logging/system management.
-    for pkg in "ipmitool" "vim" "curl" "net-tools" "htop" "docker"; do
+    # Ensure critical tools are always included if requested (ipmitool, docker, kube tools)
+    for pkg in "ipmitool" "docker" "kubelet" "kubeadm" "kubectl"; do
         if [[ " $OFFLINE_PACKAGES " != *" $pkg "* ]]; then
-            OFFLINE_PACKAGES="$OFFLINE_PACKAGES $pkg"
+            if [[ "$pkg" == "ipmitool" ]]; then
+                # Mandatory fallback for ipmitool
+                OFFLINE_PACKAGES="$OFFLINE_PACKAGES ipmitool"
+            fi
         fi
     done
     OFFLINE_PACKAGES=$(echo "$OFFLINE_PACKAGES" | xargs) # Trim leading/trailing spaces
@@ -239,6 +241,15 @@ APTEOF
         # Bundle Docker GPG key into the ISO autoinstall folder for late-command availability
         echo "[*] Bundling Docker GPG key into ISO..."
         curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o "$(dirname "$extra_pool")/autoinstall/docker.asc" || true
+    fi
+
+    # Add Kubernetes repository if any k8s pkg is requested
+    if [[ "$pkgs_to_download" == *"kube"* ]]; then
+        echo "[*] Adding Kubernetes repository for bundling (stable v1.35)..."
+        echo "deb [arch=amd64 trusted=yes] https://pkgs.k8s.io/core:/stable:/v1.35/deb/ /" >> "$apt_sources"
+        # Bundle Kubernetes GPG key into the ISO autoinstall folder for late-command availability
+        echo "[*] Bundling Kubernetes GPG key into ISO..."
+        curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.35/deb/Release.key | gpg --dearmor -o "$(dirname "$extra_pool")/autoinstall/kubernetes.gpg" || true
     fi
 
     echo "[*] Fetching package index for ${codename}..."
@@ -514,6 +525,15 @@ autoinstall:
             cp /cdrom/autoinstall/docker.asc /etc/apt/keyrings/docker.asc 2>/dev/null || true
             chmod a+r /etc/apt/keyrings/docker.asc
             echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" > /etc/apt/sources.list.d/docker.list
+          fi
+
+          # If Kubernetes is being installed, setup the keyring and list file for future updates
+          if echo "${OFFLINE_PACKAGES}" | grep -q "kube"; then
+            echo "[*] Setting up Kubernetes keyring and sources from bundled assets..."
+            mkdir -p /etc/apt/keyrings
+            cp /cdrom/autoinstall/kubernetes.gpg /etc/apt/keyrings/kubernetes-apt-keyring.gpg 2>/dev/null || true
+            chmod a+r /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.35/deb/ /" > /etc/apt/sources.list.d/kubernetes.list
           fi
 
           # Install all bundled .debs at once (use apt-get install locally to resolve order issues)
