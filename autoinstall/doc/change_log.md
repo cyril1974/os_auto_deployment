@@ -2,6 +2,31 @@
 
 ---
 
+## 2026-03-19: Offline Docker and Kubernetes (v1.35) Support
+
+**File:** `build-ubuntu-autoinstall-iso.sh` (Modified), `package_list` (Updated)
+
+---
+
+### Features & Fixes
+
+1. **Docker Offline Bundle Integration:**
+   - **GPG Keying:** Automatically fetches and bundles the official Docker GPG key (`docker.asc`) into the ISO.
+   - **Package Set:** Expands the `docker` keyword into the full suite: `docker-ce`, `docker-ce-cli`, `containerd.io`, `docker-buildx-plugin`, and `docker-compose-plugin`.
+   - **Auto-Config:** Updated `late-commands` to provision the `/etc/apt/keyrings` and `/etc/apt/sources.list.d/docker.list` on the target machine for seamless online updates after installation.
+
+2. **Kubernetes (v1.35) Offline Bundle Integration:**
+   - **Stable Release Fetching:** Added logic to automatically pull packages from the official Kubernetes `v1.35` stable branch repo.
+   - **Binary Keying:** Fetches, dearmors, and bundles the Kubernetes `Release.key` into `/autoinstall/kubernetes.gpg` on the ISO.
+   - **Node Provisioning:** Configures node keyrings and `kubernetes.list` source files during initial deployment, including all control-plane and worker utilities (`kubeadm`, `kubelet`, `kubectl`).
+
+3. **Enhanced Offline Installation Method:**
+   - Switched from `dpkg -i` to `apt-get install -y /tmp/extra_pkg/*.deb` within the `late-commands`. This more robustly handles complex dependency resolution and installation order for inter-dependent toolsets like Docker and K8s.
+
+---
+
+---
+
 ## 2026-03-19: Fixes for Subiquity Self-Update and Storage Configuration Discovery
 
 **File:** `build-ubuntu-autoinstall-iso.sh` (Modified)

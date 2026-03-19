@@ -2,6 +2,28 @@
 
 ---
 
+## 2026-03-19: Advanced Offline Integrations (Docker/K8s) and Subiquity Fixes
+
+**File:** `autoinstall/build-ubuntu-autoinstall-iso.sh` (Modified), `autoinstall/package_list` (Updated)
+
+---
+
+### Features & Fixes
+
+1. **Docker and Kubernetes (v1.35) Offline Support:**
+   - **Full Bundle Support:** The builder now automatically adds official repositories for both Docker and Kubernetes (v1.35) at build time, bundling all binary packages, their transitive dependencies, and their GPG keys into the ISO.
+   - **Automatic Node Provisioning:** Updated `late-commands` to automatically set up the Kubernetes and Docker keyrings and repository source files (`/etc/apt/keyrings`, `kubernetes.list`, `docker.list`) on the target machine for a consistent post-installation state.
+   - **Recursive Resolution:** Improved the dependency downloader to identify the complete recursive closure of required packages, ensuring no "level-2" libraries are missing in air-gapped installs.
+
+2. **Subiquity Stability Fixes (Ubuntu 24.04/Noble):**
+   - **Self-Update Bypass:** Disabled the `refresh-installer` update check. This prevents the frequent `TaskStatus.ERROR` failure where Subiquity would stall at boot while attempting to refresh itself in restricted network environments.
+   - **Config Path Support:** Updated the automated empty-disk detection logic to support the new `/run/subiquity/cloud.autoinstall.yaml` path used in newer Ubuntu releases.
+   - **Recursive Dependency Fix:** Switched to an isolated simulation-based downloader to fix binary dependency mismatches.
+
+---
+
+---
+
 ## 2026-03-18: Purely Offline Installation Mode via 'package_list'
 
 **File:** `autoinstall/build-ubuntu-autoinstall-iso.sh` (Modified)
