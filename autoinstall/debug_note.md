@@ -90,3 +90,61 @@ A **YAML syntax error** was introduced in the `late-commands` section during the
 
 ### Conclusion
 The failure was purely a formatting issue in the auto-generated `user-data`. After applying the fix to the build script and regenerating the ISO, the automated installation should proceed as expected.
+
+---
+
+# Debug Note - Recursive Dependency Failure on 10.99.236.46
+**Date/Time:** 2026-03-19 09:30:00 (GMT+8)
+
+---
+
+### Symptom
+After autoinstall, `apt install` failed with broken dependencies. Specifically, `libfreeipmi17` was missing its dependency `freeipmi-common`.
+
+### Debugging Steps
+1.  **Inspect Machine State**: `dpkg -l | grep ipmi` showed `ipmitool` and `libfreeipmi17` were installed, but `freeipmi-common` was missing.
+2.  **Analyze Download Logic**: The builder script only downloaded direct (Level 1) dependencies. For `ipmitool` on Noble, `freeipmi-common` is a Level-2 dependency and was missed.
+
+### Root Cause
+**Non-Recursive Dependency Resolution**: A shallow dependency check is insufficient for modern library trees.
+
+### Resolution
+Updated the build script to use `apt-get -s install` (simulation) in an isolated build environment to identify and bundle the **entire transitive closure** of required packages.
+
+---
+
+# Debug Note - Core Library Version Mismatch on 10.99.236.46
+**Date/Time:** 2026-03-19 11:30:00 (GMT+8)
+
+---
+
+### Symptom
+`apt upgrade` failed with: `systemd : Depends: libsystemd0 (= 255.4...8.8) but 255.4...8.12 is to be installed`.
+
+### Root Cause
+**Over-bundling Core Libraries**: The builder pulled the latest `libsystemd0` (v..12) from `noble-updates`, but the parent `systemd` remained at the original ISO version (v..8.8). Forcing a mismatched library upgrade via `dpkg -i` breaks the OS management layer.
+
+### Resolution
+Expanded the skip list in the build script to exclude all core OS libraries (`libsystemd*`, `libudev*`, `libssl*`, etc.) from the offline bundle.
+
+---
+
+# Debug Note - Subiquity Refresh Failure on 10.99.236.90
+**Date/Time:** 2026-03-19 12:30:00 (GMT+8)
+
+---
+
+### Symptom
+Installation failed early with `TaskStatus.ERROR` during the `subiquity/Refresh` phase.
+
+### Debugging Steps
+1.  **Inspect Installer Logs**: `subiquity-traceback.txt` showed an exception in `apply_autoinstall_config` during `start_update`.
+2.  **Audit Config Discovery**: Found that the script found an empty disk but didn't replace `__ID_SERIAL__` because it was looking for `autoinstall.yaml` while Subiquity 24.04 used `cloud.autoinstall.yaml`.
+
+### Root Causes
+1.  **Mandatory Refresh**: `refresh-installer: update: true` caused a fatal self-update error in a restricted network.
+2.  **Config Path Change**: Subiquity's transient config path changed in newer releases.
+
+### Resolution
+1.  Set `refresh-installer: update: no` in the template.
+2.  Added `/run/subiquity/cloud.autoinstall.yaml` to the `early-commands` replacement loop.

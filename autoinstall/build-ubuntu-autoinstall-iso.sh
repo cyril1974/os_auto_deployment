@@ -13,8 +13,8 @@ USAGE:
 PARAMETERS:
     OS_NAME     OS name to look up in file_list.json (required)
                 Example: ubuntu-22.04.2-live-server-amd64
-    USERNAME    Username for the installed system (default: admin)
-    PASSWORD    Password for both user and root (default: ubuntu)
+    USERNAME    Username for the installed system (default: mitac)
+    PASSWORD    Password for both user and root (default: MiTAC00123)
 
 DESCRIPTION:
     This script creates a custom Ubuntu autoinstall ISO that will automatically
@@ -33,7 +33,7 @@ FEATURES:
     - Optional package installation (vim, curl, net-tools, ipmitool, htop)
 
 EXAMPLES:
-    # Basic usage with defaults (user: admin, password: ubuntu)
+    # Basic usage with defaults (user: mitac, password: MiTAC00123)
     $0 ubuntu-22.04.2-live-server-amd64
 
     # Specify custom username and password
@@ -76,10 +76,14 @@ if [ -f "$PACKAGE_LIST_FILE" ]; then
     echo "[*] Found package_list file. Reading packages for offline installation..."
     # Read packages, ignoring comments and empty lines
     OFFLINE_PACKAGES=$(grep -v '^#' "$PACKAGE_LIST_FILE" | grep -v '^\s*$' | tr '\n' ' ' | xargs)
-    # Ensure ipmitool is always included for SEL logging
-    if [[ "$OFFLINE_PACKAGES" != *"ipmitool"* ]]; then
-        OFFLINE_PACKAGES="$OFFLINE_PACKAGES ipmitool"
-    fi
+    # Ensure ipmitool, vim, curl, net-tools, htop, docker are always included
+    # These are common utilities or critical for SEL logging/system management.
+    for pkg in "ipmitool" "vim" "curl" "net-tools" "htop" "docker"; do
+        if [[ " $OFFLINE_PACKAGES " != *" $pkg "* ]]; then
+            OFFLINE_PACKAGES="$OFFLINE_PACKAGES $pkg"
+        fi
+    done
+    OFFLINE_PACKAGES=$(echo "$OFFLINE_PACKAGES" | xargs) # Trim leading/trailing spaces
     echo "[*] Online package download DISABLED. Following list will be bundled for offline install: $OFFLINE_PACKAGES"
 fi
 
@@ -226,33 +230,43 @@ APTEOF
     # Use the provided OFFLINE_PACKAGES if set, otherwise fallback to default mandatory ipmitool
     local pkgs_to_download="${OFFLINE_PACKAGES:-ipmitool}"
 
+    # Add Docker repository if docker is requested in package_list
+    if [[ "$pkgs_to_download" == *"docker"* ]]; then
+        echo "[*] Adding Docker repository for bundling..."
+        echo "deb [arch=amd64 trusted=yes] https://download.docker.com/linux/ubuntu ${codename} stable" >> "$apt_sources"
+        # Expand 'docker' slug to the full package set requested by user
+        pkgs_to_download="${pkgs_to_download/docker/docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin}"
+        # Bundle Docker GPG key into the ISO autoinstall folder for late-command availability
+        echo "[*] Bundling Docker GPG key into ISO..."
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o "$(dirname "$extra_pool")/autoinstall/docker.asc" || true
+    fi
+
     echo "[*] Fetching package index for ${codename}..."
     if apt-get "${APT_OPTS[@]}" update 2>&1 | tail -3; then
 
         echo "[*] Downloading packages and dependencies: $pkgs_to_download"
         cd "$tmp_download"
 
-        for pkg in $pkgs_to_download; do
-            echo "[*] Processing package: $pkg"
-            # Download the package itself
+        # Determine the full dependency closure (recursive)
+        # In this isolated apt environment with an empty status file,
+        # apt will simulate a full installation from scratch.
+        local all_needed
+        all_needed=$(apt-get "${APT_OPTS[@]}" -s install --reinstall $pkgs_to_download | grep '^Inst' | awk '{print $2}' | sort -u || true)
+
+        if [ -z "$all_needed" ]; then
+            # Fallback if simulation failed
+            all_needed="$pkgs_to_download"
+        fi
+
+        for pkg in $all_needed; do
+            # Skip common base packages and core libraries already present on the ISO.
+            # Forcibly upgrading core libs like libsystemd0 via dpkg without their parent 
+            # (systemd) causes version mismatch errors.
+            case "$pkg" in
+                libc6|libgcc*|debconf*|dpkg|bash|coreutils|install-info|libstdc++*|init-system-helpers|base-files|netbase|libsystemd*|libudev*|libpam*|libdbus*|libk5*|libssl*|libcrypt*|libzstd*|libuuid*|libblkid*|libmount*|libselinux*) continue ;;
+            esac
+            echo "[*] Downloading: $pkg"
             apt-get "${APT_OPTS[@]}" -t "${codename}" download "$pkg" 2>/dev/null || true
-
-            # Resolve the actual dependency names for this target version
-            local deps
-            deps=$(apt-cache "${APT_OPTS[@]}" depends "$pkg" 2>/dev/null \
-                   | grep -E '^\s*(Depends|PreDepends):' \
-                   | sed 's/.*: //' | tr -d ' ' | sort -u || true)
-
-            if [ -n "$deps" ]; then
-                # echo "[*] Resolved dependencies for $pkg: $deps"
-                for dep in $deps; do
-                    # Skip common base packages to keep ISO size manageable
-                    case "$dep" in
-                        libc6|libgcc*|debconf*|dpkg|bash|coreutils|install-info|libstdc++*) continue ;;
-                    esac
-                    apt-get "${APT_OPTS[@]}" -t "${codename}" download "$dep" 2>/dev/null || true
-                done
-            fi
         done
         cd - > /dev/null
 
@@ -291,8 +305,9 @@ fi
 
 # Get OS name from first argument
 OS_NAME="${1:-ubuntu-22.04.5-live-server-amd64}"
-USERNAME="${2:-autoinstall}"
-PASSWORD="${3:-ubuntu}"
+# Default user and password (modified per user request)
+USERNAME="${2:-mitac}"
+PASSWORD="${3:-MiTAC00123}"
 
 # Detect if it's Ubuntu 18.04
 IS_1804=false
@@ -390,7 +405,7 @@ autoinstall:
     allow-pw: true
   updates: security
   refresh-installer:
-    update: yes
+    update: no
   apt:
     fallback: offline-install
     geoip: true
@@ -448,8 +463,8 @@ autoinstall:
       serial=\$(find_empty_disk_serial)
       if [ \$? -eq 0 ]; then
           # Update the serial in the configuration files
-          # In Ubuntu 24.04, subiquity might use one of these locations
-          for cfg in /autoinstall.yaml /run/subiquity/autoinstall.yaml /tmp/autoinstall.yaml; do
+          # In Ubuntu 24.04, subiquity use cloud.autoinstall.yaml
+          for cfg in /autoinstall.yaml /run/subiquity/autoinstall.yaml /run/subiquity/cloud.autoinstall.yaml /tmp/autoinstall.yaml; do
               if [ -f "\$cfg" ]; then
                   sed -i "s/__ID_SERIAL__/\${serial}/g" "\$cfg"
               fi
@@ -491,17 +506,34 @@ autoinstall:
           # Copy everything from CDROM pool to avoid mount issues within chroot
           mkdir -p /tmp/extra_pkg
           cp -r /cdrom/pool/extra/*.deb /tmp/extra_pkg/ 2>/dev/null || true
-          # Install all bundled .debs at once to let dpkg resolve local file order
-          dpkg -i /tmp/extra_pkg/*.deb || true
+          
+          # If Docker is being installed, setup the keyring and list file for future updates
+          if echo "${OFFLINE_PACKAGES}" | grep -q "docker"; then
+            echo "[*] Setting up Docker keyring and sources from bundled assets..."
+            mkdir -p /etc/apt/keyrings
+            cp /cdrom/autoinstall/docker.asc /etc/apt/keyrings/docker.asc 2>/dev/null || true
+            chmod a+r /etc/apt/keyrings/docker.asc
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" > /etc/apt/sources.list.d/docker.list
+          fi
+
+          # Install all bundled .debs at once (use apt-get install locally to resolve order issues)
+          apt-get install -y /tmp/extra_pkg/*.deb || dpkg -i /tmp/extra_pkg/*.deb || true
           rm -rf /tmp/extra_pkg
         else
           echo "[*] Attempting to install default packages from Internet..."
+          # If docker requested in online mode (not common but supported)
+          if echo "vim curl net-tools ipmitool htop" | grep -q "docker"; then
+              install -m 0755 -d /etc/apt/keyrings
+              curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+              chmod a+r /etc/apt/keyrings/docker.asc
+              echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
+          fi
           if apt-get update && apt-get install -y vim curl net-tools ipmitool htop; then
             echo "[+] Success: Packages installed from Internet mirrors."
           else
             echo "[-] Warning: Internet installation failed. Falling back to local CDROM pool..."
             cp -r /cdrom/pool/extra /tmp/extra_pkg
-            dpkg -i /tmp/extra_pkg/*.deb || true
+            apt-get install -y /tmp/extra_pkg/*.deb || dpkg -i /tmp/extra_pkg/*.deb || true
             rm -rf /tmp/extra_pkg
           fi
         fi

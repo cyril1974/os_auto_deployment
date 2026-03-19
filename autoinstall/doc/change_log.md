@@ -2,6 +2,51 @@
 
 ---
 
+## 2026-03-19: Fixes for Subiquity Self-Update and Storage Configuration Discovery
+
+**File:** `build-ubuntu-autoinstall-iso.sh` (Modified)
+
+---
+
+### Features & Fixes
+
+1. **Disabled 'refresh-installer' Updates:**
+   - **Problem:** Subiquity (Ubuntu installer) often attempts to refresh itself from the internet during boot. In restricted or offline environments, this results in a `TaskStatus.ERROR` failure, blocking the entire installation.
+   - **Fix:** Set `refresh-installer: update: no` in the `user-data` template.
+   - **Benefit:** Increases boot-time stability and ensures deterministic offline operation.
+
+2. **Expanded Storage Config Path Search:**
+   - **Problem:** Modern Subiquity versions (Ubuntu 24.04+) often write the transient autoinstall configuration to `/run/subiquity/cloud.autoinstall.yaml` instead of `/run/subiquity/autoinstall.yaml`. This caused the `__ID_SERIAL__` replacement logic in `early-commands` to miss the file, leading to "no disk found" errors.
+   - **Fix:** Updated the `early-commands` loop to scan both `/run/subiquity/autoinstall.yaml` and `/run/subiquity/cloud.autoinstall.yaml`.
+   - **Benefit:** Restores automated empty-disk detection on newer Ubuntu Server releases.
+
+---
+
+---
+
+## 2026-03-19: Recursive Dependency Resolution and Updated Default Credentials
+
+**File:** `build-ubuntu-autoinstall-iso.sh` (Modified)
+
+---
+
+### Features & Fixes
+
+1. **Recursive Dependency Resolution (Fix for Ubuntu 24.04/Noble):**
+   - **Problem:** On newer Ubuntu versions like 24.04, tools like `ipmitool` have deep dependency trees (e.g., `ipmitool` -> `libfreeipmi17` -> `freeipmi-common`). Previous script versions only downloaded direct dependencies, causing offline installations to fail due to missing level-2 packages.
+   - **Fix:** Switched the offline downloader to use `apt-get -s install` (simulation) within the isolated build environment. This identifies the complete transitive dependency closure, ensuring every required `.deb` is bundled into the `/pool/extra` directory.
+   - **Critical Update (Core Library Safety):** Expanded the exclusion skip list to include sensitive base libraries like `libsystemd*`, `libudev*`, `libssl*`, `libpam*`, etc. This prevents "broken dependency" errors on the target system where a newer library version (from `noble-updates`) might mismatch the base system binaries (from `noble-release`) when installed via `dpkg -i`.
+   - **Benefit:** Guarantees successful offline installation of complex toolsets while maintaining base system stability.
+
+2. **Updated Default Credentials:**
+   - Changed the default login username to **`mitac`**.
+   - Changed the default password to **`MiTAC00123`** for both the user and root accounts.
+   - Updated all help text and documentation examples to reflect these new defaults.
+
+---
+
+---
+
 ## 2026-03-18: Support for Purely Offline Package Installation via 'package_list'
 
 **File:** `build-ubuntu-autoinstall-iso.sh` (Modified)
