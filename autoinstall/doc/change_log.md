@@ -2,6 +2,34 @@
 
 ---
 
+## 2026-03-20: Real-time Build Feedback and Core OS Integrity Hardening
+
+**Files:** `src/os_deployment/main.py` (Modified), `build-ubuntu-autoinstall-iso.sh` (Modified), `debug_note.md` (Updated)
+
+---
+
+### Features & Fixes
+
+1. **Real-time ISO Build Feedback:**
+   - **Interactive Streaming:** Replaced the blocking `subprocess.run` in `main.py` with `subprocess.Popen`. 
+   - **User Experience:** The tool now streams the ISO build script's output (stdout/stderr) directly to the console in real-time. This provides immediate visibility into package downloads, GPG bundling, and ISO mastering progress.
+
+2. **Core OS Integrity Hardening (Skip-List Expansion):**
+   - **Diagnosis:** Analysis of a failed installation on server `10.99.236.60` revealed a `systemd-networkd` crash (symbol lookup error) caused by a version mismatch between updated `systemd` binaries and older `libsystemd0` libraries on the base ISO.
+   - **Expanded Skip-List:** The builder now strictly excludes all `systemd*`, `udev*`, and `dbus*` packages from being bundled into the offline pool.
+   - **Stability:** This ensures the installer and the deployed system utilize the stable, version-matched management components already present on the official Ubuntu ISO, preventing `netplan apply` failures and broken system boots.
+
+3. **Enhanced Automated Disk Detection:**
+   - **Robustness:** Added explicit file-existence checks for `find_disk.sh` in the autoinstall `early-commands`.
+   - **Graceful Bypass:** If the detection script is missing or fails to find an empty disk, the installer now logs a warning and bypasses the serial-replacement logic instead of failing the installation. 
+   - **Validated on Hardware:** Successfully verified the logic on server `10.99.236.91`, where it accurately identified a 1.5T KIOXIA NVMe drive while bypassing existing OS drives.
+
+4. **Integrated Kubernetes (v1.35) Bundling:**
+   - Added automated GPG key fetching and repository configuration for Kubernetes `v1.35` stable branch.
+   - Packages are now bundled recursively into the offline pool if `kubelet`, `kubeadm`, or `kubectl` are requested in the `package_list`.
+
+---
+
 ## 2026-03-19: Offline Docker and Kubernetes (v1.35) Support
 
 **File:** `build-ubuntu-autoinstall-iso.sh` (Modified), `package_list` (Updated)
