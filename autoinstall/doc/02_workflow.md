@@ -8,18 +8,17 @@ flowchart TD
     CheckArgs -->|No| ShowHelp[Show Help & Exit]
     CheckArgs -->|Yes| CleanDirs[Clean Work & Output Directories]
     CleanDirs --> InstallPkgs[Install Required Packages]
-    InstallPkgs --> CheckISO{ISO Exists?}
-    CheckISO -->|No| Error1[Error: ISO Not Found]
-    CheckISO -->|Yes| MountISO[Mount Original ISO]
+    InstallPkgs --> DetectPkgList{package_list exists?}
+    DetectPkgList -->|Yes| FetchPkgs[Fetch Offline Packages & Deps]
+    DetectPkgList -->|No| FetchIPMI[Fetch ipmitool & Deps]
+    FetchPkgs --> BundlePkgs[Bundle .debs into /pool/extra]
+    FetchIPMI --> BundlePkgs
+    BundlePkgs --> MountISO[Mount Original ISO]
     MountISO --> CopyISO[Copy ISO Contents to Workdir]
-    CopyISO --> Unmount[Unmount Original ISO]
-    Unmount --> CreateMeta[Create meta-data]
-    CreateMeta --> HashPwd[Hash Password with mkpasswd]
-    HashPwd --> GenSSH[Generate SSH Key Pair]
-    GenSSH --> CreateUser[Create user-data Config]
+    CopyISO --> GenDH[Hash Password & Gen SSH Keys]
+    GenDH --> CreateUser[Create user-data Config]
     CreateUser --> PatchGRUB[Patch GRUB Configuration]
-    PatchGRUB --> ExtractMBR[Extract MBR from Original ISO]
-    ExtractMBR --> CreateEFI[Create EFI Boot Image]
+    PatchGRUB --> CreateEFI[Create EFI Boot Image]
     CreateEFI --> BuildISO[Build ISO with xorriso]
     BuildISO --> Done([ISO Created Successfully])
 ```
@@ -28,208 +27,78 @@ flowchart TD
 
 ### Phase 1: Initialization & Validation
 
-```mermaid
-sequenceDiagram
-    participant User
-    participant Script
-    participant System
+**Steps:**
+1. Parse command-line arguments (ISO name, username, password).
+2. Detect if `package_list` exists in the script directory.
+3. Validate and install host build dependencies (`xorriso`, `mtools`, `jq`, etc.).
+4. Use `file_list.json` to lookup the source ISO path.
 
-    User->>Script: Execute with parameters
-    Script->>Script: Parse arguments
-    alt No arguments or --help
-        Script->>User: Display help
-        Script->>Script: Exit
-    else Valid arguments
-        Script->>System: Check root privileges
-        Script->>System: Clean directories
-        Script->>System: Install packages
-        Script->>System: Validate ISO exists
-    end
-```
+### Phase 2: Package Bundling (New)
 
 **Steps:**
-1. Parse command-line arguments (ISO path, username, password)
-2. Validate ISO file exists
-3. Clean previous build artifacts
-4. Install required packages: `whois`, `genisoimage`, `xorriso`, `isolinux`, `mtools`
+1. Create an isolated temporary APT environment (cache, state, sources).
+2. Detect target Ubuntu version from source ISO name (e.g., Jammy, Noble).
+3. Generate a version-matched `sources.list` for the target codename.
+4. Use `apt-get download` to fetch packages listed in `package_list` (or default `ipmitool`).
+5. Resolve dependencies using `apt-cache depends` and download them into a local storage.
+6. Prepare the `/pool/extra` directory in the build workspace.
 
-### Phase 2: ISO Extraction & Preparation
-
-```mermaid
-flowchart LR
-    A[Mount ISO] --> B[Copy Contents]
-    B --> C[Unmount ISO]
-    C --> D[Modify Permissions]
-    D --> E[Ready for Customization]
-```
+### Phase 3: ISO Extraction & Customization
 
 **Steps:**
-1. Create mount point: `/mnt/ubuntuiso`
-2. Mount original ISO read-only
-3. Copy all contents to `./workdir_custom_iso/`
-4. Unmount original ISO
-5. Make workdir writable
+1. Mount source ISO and `rsync` contents to the build directory.
+2. Add autoinstall configuration (`user-data`, `meta-data`).
+3. **Dynamic User-Data Generation**:
+   - If `package_list` was used, configure the installer for **Strict Offline Mode**.
+   - Otherwise, configure for **Hybrid Mode** (Internet primary, CDROM fallback).
+4. Patch `boot/grub/grub.cfg` to set `timeout=0` and add the `autoinstall` kernel parameter.
 
-### Phase 3: Autoinstall Configuration
-
-```mermaid
-flowchart TD
-    A[Start Config] --> B[Create autoinstall Directory]
-    B --> C[Generate meta-data]
-    B --> D[Hash Password]
-    D --> E[Generate SSH Keys]
-    E --> F[Create user-data]
-    F --> G[Configure Identity]
-    F --> H[Configure SSH]
-    F --> I[Configure late-commands]
-    G --> J[Config Complete]
-    H --> J
-    I --> J
-```
+### Phase 4: Boot Infrastructure
 
 **Steps:**
-1. Create `./workdir_custom_iso/autoinstall/` directory
-2. Generate `meta-data` with instance ID and hostname
-3. Hash password using `mkpasswd -m sha-512`
-4. Generate ED25519 SSH key pair
-5. Create `user-data` with:
-   - Autoinstall version
-   - User identity (hostname, username, password)
-   - Locale and keyboard settings
-   - SSH configuration
-   - Late-commands for post-install setup
+1. Extract MBR from the original ISO for legacy compatibility.
+2. Create a 20MB FAT32 EFI partition image.
+3. Populate EFI image with GRUB bootloaders, modules, and the custom `grub.cfg`.
 
-### Phase 4: GRUB Configuration
-
-```mermaid
-flowchart TD
-    A[Locate grub.cfg] --> B[Backup Original]
-    B --> C[Set Timeout to 0]
-    C --> D[Add Auto Install Entry]
-    D --> E[Add Search Command]
-    E --> F[Remove Invalid Commands]
-    F --> G[Save Modified Config]
-```
+### Phase 5: ISO Assembly
 
 **Steps:**
-1. Locate `boot/grub/grub.cfg`
-2. Create backup: `grub.cfg.orig`
-3. Set GRUB timeout to 0 (auto-boot)
-4. Replace "Try or Install" entry with "Auto Install" entry
-5. Add `search --no-floppy --set=root --file /casper/vmlinuz`
-6. Remove standalone `grub_platform` command
-7. Save modified configuration
-
-### Phase 5: EFI Boot Image Creation
-
-```mermaid
-flowchart LR
-    A[Create 20MB Image] --> B[Format as FAT32]
-    B --> C[Create Directories]
-    C --> D[Copy EFI Bootloaders]
-    C --> E[Copy GRUB Config]
-    C --> F[Copy GRUB Modules]
-    C --> G[Copy Fonts]
-    D --> H[EFI Image Ready]
-    E --> H
-    F --> H
-    G --> H
-```
-
-**Steps:**
-1. Create 20MB empty file: `/tmp/efi.img`
-2. Format as FAT32 filesystem
-3. Create directory structure:
-   - `/EFI/boot/`
-   - `/boot/grub/`
-4. Copy bootloaders: `bootx64.efi`, `grubx64.efi`, `mmx64.efi`
-5. Copy `grub.cfg` to EFI partition
-6. Copy GRUB modules: `x86_64-efi/`
-7. Copy fonts directory
-
-### Phase 6: ISO Building
-
-```mermaid
-flowchart TD
-    A[Extract Volume ID] --> B[Extract MBR]
-    B --> C[Configure xorriso]
-    C --> D[Add ISO Filesystem]
-    D --> E[Add Boot Catalog]
-    E --> F[Add BIOS Boot]
-    F --> G[Append EFI Partition]
-    G --> H[Apply MBR]
-    H --> I[Create GPT]
-    I --> J[Write ISO File]
-```
-
-**Steps:**
-1. Extract volume ID from original ISO
-2. Extract MBR from original ISO (432 bytes)
-3. Use `xorriso` with parameters:
-   - `-r`: Rock Ridge extensions
-   - `-V`: Volume ID
-   - `-J -l`: Joliet extensions
-   - `-b boot/grub/i386-pc/eltorito.img`: BIOS boot image
-   - `-c boot.catalog`: Boot catalog
-   - `-e --interval:appended_partition_2:all::`: UEFI boot from appended partition
-   - `-append_partition 2 0xEF`: Append EFI partition
-   - `--grub2-mbr`: Apply GRUB2 MBR
-   - `-partition_offset 16`: Partition alignment
-   - `-appended_part_as_gpt`: Create GPT partition table
-4. Write output ISO to `./output_custom_iso/<name>_autoinstall.iso`
+1. Use `xorriso` to combine the filesystem, boot catalog, and EFI partition.
+2. Create a hybrid bootable ISO with GPT and MBR support.
+3. Write the final image to the `output_custom_iso/` directory.
 
 ## Installation Workflow (Runtime)
 
 ```mermaid
 flowchart TD
-    A[Boot from ISO] --> B[UEFI Loads GRUB]
-    B --> C[GRUB Auto-selects Autoinstall]
-    C --> D[Load Kernel & Initrd]
-    D --> E[Kernel Boots]
-    E --> F[Cloud-Init Starts]
-    F --> G[Read /cdrom/autoinstall/user-data]
-    G --> H[Subiquity Installer]
-    H --> I[Partition Disk]
-    I --> J[Install Base System]
-    J --> K[Configure Network]
-    K --> L[Run late-commands]
-    L --> M[Set Root Password]
-    L --> N[Configure SSH]
-    L --> O[Install Packages]
-    L --> P[Configure Sudo]
-    M --> Q[Reboot]
-    N --> Q
-    O --> Q
-    P --> Q
-    Q --> R[System Ready]
+    Start[Boot from ISO] --> LoadGrub[GRUB Auto-selects Autoinstall]
+    LoadGrub --> DetectHW[Kernel Boots & Detects HW]
+    DetectHW --> EarlyCmds[Run Early Commands]
+    EarlyCmds --> SELStart[IPMI SEL: Install Starting]
+    SELStart --> Subiquity[Subiquity Installer Starts]
+    Subiquity --> DiskConfig[Auto-partition Empty Disk]
+    DiskConfig --> InstallBase[Install Base System]
+    InstallBase --> LateCmds[Run Late Commands]
+    LateCmds --> DNS[Propagate DNS to Target]
+    DNS --> PkgMode{Offline Mode?}
+    PkgMode -->|Yes| Offline[Install /cdrom/pool/extra/*.deb]
+    PkgMode -->|No| Hybrid[Try apt-get update & install]
+    Hybrid -->|Fail| Offline
+    Offline --> SELDone[IPMI SEL: Install Completed]
+    SELDone --> Finish[System Ready / Reboot]
 ```
 
 ## Error Handling Flow
 
-```mermaid
-flowchart TD
-    A[Error Detected] --> B{Error Type?}
-    B -->|ISO Not Found| C[Exit with Error]
-    B -->|Package Install Fail| D[Continue with Warning]
-    B -->|GRUB Patch Fail| E[Log Warning]
-    B -->|ISO Build Fail| F[Exit with Error]
-    D --> G[Log to Console]
-    E --> G
-    G --> H[Continue Process]
-    C --> I[Cleanup & Exit]
-    F --> I
-```
+**Optimizations:**
+- **DNS Isolation**: The script now handles DNS resolution inside `chroot` by resolving the stub resolver (`127.0.0.53`) to actual nameservers for the target.
+- **Kernel Mismatch**: Handles HWE kernels (6.8+) for modern platforms like Sapphire Rapids by ensuring correct package naming in `user-data`.
 
-## Output Artifacts
+## Change History
 
-```mermaid
-graph LR
-    A[Build Process] --> B[Custom ISO File]
-    A --> C[SSH Private Key]
-    A --> D[SSH Public Key]
-    A --> E[Build Logs]
-    B --> F[./output_custom_iso/]
-    C --> G[~/.ssh/id_ed25519_*]
-    D --> G
-    E --> H[Console Output]
-```
+| Date | Changes | Author |
+| :--- | :--- | :--- |
+| 2026-03-18 | Integrated `package_list` detection and isolated APT bundling workflow. | AI Assistant |
+| 2026-03-17 | Added detailed Hybrid Installation runtime logic and DNS propagation fix. | AI Assistant |
+| 2026-03-16 | Updated boot flow for 24.04 compatibility and HWE kernel support. | AI Assistant |
+| 2026-02-10 | Initial workflow documentation. | AI Assistant |

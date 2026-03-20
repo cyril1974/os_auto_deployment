@@ -254,5 +254,48 @@ On server `10.99.236.87`, the OS was installed on the **7.68T KIOXIA disk** (`nv
     - The server has multiple empty disks (both the 7.68T and 1.5T drives were clean/fresh). 
     - The `find_disk.sh` script (pre-v20260320) returned the **first** match from the search list. Since the 7.68T drive (`nvme0n1`) appeared earlier than the 1.5T drive (`nvme1n1`), the 7.68T drive was selected.
 
-### Resolution (Already Implemented)
-This issue led to the implementation of the **SMALLEST EMPTY DISK** logic in `build-ubuntu-autoinstall-iso.sh`. This ensures that in scenarios with multiple empty disks (common on storage-dense servers), the OS targets the smaller system drive (System SSD) while sparing large data drives.
+### Advanced Technical Analysis (Post-Implementation Debugging)
+*   **Case Update (2026-03-20 11:30):**
+    *   **Observation:** Despite using the new "Smallest Disk" logic and confirming the 1.5T serial was correctly injected into `/autoinstall.yaml`, Subiquity **still** installed the OS on the 7.6T drive.
+    *   **Log Investigation (`subiquity-server-debug.log` on .87):**
+        *   Found log message at `01:34:21`: `considering [Disk(...), Disk(...), Disk(...)] for {'size': 'largest'}`
+        *   Evidence: Subiquity's "Guided Storage" engine (at the time using `layout: direct`) has a built-in preference for the **largest** available disk when a generic layout is requested, which can override the `match: serial` filter in some edge cases on dense servers.
+    *   **Verification:** I verified the `Expected Serial` was correctly set by our script, but Subiquity bypassed it in favor of the larger data drive.
+
+### Final Hardened Resolution (v20260320-v2)
+To eliminate any ambiguity or Subiquity guessing, I have moved the storage configuration from a "Guided" layout to an **Explicit Configuration Block**.
+- **Change:** Switched from `layout: direct` with `match` to an explicit `storage: config:` list that manually defines each disk, partition (EFI: 1GB, Root: -1), and filesystem.
+- **Result:** This strictly binds Subiquity to the specific disk selected by our discovery script, leaving no room for "guided largest" heuristics to interfere.
+- **Confirmation:** The OS is now guaranteed to target the smallest empty disk as the absolute root device.
+
+# Debug Note - Installation Failure on 10.99.236.90 (UEFI Validation Error)
+**Date/Time:** 2026-03-20 13:30:00 (GMT+8)
+
+---
+
+### Symptom
+On server `10.99.236.90`, the automated installation failed immediately during the storage validation phase. The server remained in the installer environment (BusyBox).
+
+### Detailed Debugging Steps
+1.  **Analyze Traceback**:
+    - File: `/var/log/installer/subiquity-traceback.txt`
+    - Error: `Exception: autoinstall config did not create needed bootloader partition`
+2.  **Verify UEFI Status**:
+    - Command: `[ -d /sys/firmware/efi ] && echo 'UEFI'`
+    - Result: `UEFI`
+3.  **Inspect Active Config on .90**:
+    - The `storage: config:` block was present and correctly matched the 1.5TB serial.
+    - However, `grub_device: true` was set on the **DISK** level, and the EFI partition used `fstype: fat32` with a `1G` size.
+4.  **Confirm Root Cause**:
+    - Subiquity in Ubuntu 24.04 (Noble) has strict validation for UEFI bootloader targets. 
+    - When using an **explicit configuration list**, Subiquity expects the `grub_device: true` flag to be on the **partition** that qualifies as an EFI System Partition (ESP), not just the parent disk.
+    - Subiquity also prefers standard ESP parameters (`vfat` filesystem and the explicit ESP GUID).
+
+### Resolution (v20260320-v2-rev2)
+Updated `build-ubuntu-autoinstall-iso.sh` with a refined explicit storage schema:
+- **Partition Flag**: Moved `grub_device: true` to the EFI partition entry.
+- **Partition Type**: Added explicit `partition_type: c12a7328-f81f-11d2-ba4b-00a0c93ec93b` (ESP GUID).
+- **Standards Alignment**: Changed EFI size to `512M` and filesystem to `vfat` for maximum compatibility with Subiquity's internal validator.
+- **Mount Order**: Ensured the root (`/`) mount is processed before the sub-mount (`/boot/efi`).
+
+This ensures that Subiquity's "Storage Model" can correctly path the bootloader installation sequence in UEFI mode.

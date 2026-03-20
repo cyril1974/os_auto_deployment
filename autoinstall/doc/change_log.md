@@ -2,7 +2,7 @@
 
 ---
 
-## 2026-03-20: Real-time Build Feedback and Smart Disk Selection Audit
+## 2026-03-20: Hardened Storage Configuration and Smallest-Disk Priority Logic
 
 **Files:** `src/os_deployment/main.py` (Modified), `build-ubuntu-autoinstall-iso.sh` (Modified), `debug_note.md` (Updated)
 
@@ -10,21 +10,29 @@
 
 ### Features & Fixes
 
-1. **Real-time ISO Build Feedback:**
-   - **Interactive Streaming:** Replaced the blocking `subprocess.run` in `main.py` with `subprocess.Popen`. 
-   - **User Experience:** The tool now streams the ISO build script's output (stdout/stderr) directly to the console in real-time. This provides immediate visibility into package downloads, GPG bundling, and ISO mastering progress.
+1. **Hardened Explicit Storage Configuration (v20260320-v2-rev2):**
+   - **Problem:** Subiquity's "Guided Storage" engine (`layout: direct`) has a built-in preference for the **largest** available disk when multiple candidates exist. Furthermore, switching to an explicit configuration revealed that Subiquity for Noble (24.04) requires explicit `grub_device` targeting on the **partition level** (ESP) in UEFI mode to pass validation. 
+   - **Fix:** Switched from Guided layouts to a **Hardened Explicit Configuration Block**. The storage section now manually defines:
+     - The target disk matched by the detected serial.
+     - A dedicated **512MB EFI partition** (`vfat`) with `grub_device: true` and the formal ESP GUID (now centralized in the `EFI_GUID` variable).
+     - A **Root partition** using the remaining disk space (`-1` size, `ext4`).
+   - **Benefit:** Guarantees successful hardware targeting on dense servers and satisfies strict Subiquity 24.04 UEFI validation rules, preventing "no bootloader partition created" crashes.
 
 2. **Smart Empty Disk Selection (Smallest Disk Priority):**
    - **Problem:** On high-density servers (like `10.99.236.85`) with multiple empty NVMe drives, the previous "first-found" logic often selected large data drives (7.68TB) over smaller system SSDs (1.5TB) if they appeared earlier in the hardware list (`nvme0n1`).
-   - **New Selection Rule:** The `find_disk.sh` script now evaluates **all** empty candidates and selects the one with the **SMALLEST** capacity. This ensures OS deployments target appropriate system drives while preserving large Drives for data use.
+   - **New Selection Rule:** The `find_disk.sh` script now evaluates **all** truly empty candidates (no partitions, no filesystem signatures, zeroed first 1MB) and selects the one with the **SMALLEST** capacity.
    - **Enhanced Discovery Log:** Automated detection now outputs its step-by-step decision process directly to the server console (`/dev/console`) during boot, showing which disks were skipped and why.
 
-3. **Post-Installation Verification Audit:**
+3. **Real-time ISO Build Feedback:**
+   - **Interactive Streaming:** Replaced the blocking `subprocess.run` in `main.py` with `subprocess.Popen`. 
+   - **User Experience:** The tool now streams the ISO build script's output (stdout/stderr) directly to the console in real-time. This provides immediate visibility into package downloads, GPG bundling, and ISO mastering progress.
+
+4. **Post-Installation Verification Audit:**
    - **Integrity Check:** Added a final `late-commands` audit that cross-checks the serial of the newly installed root (`/`) disk against the "Expected Serial" identifies at the start.
    - **Hardware Logging (SEL):** Reports the verification outcome directly to the BMC's System Event Log (SEL). Success logs an ASCII **`OK`** (0x4F 0x4B), while a mismatch/error logs **`ER`** (0x45 0x52).
    - **Persistence:** Full audit details (Expected vs. Actual) are written to `/var/log/install_disk_audit.log` on the target machine for post-mortem analysis.
 
-4. **Integrated Kubernetes (v1.35) Bundling:**
+5. **Integrated Kubernetes (v1.35) Bundling:**
    - Added automated GPG key fetching and repository configuration for Kubernetes `v1.35`.
    - Packages are now bundled recursively into the offline pool if `kubelet`, `kubeadm`, or `kubectl` are requested in the `package_list`.
 

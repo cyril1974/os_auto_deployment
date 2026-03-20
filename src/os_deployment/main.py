@@ -192,26 +192,38 @@ def main():
         # Execute the build script with sudo (requires root for apt and ISO operations)
         try:
             print(f"[{utils.formatted_time()}] Executing: sudo {build_script.name} {os} {osuser} ****")
-            result = subprocess.run(
+            
+            # Use Popen to stream output in real-time
+            process = subprocess.Popen(
                 ["sudo", str(build_script), os, osuser, ospasswd],
                 cwd=str(script_dir),
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 text=True,
-                check=True
+                bufsize=1
             )
+
+            full_output = []
+            # Read and print output line by line as it is generated
+            if process.stdout:
+                for line in iter(process.stdout.readline, ""):
+                    print(line, end="")
+                    full_output.append(line)
             
-            # Print script output
-            if result.stdout:
-                print(result.stdout)
+            process.wait()
             
-            # Print stderr if any (warnings, etc.)
-            if result.stderr:
-                print(f"Script warnings/errors:\n{result.stderr}", file=sys.stderr)
-            
+            if process.returncode != 0:
+                # Replicate CalledProcessError behavior for consistent error handling
+                raise subprocess.CalledProcessError(
+                    process.returncode, 
+                    ["sudo", str(build_script), os, osuser, ospasswd],
+                    output="".join(full_output)
+                )
+
             # Extract the generated ISO path from the output
             # Looking for line: "[*] Done. Autoinstall ISO created at: ./output_custom_iso/..."
             iso_path = None
-            for line in result.stdout.split('\n'):
+            for line in full_output:
                 if "Autoinstall ISO created at:" in line:
                     iso_path = line.split("Autoinstall ISO created at:")[-1].strip()
                     break
@@ -219,7 +231,7 @@ def main():
             if not iso_path:
                 print("ERROR: Failed to extract ISO path from build script output")
                 print("Script output was:")
-                print(result.stdout)
+                print("".join(full_output))
                 sys.exit("Failed to extract ISO path from build script output")
             
             # Convert relative path to absolute

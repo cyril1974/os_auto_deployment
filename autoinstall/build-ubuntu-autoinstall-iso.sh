@@ -89,6 +89,9 @@ if [ -f "$PACKAGE_LIST_FILE" ]; then
     echo "[*] Online package download DISABLED. Following list will be bundled for offline install: $OFFLINE_PACKAGES"
 fi
 
+# UEFI Standards - Global Fixed GUIDs
+EFI_GUID="c12a7328-f81f-11d2-ba4b-00a0c93ec93b" # EFI System Partition (ESP)
+
 
 # Function to lookup ISO path from file_list.json
 lookup_iso_path() {
@@ -387,48 +390,71 @@ mkdir -p "$WORKDIR/autoinstall/scripts"
 cat > "$WORKDIR/autoinstall/scripts/find_disk.sh" << 'EOF'
 #!/bin/sh
 find_empty_disk_serial() {
+    local min_size=0
+    local target_serial=""
+    local target_disk=""
+    
+    echo "[!] INFO: Starting automated disk detection (Prefer SMALLEST empty)..." > /dev/console
+    
     # Get all disk devices (sh-compatible)
     for disk in $(lsblk -nd -o NAME --exclude 1,2,11 2>/dev/null); do
         device="/dev/$disk"
-
-        # Skip if device doesn't exist
         [ -b "$device" ] || continue
 
-        # Check if disk has any partitions
-        partition_count=$(lsblk -n -o TYPE "$device" 2>/dev/null | grep -c "part")
+        # 1. Partition Check
+        partition_count=$(lsblk -nk -o TYPE "$device" 2>/dev/null | grep -c "part")
         if [ "$partition_count" -gt 0 ]; then
+            echo "    [-] Skipping $device: Contains $partition_count partition(s)" > /dev/console
             continue
         fi
 
-        # Check if disk has any filesystem signatures
+        # 2. Filesystem Signature Check
         signatures=$(wipefs "$device" 2>/dev/null | grep -v "^offset")
         if [ -n "$signatures" ]; then
+            echo "    [-] Skipping $device: Contains filesystem signatures" > /dev/console
             continue
         fi
 
-        # Check if first 1MB is all zeros (sh-compatible)
-        if [ -b "$device" ]; then
-            empty_bytes=$(dd if="$device" bs=1M count=1 2>/dev/null | tr -d '\0' | wc -c)
-            if [ "$empty_bytes" -gt 0 ]; then
-                continue
-            fi
+        # 3. Data Check (First 1MB)
+        # Use portable tr to check for non-zero bytes (Dash compatible)
+        empty_bytes=$(dd if="$device" bs=1M count=1 2>/dev/null | tr -d '\0' | wc -c)
+        if [ "$empty_bytes" -gt 0 ]; then
+            echo "    [-] Skipping $device: Contains non-zero data in first 1MB" > /dev/console
+            continue
         fi
 
-        # Get ID_SERIAL using udevadm
+        # 4. Success - Candidate Found
+        size=$(lsblk -ndb -o SIZE "$device" 2>/dev/null)
         serial=$(udevadm info --query=property --name="$device" 2>/dev/null | grep "^ID_SERIAL=" | cut -d'=' -f2)
-
-        if [ -n "$serial" ]; then
-            echo "$serial"
-            return 0
-        else
+        
+        if [ -z "$serial" ]; then
+            # Try DEVPATH fallback for some NVMe controllers
             sys_path=$(udevadm info --query=property --name="$device" 2>/dev/null | grep "^DEVPATH=" | cut -d'=' -f2)
             serial=$(cat "/sys${sys_path}/../serial" 2>/dev/null || cat "/sys${sys_path}/device/serial" 2>/dev/null)
-            if [ -n "$serial" ]; then
-                echo "$serial"
-                return 0
+        fi
+
+        if [ -n "$serial" ]; then
+            human_size="$((size/1024/1024/1024))GB"
+            echo "    [*] Valid Candidate: $device ($human_size, Serial: $serial)" > /dev/console
+            
+            # Implementation of SMALLEST logic to avoid large data drives
+            if [ "$min_size" -eq 0 ] || [ "$size" -lt "$min_size" ]; then
+                min_size="$size"
+                target_serial="$serial"
+                target_disk="$device"
             fi
+        else
+            echo "    [!] Warning: $device is empty but has no accessible serial. Skipping." > /dev/console
         fi
     done
+
+    if [ -n "$target_serial" ]; then
+        echo "[+] Final Selection: $target_disk ($((min_size/1024/1024/1024))GB, Serial: $target_serial)" > /dev/console
+        echo "$target_serial"
+        return 0
+    fi
+    
+    echo "[!] ERROR: No empty storage devices detected." > /dev/console
     return 1
 }
 EOF
@@ -460,10 +486,47 @@ autoinstall:
   keyboard:
     layout: us
   storage:
-    match:
-      serial: __ID_SERIAL__
-    layout:
-      name: direct
+    config:
+      - type: disk
+        id: disk-main
+        match:
+          serial: __ID_SERIAL__
+        ptable: gpt
+        wipe: superblock-recursive
+        preserve: false
+      - type: partition
+        id: partition-efi
+        device: disk-main
+        size: 512M
+        flag: boot
+        partition_type: ${EFI_GUID}
+        grub_device: true
+        number: 1
+        preserve: false
+      - type: format
+        id: format-efi
+        volume: partition-efi
+        fstype: vfat
+        preserve: false
+      - type: partition
+        id: partition-root
+        device: disk-main
+        size: -1
+        number: 2
+        preserve: false
+      - type: format
+        id: format-root
+        volume: partition-root
+        fstype: ext4
+        preserve: false
+      - type: mount
+        id: mount-root
+        device: format-root
+        path: /
+      - type: mount
+        id: mount-efi
+        device: format-efi
+        path: /boot/efi
   ssh:
     install-server: true
     authorized-keys:
@@ -577,6 +640,33 @@ autoinstall:
     # Write SEL entry - OS Installation Completed
     # Uses curtin in-target to ensure /dev/ipmi0 is accessible.
     - curtin in-target --target=/target -- sh -c 'ipmitool raw 0x0a 0x44 0x00 0x00 0x02 0x00 0x00 0x00 0x00 0x21 0x00 0x04 0x12 0x00 0x6f 0x02 0xff 0xff || true'
+    
+    # Verification: Ensure root is on the correct serial and log outcome to SEL
+    - |
+      curtin in-target --target=/target -- sh -c '
+        # Detect actual root device serial (identifying the parent disk of / partition)
+        root_dev=\$(lsblk -no PKNAME \$(findmnt -nvo SOURCE /) | head -n 1)
+        [ -z "\$root_dev" ] && root_dev=\$(lsblk -no NAME \$(findmnt -nvo SOURCE /) | head -n 1)
+        actual_serial=\$(udevadm info --query=property --name=/dev/\$root_dev 2>/dev/null | grep "^ID_SERIAL=" | cut -d"=" -f2)
+        expected_serial="__ID_SERIAL__"
+        
+        echo "--- Installation Audit ---" >> /var/log/install_disk_audit.log
+        echo "Expected Serial: \$expected_serial" >> /var/log/install_disk_audit.log
+        echo "Actual Root Serial: \$actual_serial" >> /var/log/install_disk_audit.log
+        
+        if [ "\$actual_serial" = "\$expected_serial" ]; then
+            echo "[+] VERIFICATION SUCCESS: OS installed on correct disk (\$actual_serial)"
+            echo "Result: SUCCESS" >> /var/log/install_disk_audit.log
+            # Log SUCCESS (ASCII "OK") to SEL EvData2/3
+            ipmitool raw 0x0a 0x44 0x00 0x00 0x02 0x00 0x00 0x00 0x00 0x21 0x00 0x04 0x12 0x00 0x6f 0x02 0x4f 0x4b 2>/dev/null || true
+        else
+            echo "[!] VERIFICATION FAILED: OS installed on WRONG disk!"
+            echo "[!] Actual: \$actual_serial"
+            echo "Result: FAILURE (Target Mismatch)" >> /var/log/install_disk_audit.log
+            # Log FAILURE (ASCII "ER" for Error) to SEL EvData2/3
+            ipmitool raw 0x0a 0x44 0x00 0x00 0x02 0x00 0x00 0x00 0x00 0x21 0x00 0x04 0x12 0x00 0x6f 0x02 0x45 0x52 2>/dev/null || true
+        fi
+      '
     # Write OEM SEL entry - Network Ready with IP address (Broken down for easier debugging)
     # 1. Get IP address
     # - curtin in-target --target=/target -- sh -c 'hostname -I | cut -d" " -f1 > /tmp/inst_ip'
