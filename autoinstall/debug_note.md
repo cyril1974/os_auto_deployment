@@ -230,3 +230,29 @@ On server `10.99.236.85`, the OS was successfully installed but targeting the **
 
 ### Recommended Fix
 Refactor the `find_disk.sh` logic to evaluate all available empty disks and **prefer the one with the smallest capacity**. This ensures that OS deployments target smaller system drives while preserving the larger, expensive NVMe drives for future data use.
+# Debug Note - OS Installed on Wrong Disk on 10.99.236.87 (Identical to .85)
+**Date/Time:** 2026-03-20 10:00:00 (GMT+8)
+
+---
+
+### Symptom
+On server `10.99.236.87`, the OS was installed on the **7.68T KIOXIA disk** (`nvme0n1`) instead of the **1.5T KIOXIA disk** (`nvme1n1`).
+
+### Detailed Debugging Steps
+1.  **Map Installed Root Partition**:
+    - Command: `lsblk -o NAME,SIZE,TYPE,FSTYPE,SERIAL,MOUNTPOINT`
+    - Result: Found root `/` on `nvme0n1` (7.68T). 
+2.  **Verify Serial in Installer Config**:
+    - Command: `grep -A 10 'storage:' /var/log/installer/autoinstall-user-data`
+    - Result: Confirmed serial `KIOXIA_KCD81PUG7T68_4E10A00B0UW3_1` was specified for formatting.
+3.  **Audit candidates**:
+    - Command: `udevadm info --query=property --name=/dev/nvme0n1`
+    - Result: `ID_MODEL=KIOXIA KCD81PUG7T68` (7.68T).
+    - Command: `udevadm info --query=property --name=/dev/nvme1n1`
+    - Result: `ID_MODEL=KIOXIA KCD81VUG1T60` (1.5T).
+4.  **Confirm Root Cause**:
+    - The server has multiple empty disks (both the 7.68T and 1.5T drives were clean/fresh). 
+    - The `find_disk.sh` script (pre-v20260320) returned the **first** match from the search list. Since the 7.68T drive (`nvme0n1`) appeared earlier than the 1.5T drive (`nvme1n1`), the 7.68T drive was selected.
+
+### Resolution (Already Implemented)
+This issue led to the implementation of the **SMALLEST EMPTY DISK** logic in `build-ubuntu-autoinstall-iso.sh`. This ensures that in scenarios with multiple empty disks (common on storage-dense servers), the OS targets the smaller system drive (System SSD) while sparing large data drives.
