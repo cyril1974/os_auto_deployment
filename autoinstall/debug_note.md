@@ -195,3 +195,38 @@ OS installation failed early with a `CalledProcessError` during `netplan apply`.
 
 ### Resolution
 Expanded the builder script's skip-list to include all `systemd*`, `udev*`, and `dbus*` components. These core OS pieces must remain at the base ISO version to ensure system stability in offline environments.
+
+---
+
+# Debug Note - OS Installed on Wrong Disk on 10.99.236.85 (7.68T vs 1.5T)
+**Date/Time:** 2026-03-20 09:15:00 (GMT+8)
+
+---
+
+### Symptom
+On server `10.99.236.85`, the OS was successfully installed but targeting the **7.68T KIOXIA disk** (`nvme0n1`) instead of the intended **1.5T KIOXIA disk** (`nvme1n1`).
+
+### Debugging Steps
+1.  **Map Installed Root Partition**:
+    - Command: `lsblk -o NAME,SIZE,TYPE,FSTYPE,SERIAL,MOUNTPOINT`
+    - Result: Confirmed `/` was mounted on `nvme0n1` (7.68T). The intended 1.5T drive (`nvme1n1`) remained unpartitioned.
+2.  **Verify the Selection Serial**:
+    - Command: `grep -A 10 'storage:' /var/log/installer/autoinstall-user-data`
+    - Result: Found `serial: KIOXIA_KCD81PUG7T68_4E10A00B0UW3_1`. This serial definitively identifies the 7.68T KIOXIA drive (`KCD81PUG7T68` model), confirming the installer was explicitly instructed by our `early-commands` to format the large drive.
+3.  **Analyze Physical Drive Enumeration**:
+    - Command: `udevadm info --query=property --name=/dev/nvme0n1`
+    - Result: Confirmed `ID_MODEL=KIOXIA KCD81PUG7T68` (7.68T) is assigned as `/dev/nvme0n1` by the kernel's hardware probe.
+    - Command: `udevadm info --query=property --name=/dev/nvme1n1`
+    - Result: Confirmed `ID_MODEL=KIOXIA KCD81VUG1T60` (1.5T) is at `/dev/nvme1n1`.
+4.  **Audit 'Empty' Criteria on Target Candidate**:
+    - Command: `wipefs /dev/nvme1n1` (the intended 1.5T target)
+    - Result: No signatures/GPT labels found.
+    - Command: `dd if=/dev/nvme1n1 bs=1M count=1 | tr -d '\0' | wc -c`
+    - Result: `0`. 
+    - **Conclusion**: The 1.5T drive was truly empty and valid. However, the detection loop in `find_disk.sh` scans disks sequentially. Since the 7.68T drive (`nvme0n1`) was also clean/zeroed at start, it matched our selection criteria first and was selected before the script could encounter the 1.5T drive.
+
+### Root Cause
+**Unfiltered Selection**: The current "first empty disk" rule does not account for multiple empty drives. If a large data drive is uninitialized, it is treated as a valid candidate and selected simply because it has a lower hardware index (e.g. `nvme0n1`) than the intended system SSD.
+
+### Recommended Fix
+Refactor the `find_disk.sh` logic to evaluate all available empty disks and **prefer the one with the smallest capacity**. This ensures that OS deployments target smaller system drives while preserving the larger, expensive NVMe drives for future data use.
