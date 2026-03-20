@@ -271,10 +271,11 @@ APTEOF
 
         for pkg in $all_needed; do
             # Skip common base packages and core libraries already present on the ISO.
-            # Forcibly upgrading core libs like libsystemd0 via dpkg without their parent 
-            # (systemd) causes version mismatch errors.
+            # Forcibly upgrading core components like systemd or libsystemd0 via dpkg without 
+            # its full parent/library dependency closure (which is often vast) causes symbol 
+            # lookup errors and broken OS management (e.g. netplan apply fails).
             case "$pkg" in
-                libc6|libgcc*|debconf*|dpkg|bash|coreutils|install-info|libstdc++*|init-system-helpers|base-files|netbase|libsystemd*|libudev*|libpam*|libdbus*|libk5*|libssl*|libcrypt*|libzstd*|libuuid*|libblkid*|libmount*|libselinux*) continue ;;
+                libc6|libgcc*|debconf*|dpkg|bash|coreutils|install-info|libstdc++*|init-system-helpers|base-files|netbase|libsystemd*|systemd*|libudev*|udev*|libpam*|libnss*|libdbus*|dbus*|libk5*|libssl*|libcrypt*|libzstd*|libuuid*|libblkid*|libmount*|libselinux*|util-linux|mount|login|passwd) continue ;;
             esac
             echo "[*] Downloading: $pkg"
             apt-get "${APT_OPTS[@]}" -t "${codename}" download "$pkg" 2>/dev/null || true
@@ -379,6 +380,60 @@ fi
 HASH_PASSWORD=$(mkpasswd -m sha-512 ${PASSWORD})
 echo "[*] Hashed Password is ${HASH_PASSWORD}"
 
+# Create the scripts directory for bundling logic helpers
+mkdir -p "$WORKDIR/autoinstall/scripts"
+
+# Write the find_empty_disk_serial function to a standalone script on the ISO
+cat > "$WORKDIR/autoinstall/scripts/find_disk.sh" << 'EOF'
+#!/bin/sh
+find_empty_disk_serial() {
+    # Get all disk devices (sh-compatible)
+    for disk in $(lsblk -nd -o NAME --exclude 1,2,11 2>/dev/null); do
+        device="/dev/$disk"
+
+        # Skip if device doesn't exist
+        [ -b "$device" ] || continue
+
+        # Check if disk has any partitions
+        partition_count=$(lsblk -n -o TYPE "$device" 2>/dev/null | grep -c "part")
+        if [ "$partition_count" -gt 0 ]; then
+            continue
+        fi
+
+        # Check if disk has any filesystem signatures
+        signatures=$(wipefs "$device" 2>/dev/null | grep -v "^offset")
+        if [ -n "$signatures" ]; then
+            continue
+        fi
+
+        # Check if first 1MB is all zeros (sh-compatible)
+        if [ -b "$device" ]; then
+            empty_bytes=$(dd if="$device" bs=1M count=1 2>/dev/null | tr -d '\0' | wc -c)
+            if [ "$empty_bytes" -gt 0 ]; then
+                continue
+            fi
+        fi
+
+        # Get ID_SERIAL using udevadm
+        serial=$(udevadm info --query=property --name="$device" 2>/dev/null | grep "^ID_SERIAL=" | cut -d'=' -f2)
+
+        if [ -n "$serial" ]; then
+            echo "$serial"
+            return 0
+        else
+            sys_path=$(udevadm info --query=property --name="$device" 2>/dev/null | grep "^DEVPATH=" | cut -d'=' -f2)
+            serial=$(cat "/sys${sys_path}/../serial" 2>/dev/null || cat "/sys${sys_path}/device/serial" 2>/dev/null)
+            if [ -n "$serial" ]; then
+                echo "$serial"
+                return 0
+            fi
+        fi
+    done
+    return 1
+}
+EOF
+chmod +x "$WORKDIR/autoinstall/scripts/find_disk.sh"
+
 # Generate SSH KEY
 RANDOM="133244577"
 KEY_NAME="id_ed25519_$(date +%Y%m%d_%H%M%S)_$RANDOM"
@@ -425,64 +480,25 @@ autoinstall:
       - arches: [default]
         uri: http://archive.ubuntu.com/ubuntu
   early-commands:
+    # 1. Source and execute find_disk logic safely (if it exists)
     - |
       #!/bin/sh
-      find_empty_disk_serial() {
-          # Get all disk devices (sh-compatible, no process substitution)
-          for disk in \$(lsblk -nd -o NAME --exclude 1,2,11 2>/dev/null); do
-              device="/dev/\$disk"
-
-              # Skip if device doesn't exist
-              [ -b "\$device" ] || continue
-
-              # Check if disk has any partitions
-              partition_count=\$(lsblk -n -o TYPE "\$device" 2>/dev/null | grep -c "part")
-              if [ "\$partition_count" -gt 0 ]; then
-                  continue
-              fi
-
-              # Check if disk has any filesystem signatures
-              signatures=\$(wipefs "\$device" 2>/dev/null | grep -v "^offset")
-              if [ -n "\$signatures" ]; then
-                  continue
-              fi
-
-              # Check if first 1MB is all zeros (sh-compatible)
-              empty_bytes=\$(dd if="\$device" bs=1M count=1 2>/dev/null | tr -d '\0' | wc -c)
-              if [ "\$empty_bytes" -gt 0 ]; then
-                  continue
-              fi
-
-              # Get ID_SERIAL using udevadm
-              serial=\$(udevadm info --query=property --name="\$device" 2>/dev/null | grep "^ID_SERIAL=" | cut -d'=' -f2)
-
-              if [ -n "\$serial" ]; then
-                  echo "\$serial"
-                  return 0
-              else
-                  sys_path=\$(udevadm info --query=property --name="\$device" 2>/dev/null | grep "^DEVPATH=" | cut -d'=' -f2)
-                  serial=\$(cat "/sys\${sys_path}/../serial" 2>/dev/null || cat "/sys\${sys_path}/device/serial" 2>/dev/null)
-                  if [ -n "\$serial" ]; then
-                      echo "\$serial"
-                      return 0
+      if [ -f /cdrom/autoinstall/scripts/find_disk.sh ]; then
+          . /cdrom/autoinstall/scripts/find_disk.sh
+          serial=\$(find_empty_disk_serial)
+          if [ \$? -eq 0 ]; then
+              # Update the serial in the configuration files
+              # In Ubuntu 24.04, subiquity use cloud.autoinstall.yaml
+              for cfg in /autoinstall.yaml /run/subiquity/autoinstall.yaml /run/subiquity/cloud.autoinstall.yaml /tmp/autoinstall.yaml; do
+                  if [ -f "\$cfg" ]; then
+                      sed -i "s/__ID_SERIAL__/\${serial}/g" "\$cfg"
                   fi
-              fi
-          done
-          return 1
-      }
-
-      serial=\$(find_empty_disk_serial)
-      if [ \$? -eq 0 ]; then
-          # Update the serial in the configuration files
-          # In Ubuntu 24.04, subiquity use cloud.autoinstall.yaml
-          for cfg in /autoinstall.yaml /run/subiquity/autoinstall.yaml /run/subiquity/cloud.autoinstall.yaml /tmp/autoinstall.yaml; do
-              if [ -f "\$cfg" ]; then
-                  sed -i "s/__ID_SERIAL__/\${serial}/g" "\$cfg"
-              fi
-          done
+              done
+          else
+              echo "[!] WARNING: No empty storage device found. Bypassing detection."
+          fi
       else
-          echo "No empty storage device found. Stopping installation."
-          return 1
+          echo "[!] WARNING: find_disk.sh not found. Proceeding with default config."
       fi
 
     # Load IPMI kernel modules for BMC communication

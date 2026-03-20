@@ -148,3 +148,50 @@ Installation failed early with `TaskStatus.ERROR` during the `subiquity/Refresh`
 ### Resolution
 1.  Set `refresh-installer: update: no` in the template.
 2.  Added `/run/subiquity/cloud.autoinstall.yaml` to the `early-commands` replacement loop.
+
+---
+
+# Debug Note - Empty Disk Detection on 10.99.236.91
+**Date/Time:** 2026-03-19 17:45:00 (GMT+8)
+
+---
+
+### Symptom
+Tested the automated disk identification logic on server `10.99.236.91` to ensure it correctly selects the intended 1.5T KIOXIA drive.
+
+### Debugging Steps
+1.  **Run Simulation**: Executed the `find_empty_disk_serial` function via SSH as root.
+2.  **Inspect Inventory**: `lsblk` showed three NVMe devices:
+    - `nvme0n1` (7T, partitioned)
+    - `nvme1n1` (894G, partitioned)
+    - `nvme2n1` (1.5T, unpartitioned/empty)
+3.  **Validate Logic**: The script correctly bypassed `nvme0n1` and `nvme1n1` due to existing partitions and successfully identified `nvme2n1` as the primary installation target.
+
+### Result
+**SUCCESS**: The function returned the correct serial for `nvme2n1`: `KIOXIA_KCD81VUG1T60_44H0A02GTLSJ_1`.
+
+### Improvements Implemented
+Refactored the function into a standalone script (`find_disk.sh`) bundled on the ISO at `/autoinstall/scripts/` to improve project structure and allow safe sourcing in the `user-data` `early-commands` block with explicit file-existence checks.
+
+---
+
+# Debug Note - Netplan Apply Failure on 10.99.236.60
+**Date/Time:** 2026-03-20 08:30:00 (GMT+8)
+
+---
+
+### Symptom
+OS installation failed early with a `CalledProcessError` during `netplan apply`.
+
+### Debugging Steps
+1.  **Inspect Syslog**: Found `systemd-networkd` crashing with: `symbol lookup error: undefined symbol: json_dispatch_byte_array_iovec, version SD_SHARED`.
+2.  **Verify Package Versions**:
+    - `libsystemd0`: `255.4-1ubuntu8.5` (Main ISO version)
+    - `systemd`: `255.4-1ubuntu8.12` (Updated version from noble-updates)
+3.  **Audit Builder Logic**: Discovered the skip-list was blocking `libsystemd*` but NOT `systemd*`. This caused only the binaries to be updated in the offline pool, breaking the dynamic link with the older libraries on the base ISO.
+
+### Root Cause
+**Library/Binary Version Skew**: Bundling core OS management binaries (like `systemd`) without their exact library version closure breaks critical system services during the installer's runtime and post-install phases.
+
+### Resolution
+Expanded the builder script's skip-list to include all `systemd*`, `udev*`, and `dbus*` components. These core OS pieces must remain at the base ISO version to ensure system stability in offline environments.
