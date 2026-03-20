@@ -600,32 +600,33 @@ autoinstall:
           # If Docker is being installed, setup the keyring and list file for future updates
           if echo "${OFFLINE_PACKAGES}" | grep -q "docker"; then
             echo "[*] Setting up Docker keyring and sources from bundled assets..."
-            mkdir -p /etc/apt/keyrings
-            cp /cdrom/autoinstall/docker.asc /etc/apt/keyrings/docker.asc 2>/dev/null || true
-            chmod a+r /etc/apt/keyrings/docker.asc
-            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" > /etc/apt/sources.list.d/docker.list
+            mkdir -p /target/etc/apt/keyrings
+            cp /cdrom/autoinstall/docker.asc /target/etc/apt/keyrings/docker.asc 2>/dev/null || true
+            chmod a+r /target/etc/apt/keyrings/docker.asc
+            # Use single quotes for the echo to target file to avoid builder-side expansion
+            echo "deb [arch=\"\$(chroot /target dpkg --print-architecture)\" signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \"\$(chroot /target bash -c '. /etc/os-release && echo \$VERSION_CODENAME')\" stable" > /target/etc/apt/sources.list.d/docker.list
           fi
 
           # If Kubernetes is being installed, setup the keyring and list file for future updates
           if echo "${OFFLINE_PACKAGES}" | grep -q "kube"; then
             echo "[*] Setting up Kubernetes keyring and sources from bundled assets..."
-            mkdir -p /etc/apt/keyrings
-            cp /cdrom/autoinstall/kubernetes.gpg /etc/apt/keyrings/kubernetes-apt-keyring.gpg 2>/dev/null || true
-            chmod a+r /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.35/deb/ /" > /etc/apt/sources.list.d/kubernetes.list
+            mkdir -p /target/etc/apt/keyrings
+            cp /cdrom/autoinstall/kubernetes.gpg /target/etc/apt/keyrings/kubernetes-apt-keyring.gpg 2>/dev/null || true
+            chmod a+r /target/etc/apt/keyrings/kubernetes-apt-keyring.gpg
+            echo "deb [arch=\"\$(chroot /target dpkg --print-architecture)\" signed-by=/target/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.35/deb/ /" > /target/etc/apt/sources.list.d/kubernetes.list
           fi
 
           # Install all bundled .debs at once (use apt-get install locally to resolve order issues)
-          apt-get install -y /tmp/extra_pkg/*.deb || dpkg -i /tmp/extra_pkg/*.deb || true
+          apt-get install -y --target=/target /tmp/extra_pkg/*.deb || chroot /target dpkg -i /tmp/extra_pkg/*.deb || true
           rm -rf /tmp/extra_pkg
         else
           echo "[*] Attempting to install default packages from Internet..."
           # If docker requested in online mode (not common but supported)
-          if echo "vim curl net-tools ipmitool htop" | grep -q "docker"; then
-              install -m 0755 -d /etc/apt/keyrings
-              curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-              chmod a+r /etc/apt/keyrings/docker.asc
-              echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
+          if echo "${OFFLINE_PACKAGES}" | grep -q "docker"; then
+              install -m 0755 -d /target/etc/apt/keyrings
+              curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /target/etc/apt/keyrings/docker.asc
+              chmod a+r /target/etc/apt/keyrings/docker.asc
+              echo "deb [arch=\"\$(chroot /target dpkg --print-architecture)\" signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \"\$(chroot /target bash -c 'lsb_release -cs')\" stable" > /target/etc/apt/sources.list.d/docker.list
           fi
           if apt-get update && apt-get install -y vim curl net-tools ipmitool htop; then
             echo "[+] Success: Packages installed from Internet mirrors."

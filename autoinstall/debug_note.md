@@ -299,3 +299,32 @@ Updated `build-ubuntu-autoinstall-iso.sh` with a refined explicit storage schema
 - **Mount Order**: Ensured the root (`/`) mount is processed before the sub-mount (`/boot/efi`).
 
 This ensures that Subiquity's "Storage Model" can correctly path the bootloader installation sequence in UEFI mode.
+
+# Debug Note - Apt Update Failure on 10.99.236.91 (Docker Config Issue)
+**Date/Time:** 2026-03-20 14:20:00 (GMT+8)
+
+---
+
+### Symptom
+On server `10.99.236.91`, `apt update` failed with signature verification errors for the Docker repository, and the repository was pointing to `plucky` (24.10) instead of `noble` (24.04).
+
+### Detailed Debugging Steps
+1.  **Analyze Error**:
+    - Command: `apt update`
+    - Result: `NO_PUBKEY 7EA0A9C3F273FCD8` and `https://download.docker.com/linux/ubuntu plucky InRelease` 404/Signature errors.
+2.  **Verify Distro mismatch**:
+    - Result: The system is Ubuntu 24.04 (Noble), but the generated `docker.list` had `plucky` hardcoded.
+3.  **Inspect Keyring**:
+    - Result: `/etc/apt/keyrings/docker.asc` was missing entirely.
+4.  **Confirm Root Cause**:
+    - **Path Error**: In the build script's `late-commands`, the `cp` command was trying to copy the key to `/etc/apt/...` *inside* the `curtin in-target` shell, but `/cdrom` is only mounted on the *host* (installer) side. 
+    - **Evaluation Error**: The command `$(. /etc/os-release && echo "$VERSION_CODENAME")` in the build script's heredoc was evaluated by the **builder's shell** (running Plucky) instead of being escaped for the target system.
+
+### Resolution (v20260320-v2-rev3)
+1.  **Manual Fix (on .91)**:
+    - Updated `/etc/apt/sources.list.d/docker.list` to use `noble`.
+    - Manually fetched the Docker GPG key: `curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc`.
+2.  **Hardening (Build Script)**:
+    - Escaped all command substitutions in `late-commands` (e.g., `\$(chroot /target dpkg ...)`).
+    - Fixed file paths to use `/target/` explicitly while copying from `/cdrom/`.
+    - Simplified package installation logic to correctly handle the target chroot.

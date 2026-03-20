@@ -10,13 +10,11 @@
 
 ### Features & Fixes
 
-1. **Hardened Explicit Storage Configuration (v20260320-v2-rev2):**
-   - **Problem:** Subiquity's "Guided Storage" engine (`layout: direct`) has a built-in preference for the **largest** available disk when multiple candidates exist. Furthermore, switching to an explicit configuration revealed that Subiquity for Noble (24.04) requires explicit `grub_device` targeting on the **partition level** (ESP) in UEFI mode to pass validation. 
-   - **Fix:** Switched from Guided layouts to a **Hardened Explicit Configuration Block**. The storage section now manually defines:
-     - The target disk matched by the detected serial.
-     - A dedicated **512MB EFI partition** (`vfat`) with `grub_device: true` and the formal ESP GUID (now centralized in the `EFI_GUID` variable).
-     - A **Root partition** using the remaining disk space (`-1` size, `ext4`).
-   - **Benefit:** Guarantees successful hardware targeting on dense servers and satisfies strict Subiquity 24.04 UEFI validation rules, preventing "no bootloader partition created" crashes.
+1. **Hardened Storage & Late-Commands Logic (v20260320-v2-rev3):**
+   - **Fix (Storage):** Satisfied strict Subiquity 24.04 UEFI rules by moving `grub_device: true` to the ESP partition level and using the formal EFI GUID.
+   - **Fix (Apt Update):** Resolved `apt update` failures on target machines by escaping command substitutions (`$(...)`) in the build script. This prevents the builder's host distro (e.g., Plucky) from being hardcoded into the target's `sources.list.d`.
+   - **Fix (Keyring Paths):** Corrected file copy paths in `late-commands` to use the `/target/` mount explicitly, ensuring Docker and Kubernetes GPG keys are correctly provisioned.
+   - **Benefit:** Guarantees successful hardware targeting, valid UEFI bootloader paths, and functional repository configurations for post-install updates.
 
 2. **Smart Empty Disk Selection (Smallest Disk Priority):**
    - **Problem:** On high-density servers (like `10.99.236.85`) with multiple empty NVMe drives, the previous "first-found" logic often selected large data drives (7.68TB) over smaller system SSDs (1.5TB) if they appeared earlier in the hardware list (`nvme0n1`).
