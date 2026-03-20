@@ -2,7 +2,7 @@
 
 ---
 
-## 2026-03-20: Real-time Build Feedback and Core OS Integrity Hardening
+## 2026-03-20: Real-time Build Feedback and Smart Disk Selection Audit
 
 **Files:** `src/os_deployment/main.py` (Modified), `build-ubuntu-autoinstall-iso.sh` (Modified), `debug_note.md` (Updated)
 
@@ -14,18 +14,18 @@
    - **Interactive Streaming:** Replaced the blocking `subprocess.run` in `main.py` with `subprocess.Popen`. 
    - **User Experience:** The tool now streams the ISO build script's output (stdout/stderr) directly to the console in real-time. This provides immediate visibility into package downloads, GPG bundling, and ISO mastering progress.
 
-2. **Core OS Integrity Hardening (Skip-List Expansion):**
-   - **Diagnosis:** Analysis of a failed installation on server `10.99.236.60` revealed a `systemd-networkd` crash (symbol lookup error) caused by a version mismatch between updated `systemd` binaries and older `libsystemd0` libraries on the base ISO.
-   - **Expanded Skip-List:** The builder now strictly excludes all `systemd*`, `udev*`, and `dbus*` packages from being bundled into the offline pool.
-   - **Stability:** This ensures the installer and the deployed system utilize the stable, version-matched management components already present on the official Ubuntu ISO, preventing `netplan apply` failures and broken system boots.
+2. **Smart Empty Disk Selection (Smallest Disk Priority):**
+   - **Problem:** On high-density servers (like `10.99.236.85`) with multiple empty NVMe drives, the previous "first-found" logic often selected large data drives (7.68TB) over smaller system SSDs (1.5TB) if they appeared earlier in the hardware list (`nvme0n1`).
+   - **New Selection Rule:** The `find_disk.sh` script now evaluates **all** empty candidates and selects the one with the **SMALLEST** capacity. This ensures OS deployments target appropriate system drives while preserving large Drives for data use.
+   - **Enhanced Discovery Log:** Automated detection now outputs its step-by-step decision process directly to the server console (`/dev/console`) during boot, showing which disks were skipped and why.
 
-3. **Enhanced Automated Disk Detection:**
-   - **Robustness:** Added explicit file-existence checks for `find_disk.sh` in the autoinstall `early-commands`.
-   - **Graceful Bypass:** If the detection script is missing or fails to find an empty disk, the installer now logs a warning and bypasses the serial-replacement logic instead of failing the installation. 
-   - **Validated on Hardware:** Successfully verified the logic on server `10.99.236.91`, where it accurately identified a 1.5T KIOXIA NVMe drive while bypassing existing OS drives.
+3. **Post-Installation Verification Audit:**
+   - **Integrity Check:** Added a final `late-commands` audit that cross-checks the serial of the newly installed root (`/`) disk against the "Expected Serial" identifies at the start.
+   - **Hardware Logging (SEL):** Reports the verification outcome directly to the BMC's System Event Log (SEL). Success logs an ASCII **`OK`** (0x4F 0x4B), while a mismatch/error logs **`ER`** (0x45 0x52).
+   - **Persistence:** Full audit details (Expected vs. Actual) are written to `/var/log/install_disk_audit.log` on the target machine for post-mortem analysis.
 
 4. **Integrated Kubernetes (v1.35) Bundling:**
-   - Added automated GPG key fetching and repository configuration for Kubernetes `v1.35` stable branch.
+   - Added automated GPG key fetching and repository configuration for Kubernetes `v1.35`.
    - Packages are now bundled recursively into the offline pool if `kubelet`, `kubeadm`, or `kubectl` are requested in the `package_list`.
 
 ---
