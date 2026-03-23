@@ -38,3 +38,7 @@ config.json
 src/os_deployment/lib/uefi_utility/
 src/os_deployment/lib/uefi_utility.zip
 src/os_deployment/lib/utility_mount.py
+
+# Local build artifacts
+autoinstall/apt_cache/
+autoinstall/test_log/

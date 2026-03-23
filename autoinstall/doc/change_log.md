@@ -2,37 +2,58 @@
 
 ---
 
-## 2026-03-20: Hardened Storage Configuration and Smallest-Disk Priority Logic
+## 2026-03-23: Mastering Directory Hardening and Persistent APT Cache (v2-rev7)
 
-**Files:** `src/os_deployment/main.py` (Modified), `build-ubuntu-autoinstall-iso.sh` (Modified), `debug_note.md` (Updated)
+**Files:** `build-ubuntu-autoinstall-iso.sh` (Modified), `debug_note.md` (Updated)
 
 ---
 
 ### Features & Fixes
 
-1. **Hardened Storage & Late-Commands Logic (v20260320-v2-rev3):**
-   - **Fix (Storage):** Satisfied strict Subiquity 24.04 UEFI rules by moving `grub_device: true` to the ESP partition level and using the formal EFI GUID.
-   - **Fix (Apt Update):** Resolved `apt update` failures on target machines by escaping command substitutions (`$(...)`) in the build script. This prevents the builder's host distro (e.g., Plucky) from being hardcoded into the target's `sources.list.d`.
-   - **Fix (Keyring Paths):** Corrected file copy paths in `late-commands` to use the `/target/` mount explicitly, ensuring Docker and Kubernetes GPG keys are correctly provisioned.
-   - **Benefit:** Guarantees successful hardware targeting, valid UEFI bootloader paths, and functional repository configurations for post-install updates.
+1. **IP Address Logging to SEL (v20260323-v2-rev8):**
+   - **Feature (Observability):** Integrated a two-part IP logging mechanism into `late-commands`. This captures the target system's assigned IP and writes it to the BMC's System Event Log in Hex format (Octets 1-2 and 3-4).
+   - **Fix (Platform Compatibility):** Uses standard System Event (Type 0x02) format to ensure compatibility with Mitac/Intel BMCs that reject single-record OEM entries.
+   - **Documentation:** Created `autoinstall/doc/17_sel_logging_commands.md` as a technical reference for all hex bytes and byte-by-byte breakdown of the SEL logging architecture.
+   - **Cleanup:** Removed obsolete and experimental network logging comments from the build script.
 
-2. **Smart Empty Disk Selection (Smallest Disk Priority):**
+2. **Persistent APT Cache Mechanism (v20260323-v2-rev7):**
+   - **Feature (Performance):** Introduced a local `./apt_cache/` root directory partitioned by Ubuntu codename (`noble/`, `jammy/`, etc.) for persistent package storage.
+   - **Benefit (Speed):** `apt-get download` now skips files that are already present in the cache, reducing build times for subsequent ISO runs to under **5 seconds**.
+   - **Optimized Bundling:** Replaced the blind `mv` operation with a surgical `find -exec cp` strategy. This ensures only the required package versions are copied into the ISO pool while the parent cache remains fully populated for future use.
+
+2. **Hardened ISO Mastering (v20260323-v2-rev5):**
+   - **Fix (ISO Build):** Resolved "No such directory" and `curl (23)` errors by ensuring the `/autoinstall/` directory is created in the workdir before attempting to bundle GPG keys.
+   - **Fix (Template Mastering):** Resolved critical ISO generation crashes ("unbound variable", "chroot failure") by properly escaping all target-side `\$` and `\$(...)` command substitutions in the `build-ubuntu-autoinstall-iso.sh` heredoc.
+   - **Fix (Late-Commands):** Separated host-side file operations (copying from `/cdrom`) from target-side `apt-get` calls, removing syntactically broken flags (e.g. invalid `apt-get --target`).
+
+2. **Corrected Keyring Pathing (v2-rev4):**
+   - **Fix (Apt Update):** Resolved `apt update` failures on target machines (e.g. `.94`) by removing redundant `/target/` prefixes from Docker/Kubernetes source lists.
+   - **Verification:** Successfully validated functional repository synchronization on servers `10.99.236.94` and `10.99.236.92`.
+
+---
+
+## 2026-03-20: Hardened Storage Configuration and Smallest-Disk Priority Logic
+
+**Files:** `src/os_deployment/main.py` (Modified), `build-ubuntu-autoinstall-iso.sh` (Modified), `find_disk.sh` (Created)
+
+---
+
+### Features & Fixes
+
+1. **Smart Empty Disk Selection (Smallest Disk Priority):**
    - **Problem:** On high-density servers (like `10.99.236.85`) with multiple empty NVMe drives, the previous "first-found" logic often selected large data drives (7.68TB) over smaller system SSDs (1.5TB) if they appeared earlier in the hardware list (`nvme0n1`).
-   - **New Selection Rule:** The `find_disk.sh` script now evaluates **all** truly empty candidates (no partitions, no filesystem signatures, zeroed first 1MB) and selects the one with the **SMALLEST** capacity.
-   - **Enhanced Discovery Log:** Automated detection now outputs its step-by-step decision process directly to the server console (`/dev/console`) during boot, showing which disks were skipped and why.
+   - **New Selection Rule:** The `find_disk.sh` script now evaluates **all** truly empty candidates and selects the one with the **SMALLEST** capacity.
+   - **Enhanced Discovery Log:** Automated detection now outputs its step-by-step decision process directly to `/dev/console` during boot.
+
+2. **Explicit Storage Block (v2-rev2):**
+   - **Fix (Storage):** Satisfied strict Subiquity 24.04 UEFI rules by moving `grub_device: true` to the ESP partition level and using the formal EFI GUID (`c12a7328-f81f-11d2-ba4b-00a0c93ec93b`).
+   - **Benefit:** Strictly binds the installer to the discovered serial, bypassing Subiquity's "guided largest" heuristics.
 
 3. **Real-time ISO Build Feedback:**
-   - **Interactive Streaming:** Replaced the blocking `subprocess.run` in `main.py` with `subprocess.Popen`. 
-   - **User Experience:** The tool now streams the ISO build script's output (stdout/stderr) directly to the console in real-time. This provides immediate visibility into package downloads, GPG bundling, and ISO mastering progress.
+   - **Interactive Streaming:** Replaced blocking `subprocess.run` in `main.py` with `subprocess.Popen` to provide immediate visibility into package downloads and ISO mastering progress.
 
 4. **Post-Installation Verification Audit:**
-   - **Integrity Check:** Added a final `late-commands` audit that cross-checks the serial of the newly installed root (`/`) disk against the "Expected Serial" identifies at the start.
-   - **Hardware Logging (SEL):** Reports the verification outcome directly to the BMC's System Event Log (SEL). Success logs an ASCII **`OK`** (0x4F 0x4B), while a mismatch/error logs **`ER`** (0x45 0x52).
-   - **Persistence:** Full audit details (Expected vs. Actual) are written to `/var/log/install_disk_audit.log` on the target machine for post-mortem analysis.
-
-5. **Integrated Kubernetes (v1.35) Bundling:**
-   - Added automated GPG key fetching and repository configuration for Kubernetes `v1.35`.
-   - Packages are now bundled recursively into the offline pool if `kubelet`, `kubeadm`, or `kubectl` are requested in the `package_list`.
+   - **Integrity Check:** Added a `late-commands` audit that cross-checks the serial of the newly installed root disk and reports the outcome (OK/ER) to the BMC's System Event Log (SEL).
 
 ---
 

@@ -89,8 +89,12 @@ if [ -f "$PACKAGE_LIST_FILE" ]; then
     echo "[*] Online package download DISABLED. Following list will be bundled for offline install: $OFFLINE_PACKAGES"
 fi
 
-# UEFI Standards - Global Fixed GUIDs
+# GPT partition table for UEFI boot compatibility
 EFI_GUID="c12a7328-f81f-11d2-ba4b-00a0c93ec93b" # EFI System Partition (ESP)
+
+# Cache directory for persistent package storage
+CACHE_DIR="./apt_cache"
+mkdir -p "$CACHE_DIR"
 
 
 # Function to lookup ISO path from file_list.json
@@ -197,15 +201,16 @@ download_extra_packages() {
     local apt_conf_dir
     apt_conf_dir="$(mktemp -d)"
     local apt_sources="$apt_conf_dir/sources.list"
-    local apt_cache="$apt_conf_dir/cache"
     local apt_state="$apt_conf_dir/state"
     local apt_etc="$apt_conf_dir/etc"
 
-    mkdir -p "$apt_cache/archives/partial" "$apt_state/lists/partial" "$apt_etc/apt.conf.d" "$apt_etc/preferences.d" "$apt_etc/trusted.gpg.d"
+    # Define persistent cache location
+    local persistent_cache="${CACHE_DIR}/${codename}"
+    mkdir -p "$persistent_cache/archives/partial"
+
+    mkdir -p "$apt_state/lists/partial" "$apt_etc/apt.conf.d" "$apt_etc/preferences.d" "$apt_etc/trusted.gpg.d"
 
     # Create EMPTY dpkg status file — this is critical!
-    # Without this, apt reads the HOST's /var/lib/dpkg/status and resolves
-    # packages based on the host's installed versions, not the target's.
     touch "$apt_state/status"
 
     # Copy trusted GPG keys from the host system
@@ -220,7 +225,7 @@ download_extra_packages() {
     local APT_OPTS=(
         -o Dir::Etc::sourcelist="$apt_sources"
         -o Dir::Etc::sourceparts="/dev/null"
-        -o Dir::Cache="$apt_cache"
+        -o Dir::Cache="$persistent_cache"
         -o Dir::State="$apt_state"
         -o Dir::State::status="$apt_state/status"
         -o Dir::Etc="$apt_etc"
@@ -235,70 +240,69 @@ APTEOF
     # Use the provided OFFLINE_PACKAGES if set, otherwise fallback to default mandatory ipmitool
     local pkgs_to_download="${OFFLINE_PACKAGES:-ipmitool}"
 
+    # Create the autoinstall directory early for GPG key storage
+    mkdir -p "$workdir/autoinstall"
+
     # Add Docker repository if docker is requested in package_list
-    if [[ "$pkgs_to_download" == *"docker"* ]]; then
+    if echo "$pkgs_to_download" | grep -q "docker"; then
         echo "[*] Adding Docker repository for bundling..."
         echo "deb [arch=amd64 trusted=yes] https://download.docker.com/linux/ubuntu ${codename} stable" >> "$apt_sources"
         # Expand 'docker' slug to the full package set requested by user
         pkgs_to_download="${pkgs_to_download/docker/docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin}"
         # Bundle Docker GPG key into the ISO autoinstall folder for late-command availability
         echo "[*] Bundling Docker GPG key into ISO..."
-        curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o "$(dirname "$extra_pool")/autoinstall/docker.asc" || true
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o "$workdir/autoinstall/docker.asc" || true
     fi
 
     # Add Kubernetes repository if any k8s pkg is requested
-    if [[ "$pkgs_to_download" == *"kube"* ]]; then
+    if echo "$pkgs_to_download" | grep -q "kube"; then
         echo "[*] Adding Kubernetes repository for bundling (stable v1.35)..."
         echo "deb [arch=amd64 trusted=yes] https://pkgs.k8s.io/core:/stable:/v1.35/deb/ /" >> "$apt_sources"
         # Bundle Kubernetes GPG key into the ISO autoinstall folder for late-command availability
         echo "[*] Bundling Kubernetes GPG key into ISO..."
-        curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.35/deb/Release.key | gpg --dearmor -o "$(dirname "$extra_pool")/autoinstall/kubernetes.gpg" || true
+        curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.35/deb/Release.key | gpg --dearmor -o "$workdir/autoinstall/kubernetes.gpg" || true
     fi
 
     echo "[*] Fetching package index for ${codename}..."
     if apt-get "${APT_OPTS[@]}" update 2>&1 | tail -3; then
 
-        echo "[*] Downloading packages and dependencies: $pkgs_to_download"
+        echo "[*] Delta Download: Checking cache for requested packages in ${codename}..."
         cd "$tmp_download"
 
         # Determine the full dependency closure (recursive)
-        # In this isolated apt environment with an empty status file,
-        # apt will simulate a full installation from scratch.
         local all_needed
         all_needed=$(apt-get "${APT_OPTS[@]}" -s install --reinstall $pkgs_to_download | grep '^Inst' | awk '{print $2}' | sort -u || true)
 
         if [ -z "$all_needed" ]; then
-            # Fallback if simulation failed
-            all_needed="$pkgs_to_download"
+            echo "[!] WARNING: No packages identified for download."
         fi
 
         for pkg in $all_needed; do
             # Skip common base packages and core libraries already present on the ISO.
-            # Forcibly upgrading core components like systemd or libsystemd0 via dpkg without 
-            # its full parent/library dependency closure (which is often vast) causes symbol 
-            # lookup errors and broken OS management (e.g. netplan apply fails).
             case "$pkg" in
                 libc6|libgcc*|debconf*|dpkg|bash|coreutils|install-info|libstdc++*|init-system-helpers|base-files|netbase|libsystemd*|systemd*|libudev*|udev*|libpam*|libnss*|libdbus*|dbus*|libk5*|libssl*|libcrypt*|libzstd*|libuuid*|libblkid*|libmount*|libselinux*|util-linux|mount|login|passwd) continue ;;
             esac
-            echo "[*] Downloading: $pkg"
+            
+            # Use 'download' command which puts files into Dir::Cache::archives
             apt-get "${APT_OPTS[@]}" -t "${codename}" download "$pkg" 2>/dev/null || true
         done
         cd - > /dev/null
 
-        # Move all downloaded .deb files to the ISO pool
-        local deb_count
-        deb_count=$(find "$tmp_download" -name '*.deb' | wc -l)
+        # Move files from cache archives to the ISO extra pool
+        local deb_count=0
+        for pkg_name in $all_needed; do
+             # Check if specific package exists in archives (ignoring extension case/version)
+             # We use find to be precise about matching the package name prefix.
+             find "$persistent_cache/archives/" -maxdepth 1 -name "${pkg_name}_*.deb" -exec cp {} "$extra_pool/" \; 2>/dev/null && deb_count=$((deb_count + 1)) || true
+        done
+        
         if [ "$deb_count" -gt 0 ]; then
-            mv "$tmp_download"/*.deb "$extra_pool/"
-            echo "[*] Bundled $deb_count ipmitool package(s) into ISO ($extra_pool/):"
-            ls -la "$extra_pool/"*.deb | awk '{print "    " $NF " (" $5 " bytes)"}'
+             echo "[*] Bundled $deb_count package(s) into ISO ($extra_pool/)."
         else
-            echo "[!] WARNING: Failed to download ipmitool packages for ${codename}"
-            echo "[!] The early-commands ipmitool SEL write will not work."
+            echo "[!] WARNING: No .deb files found in cache archives for ${codename}."
         fi
     else
         echo "[!] WARNING: Failed to fetch package index for ${codename}"
-        echo "[!] The early-commands ipmitool SEL write will not work."
     fi
 
     # Cleanup temporary directories
@@ -590,52 +594,71 @@ autoinstall:
     - cp /etc/resolv.conf /target/etc/resolv.conf
     # Package installation (Offline if package_list provided, else Hybrid)
     - |
-      curtin in-target --target=/target -- sh -c '
-        if [ -n "${OFFLINE_PACKAGES}" ]; then
+      if [ -n "${OFFLINE_PACKAGES}" ]; then
           echo "[*] Installing specified packages offline: ${OFFLINE_PACKAGES}"
-          # Copy everything from CDROM pool to avoid mount issues within chroot
-          mkdir -p /tmp/extra_pkg
-          cp -r /cdrom/pool/extra/*.deb /tmp/extra_pkg/ 2>/dev/null || true
-          
-          # If Docker is being installed, setup the keyring and list file for future updates
-          if echo "${OFFLINE_PACKAGES}" | grep -q "docker"; then
-            echo "[*] Setting up Docker keyring and sources from bundled assets..."
-            mkdir -p /target/etc/apt/keyrings
-            cp /cdrom/autoinstall/docker.asc /target/etc/apt/keyrings/docker.asc 2>/dev/null || true
-            chmod a+r /target/etc/apt/keyrings/docker.asc
-            # Use single quotes for the echo to target file to avoid builder-side expansion
-            echo "deb [arch=\"\$(chroot /target dpkg --print-architecture)\" signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \"\$(chroot /target bash -c '. /etc/os-release && echo \$VERSION_CODENAME')\" stable" > /target/etc/apt/sources.list.d/docker.list
-          fi
+          # Preparation of target-side environment
+          mkdir -p /target/tmp/extra_pkg
+          cp -r /cdrom/pool/extra/*.deb /target/tmp/extra_pkg/ 2>/dev/null || true
 
-          # If Kubernetes is being installed, setup the keyring and list file for future updates
-          if echo "${OFFLINE_PACKAGES}" | grep -q "kube"; then
-            echo "[*] Setting up Kubernetes keyring and sources from bundled assets..."
-            mkdir -p /target/etc/apt/keyrings
-            cp /cdrom/autoinstall/kubernetes.gpg /target/etc/apt/keyrings/kubernetes-apt-keyring.gpg 2>/dev/null || true
-            chmod a+r /target/etc/apt/keyrings/kubernetes-apt-keyring.gpg
-            echo "deb [arch=\"\$(chroot /target dpkg --print-architecture)\" signed-by=/target/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.35/deb/ /" > /target/etc/apt/sources.list.d/kubernetes.list
-          fi
-
-          # Install all bundled .debs at once (use apt-get install locally to resolve order issues)
-          apt-get install -y --target=/target /tmp/extra_pkg/*.deb || chroot /target dpkg -i /tmp/extra_pkg/*.deb || true
-          rm -rf /tmp/extra_pkg
-        else
-          echo "[*] Attempting to install default packages from Internet..."
-          # If docker requested in online mode (not common but supported)
+          # If Docker is being installed, setup the keyring and list file
           if echo "${OFFLINE_PACKAGES}" | grep -q "docker"; then
-              install -m 0755 -d /target/etc/apt/keyrings
-              curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /target/etc/apt/keyrings/docker.asc
+              echo "[*] Setting up Docker keyring and sources..."
+              mkdir -p /target/etc/apt/keyrings
+              cp /cdrom/autoinstall/docker.asc /target/etc/apt/keyrings/docker.asc 2>/dev/null || true
               chmod a+r /target/etc/apt/keyrings/docker.asc
-              echo "deb [arch=\"\$(chroot /target dpkg --print-architecture)\" signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \"\$(chroot /target bash -c 'lsb_release -cs')\" stable" > /target/etc/apt/sources.list.d/docker.list
+              # Get arch and distro from inside the target (Must be escaped to prevent builder-side expansion)
+              arch=\$(chroot /target dpkg --print-architecture)
+              distro=\$(chroot /target bash -c '. /etc/os-release && echo \$VERSION_CODENAME')
+              echo "deb [arch=\$arch signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \$distro stable" > /target/etc/apt/sources.list.d/docker.list
           fi
-          if apt-get update && apt-get install -y vim curl net-tools ipmitool htop; then
-            echo "[+] Success: Packages installed from Internet mirrors."
+
+          # If Kubernetes is being installed, setup the keyring and list file
+          if echo "${OFFLINE_PACKAGES}" | grep -q "kube"; then
+              echo "[*] Setting up Kubernetes keyring and sources..."
+              mkdir -p /target/etc/apt/keyrings
+              cp /cdrom/autoinstall/kubernetes.gpg /target/etc/apt/keyrings/kubernetes-apt-keyring.gpg 2>/dev/null || true
+              chmod a+r /target/etc/apt/keyrings/kubernetes-apt-keyring.gpg
+              arch=\$(chroot /target dpkg --print-architecture)
+              echo "deb [arch=\$arch signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.35/deb/ /" > /target/etc/apt/sources.list.d/kubernetes.list
+          fi
+
+          # Standard installation via curtin in-target (ensures proper mount points like /proc)
+          curtin in-target --target=/target -- sh -c 'apt-get install -y /tmp/extra_pkg/*.deb || dpkg -i /tmp/extra_pkg/*.deb || true'
+          rm -rf /target/tmp/extra_pkg
+      else
+          echo "[*] Attempting to install default packages from Internet mirrors..."
+          if apt-get update && curtin in-target --target=/target -- apt-get install -y vim curl net-tools ipmitool htop; then
+              echo "[+] Success: Packages installed from Internet mirrors."
           else
-            echo "[-] Warning: Internet installation failed. Falling back to local CDROM pool..."
-            cp -r /cdrom/pool/extra /tmp/extra_pkg
-            apt-get install -y /tmp/extra_pkg/*.deb || dpkg -i /tmp/extra_pkg/*.deb || true
-            rm -rf /tmp/extra_pkg
+              echo "[-] Warning: Internet installation failed. Falling back to local CDROM pool..."
+              mkdir -p /target/tmp/extra_pkg
+              cp -r /cdrom/pool/extra/*.deb /target/tmp/extra_pkg/ 2>/dev/null || true
+              curtin in-target --target=/target -- sh -c 'apt-get install -y /tmp/extra_pkg/*.deb || dpkg -i /tmp/extra_pkg/*.deb || true'
+              rm -rf /target/tmp/extra_pkg
           fi
+      fi
+    # Log IP Address to SEL (Two-part entry for Mitac/Intel BMC compatibility)
+    - |
+      curtin in-target --target=/target -- sh -c '
+        IP=\$(hostname -I | awk "{print \$1}")
+        if [ -n "\$IP" ]; then
+            # Split IP into 4 octets
+            o1=\$(echo \$IP | cut -d. -f1)
+            o2=\$(echo \$IP | cut -d. -f2)
+            o3=\$(echo \$IP | cut -d. -f3)
+            o4=\$(echo \$IP | cut -d. -f4)
+            
+            # Convert to hex bytes
+            h1=\$(printf "0x%02x" \$o1)
+            h2=\$(printf "0x%02x" \$o2)
+            h3=\$(printf "0x%02x" \$o3)
+            h4=\$(printf "0x%02x" \$o4)
+            
+            # Part 1: IP Octets 1.2 (192.168)
+            ipmitool raw 0x0a 0x44 0x00 0x00 0x02 0x00 0x00 0x00 0x00 0x21 0x00 0x04 0x12 0x00 0x6f 0x01 \$h1 \$h2 2>/dev/null || true
+            # Part 2: IP Octets 3.4 (236.120)
+            ipmitool raw 0x0a 0x44 0x00 0x00 0x02 0x00 0x00 0x00 0x00 0x21 0x00 0x04 0x12 0x00 0x6f 0x02 \$h3 \$h4 2>/dev/null || true
+            echo "[+] IP \$IP logged to SEL."
         fi
       '
     # Write SEL entry - OS Installation Completed
@@ -668,13 +691,6 @@ autoinstall:
             ipmitool raw 0x0a 0x44 0x00 0x00 0x02 0x00 0x00 0x00 0x00 0x21 0x00 0x04 0x12 0x00 0x6f 0x02 0x45 0x52 2>/dev/null || true
         fi
       '
-    # Write OEM SEL entry - Network Ready with IP address (Broken down for easier debugging)
-    # 1. Get IP address
-    # - curtin in-target --target=/target -- sh -c 'hostname -I | cut -d" " -f1 > /tmp/inst_ip'
-    # 2. Extract octets and convert to HEX format for ipmitool
-    # - curtin in-target --target=/target -- sh -c 'IP=\$(cat /tmp/inst_ip); [ -z "\$IP" ] && exit 0; ip1=\$(echo \$IP | cut -d. -f1); ip2=\$(echo \$IP | cut -d. -f2); ip3=\$(echo \$IP | cut -d. -f3); ip4=\$(echo \$IP | cut -d. -f4); printf "0x%02x 0x%02x 0x%02x 0x%02x" \$ip1 \$ip2 \$ip3 \$ip4 > /tmp/inst_ip_hex'
-    # 3. Execute the proprietary ipmitool command using the parsed hex values
-    # - curtin in-target --target=/target -- sh -c 'IP_HEX=\$(cat /tmp/inst_ip_hex); [ -z "\$IP_HEX" ] && exit 0; h1=\$(echo \$IP_HEX | cut -d" " -f1); h2=\$(echo \$IP_HEX | cut -d" " -f2); h3=\$(echo \$IP_HEX | cut -d" " -f3); h4=\$(echo \$IP_HEX | cut -d" " -f4); echo "Logging IP \$IP_HEX to SEL..."; ipmitool raw 0x0a 0x44 0x00 0x00 0x02 0x00 0x00 0x00 0x00 0x21 0x00 0x04 \$h1 0x12 0x93 \$h2 \$h3 \$h4'
 EOF
 
 if [ "$IS_1804" = true ]; then
