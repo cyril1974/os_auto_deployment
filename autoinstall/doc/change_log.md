@@ -10,7 +10,12 @@
 
 ### Features & Fixes
 
-1. **Fix: Path Evaluation in Cache (v20260323-v2-rev10):**
+1. **Feature: Delta Download Logic (v20260323-v2-rev11):**
+   - **Improvement:** Implemented a pre-download check that scans the `apt_cache/` for existing packages. If a matching `.deb` is already present, the script skips the remote mirror download.
+   - **Benefit:** Massive speedup for repeated ISO builds (since packages like `docker` and `k8s` are large and take time to download).
+   - **Verification:** Added logging (`+ Found [pkg] in cache`) into the build output to show the cache hit.
+
+2. **Fix: Path Evaluation in Cache (v20260323-v2-rev10):**
    - **Bug (Pathing):** Found a race condition where the relative `./apt_cache` path pointed to a subdirectory of the **temporary** folder. This caused packages to be 'saved' into a transient directory that was deleted at script exit.
    - **Resolution:** Forced `persistent_cache` to use an absolute path via `$(realpath "${CACHE_DIR}")` before the script changes directories.
    - **Impact:** Fixes the empty `archives/` folder issue and confirms `pool/extra` is correctly populated.

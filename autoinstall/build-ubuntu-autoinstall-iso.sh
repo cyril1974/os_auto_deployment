@@ -230,6 +230,8 @@ download_extra_packages() {
         -o Dir::State="$apt_state"
         -o Dir::State::status="$apt_state/status"
         -o Dir::Etc="$apt_etc"
+        -o Acquire::AllowInsecureRepositories=true
+        -o Acquire::AllowDowngradeToInsecureRepositories=true
     )
 
     # Set up sources for the target version (main + universe)
@@ -284,6 +286,13 @@ APTEOF
                 libc6|libgcc*|debconf*|dpkg|bash|coreutils|install-info|libstdc++*|init-system-helpers|base-files|netbase|libsystemd*|systemd*|libudev*|udev*|libpam*|libnss*|libdbus*|dbus*|libk5*|libssl*|libcrypt*|libzstd*|libuuid*|libblkid*|libmount*|libselinux*|util-linux|mount|login|passwd) continue ;;
             esac
             
+            # Check if this package (matching the name) is already in the persistent cache.
+            # We look for the ${pkg}_ prefix to be specific.
+            if ls "$persistent_cache/archives/${pkg}"_*.deb >/dev/null 2>&1; then
+                echo "    + Found $pkg in cache, skipping download."
+                continue
+            fi
+
             # apt-get download puts files in CWD ($tmp_download), not in Dir::Cache.
             # We must explicitly move them to the persistent cache archives.
             if apt-get "${APT_OPTS[@]}" -t "${codename}" download "$pkg" 2>/dev/null; then
