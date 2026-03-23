@@ -10,7 +10,12 @@
 
 ### Features & Fixes
 
-1. **Feature: Delta Download Logic (v20260323-v2-rev11):**
+1. **Optimization: SEL Data Padding (v20260323-v2-rev12):**
+   - **Requirement:** Update SEL commands to match user diagnostic tool string `SEL Entry Added:210012006F`.
+   - **Change:** Modified "Start Install" and "Complete Install" commands to use `0x00 0x00` padding instead of `0xff 0xff`.
+   - **Documentation:** Updated technical doc #17 to reflect the new standardized padding value.
+
+2. **Feature: Delta Download Logic (v20260323-v2-rev11):**
    - **Improvement:** Implemented a pre-download check that scans the `apt_cache/` for existing packages. If a matching `.deb` is already present, the script skips the remote mirror download.
    - **Benefit:** Massive speedup for repeated ISO builds (since packages like `docker` and `k8s` are large and take time to download).
    - **Verification:** Added logging (`+ Found [pkg] in cache`) into the build output to show the cache hit.
