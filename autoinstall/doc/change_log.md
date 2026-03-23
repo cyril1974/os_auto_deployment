@@ -10,7 +10,12 @@
 
 ### Features & Fixes
 
-1. **Fix: Critical APT Cache Population (v20260323-v2-rev9):**
+1. **Fix: Path Evaluation in Cache (v20260323-v2-rev10):**
+   - **Bug (Pathing):** Found a race condition where the relative `./apt_cache` path pointed to a subdirectory of the **temporary** folder. This caused packages to be 'saved' into a transient directory that was deleted at script exit.
+   - **Resolution:** Forced `persistent_cache` to use an absolute path via `$(realpath "${CACHE_DIR}")` before the script changes directories.
+   - **Impact:** Fixes the empty `archives/` folder issue and confirms `pool/extra` is correctly populated.
+
+2. **Fix: Critical APT Cache Population (v20260323-v2-rev9):**
    - **Bug (Bundling):** Corrected a logic error where `apt-get download` would place packages in a temporary directory instead of the persistent cache. This resulted in an empty `pool/extra` and missing tools like `ipmitool` on the target system.
    - **Resolution:** Explicitly move downloaded `.deb` files into the cache archives, ensuring they are correctly bundled into the ISO and available for all installations.
    - **Impact:** Fixes missing SEL logging during installation (since `ipmitool` will now be properly installed).

@@ -204,8 +204,9 @@ download_extra_packages() {
     local apt_state="$apt_conf_dir/state"
     local apt_etc="$apt_conf_dir/etc"
 
-    # Define persistent cache location
-    local persistent_cache="${CACHE_DIR}/${codename}"
+    # Define persistent cache location (Ensure absolute path as we will cd shortly)
+    local persistent_cache
+    persistent_cache="$(realpath "${CACHE_DIR}")/${codename}"
     mkdir -p "$persistent_cache/archives/partial"
 
     mkdir -p "$apt_state/lists/partial" "$apt_etc/apt.conf.d" "$apt_etc/preferences.d" "$apt_etc/trusted.gpg.d"
