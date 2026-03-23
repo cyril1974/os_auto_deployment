@@ -10,7 +10,12 @@
 
 ### Features & Fixes
 
-1. **IP Address Logging to SEL (v20260323-v2-rev8):**
+1. **Fix: Critical APT Cache Population (v20260323-v2-rev9):**
+   - **Bug (Bundling):** Corrected a logic error where `apt-get download` would place packages in a temporary directory instead of the persistent cache. This resulted in an empty `pool/extra` and missing tools like `ipmitool` on the target system.
+   - **Resolution:** Explicitly move downloaded `.deb` files into the cache archives, ensuring they are correctly bundled into the ISO and available for all installations.
+   - **Impact:** Fixes missing SEL logging during installation (since `ipmitool` will now be properly installed).
+
+2. **IP Address Logging to SEL (v20260323-v2-rev8):**
    - **Feature (Observability):** Integrated a two-part IP logging mechanism into `late-commands`. This captures the target system's assigned IP and writes it to the BMC's System Event Log in Hex format (Octets 1-2 and 3-4).
    - **Fix (Platform Compatibility):** Uses standard System Event (Type 0x02) format to ensure compatibility with Mitac/Intel BMCs that reject single-record OEM entries.
    - **Documentation:** Created `autoinstall/doc/17_sel_logging_commands.md` as a technical reference for all hex bytes and byte-by-byte breakdown of the SEL logging architecture.

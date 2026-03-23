@@ -283,8 +283,11 @@ APTEOF
                 libc6|libgcc*|debconf*|dpkg|bash|coreutils|install-info|libstdc++*|init-system-helpers|base-files|netbase|libsystemd*|systemd*|libudev*|udev*|libpam*|libnss*|libdbus*|dbus*|libk5*|libssl*|libcrypt*|libzstd*|libuuid*|libblkid*|libmount*|libselinux*|util-linux|mount|login|passwd) continue ;;
             esac
             
-            # Use 'download' command which puts files into Dir::Cache::archives
-            apt-get "${APT_OPTS[@]}" -t "${codename}" download "$pkg" 2>/dev/null || true
+            # apt-get download puts files in CWD ($tmp_download), not in Dir::Cache.
+            # We must explicitly move them to the persistent cache archives.
+            if apt-get "${APT_OPTS[@]}" -t "${codename}" download "$pkg" 2>/dev/null; then
+                mv ./*.deb "$persistent_cache/archives/" 2>/dev/null || true
+            fi
         done
         cd - > /dev/null
 
