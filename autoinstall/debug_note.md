@@ -210,3 +210,26 @@ Manual byte-packing in Python 3 is unreliable for complex C-structures containin
 ### Resolution (v2-rev17)
 1.  **Refactor**: Replaced `struct.pack` with **`ctypes.Structure`** for `IPMIReq`, `IPMIMsg`, and `IPMISystemInterfaceAddr`.
 2.  **Benefit**: `ctypes` handles the underlying C-style pointer mapping (void*) to Python's memory buffer automatically, ensuring binary compatibility with the Linux kernel driver across all platforms.
+
+---
+
+# Debug Note - [Errno 22] IOCTL Failure on 10.99.236.91
+**Date/Time:** 2026-03-24 11:15:00 (GMT+8)
+
+---
+
+### Symptom
+The updated `ipmi_start_logger.py` (v2-rev17-19) failed to emit a Start signal on node `.91`, reporting `[Errno 22] Invalid argument` in the IOCTL call.
+
+### Diagnosis
+1.  **Verification**: Manual `ipmitool raw` worked, confirming the BMC and driver were functional.
+2.  **Forensics**: Ran `strace -e ioctl -v ipmitool raw ...` and confirmed the `IPMICTL_SEND_COMMAND` IOCTL was being used correctly by the system.
+3.  **Probing**: A custom scanner script tested multiple NetFn (shifted vs non-shifted) and Address Channel (0x00 vs 0x0F) combinations.
+
+### Root Cause (v2-rev20 hardware variance)
+Node `.91` (and potentially other servers in the cluster) requires **Channel 15 (0x0f)** and a **Raw (Non-shifted) NetFn (0x0a)** to communicate with the BMC through the Linux `devintf` driver. Our previous iteration hardcoded Channel `0x00` and shifted NetFn `0x28`.
+
+### Resolution (v2-rev20)
+1.  **Hardening**: Updated `ipmi_start_logger.py` to become a "smart probe".
+2.  **Implementation**: It now attempts to send the marker by iterating through multiple permutations of Channels (0x00, 0x0F) and NetFn formats (0x0a, 0x28).
+3.  **Validation**: Successfully established telemetry on `.91` using **NetFn=0x0a** and **Channel=0x0f**.
