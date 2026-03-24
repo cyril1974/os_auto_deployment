@@ -282,28 +282,30 @@ def wait_for_reboot(target,auth,fromtimestamp):
 def getSystemEventLog(target,auth,fromtimestamp):
     return_data = []
     if check_redfish_api(target,auth): 
-        gen = str(state_manager.state.generation)
         event_cnt = 0
         show_log_cnt = 500
-        if gen == "6":
-            url = f"{constants.LOG_FETCH_API}/?$top=1"
-            response = redfish_get_request(url,bmc_ip=target,auth=auth,custom_timeout=10)
-            try:
-                event_cnt = int(response.json()["Members@odata.count"])
-                # print(f"[{datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')}] EGS Platform ,Get Event Log Count {event_cnt} !!")
-            except Exception as e:
-                print("Get Event Log Count Fail !!")    
+        
+        # Get the total count of logs first to skip to the most recent ones
+        url_count = f"{constants.LOG_FETCH_API}/?$top=1"
+        response = redfish_get_request(url_count,bmc_ip=target,auth=auth,custom_timeout=10)
+        try:
+            # Most Redfish implementations return the count in Members@odata.count
+            event_cnt = int(response.json().get("Members@odata.count", 0))
+        except Exception:
+            pass
             
-        url = constants.LOG_FETCH_API if event_cnt <= 0 else f"{constants.LOG_FETCH_API}/?$skip={event_cnt-show_log_cnt}&$top={show_log_cnt}"
-        # print(f"[{datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')}] {url}")
+        # If possible, skip to the latest logs (BMC logs are typically indexed oldest-first)
+        if event_cnt > show_log_cnt:
+            url = f"{constants.LOG_FETCH_API}/?$skip={event_cnt-show_log_cnt}&$top={show_log_cnt}"
+        else:
+            url = f"{constants.LOG_FETCH_API}/?$top={show_log_cnt}"
+            
         response = redfish_get_request(url,bmc_ip=target,auth=auth,custom_timeout=10)
         try:
-            data = response.json()["Members"]
-            if data is not None and len(data) > 0:
+            data = response.json().get("Members", [])
+            if data and len(data) > 0:
                 for item in data:
                     try:
-                        # Parse the full ISO8601 string to preserve timezone (+00:00)
-                        # Redfish dates are typically YYYY-MM-DDTHH:MM:SS+HH:MM or ...Z
                         created_str = item["Created"].replace('Z', '+00:00')
                         event_time = int(datetime.fromisoformat(created_str).timestamp())
                         if event_time > fromtimestamp:      
