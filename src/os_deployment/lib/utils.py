@@ -189,7 +189,7 @@ def getTargetBMCDateTime(target,auth):
                 "status":"ok",
                 "data":{
                     "string":data["DateTime"][:19],
-                    "timestamp":datetime.fromisoformat(data["DateTime"][:19]).timestamp()
+                    "timestamp":datetime.fromisoformat(data["DateTime"].replace('Z', '+00:00')).timestamp()
                     }
             }
         except Exception as e:
