@@ -607,6 +607,14 @@ autoinstall:
     # GenID=0x2100(SWid=0x01) EvMRev=0x04 SensorType=0x12(SystemEvent) SensorNum=0x00
     # EventType=0x6f(sensor-specific,assertion) EvData1=0x01(Starting) EvData2=0xff EvData3=0xff
     - ipmitool raw 0x0a 0x44 0x00 0x00 0x02 0x00 0x00 0x00 0x00 0x21 0x00 0x04 0x12 0x00 0x6f 0x01 0x00 0x00 2>/dev/null || true
+  error-commands:
+    # Ensure drivers are loaded for the abort signal (in case subiquity failed very early)
+    - modprobe ipmi_devintf 2>/dev/null || true
+    - modprobe ipmi_si 2>/dev/null || true
+    - sleep 1
+    # Log ABORTED/FAILED (Marker: 0xEE)
+    - python3 /cdrom/pool/extra/ipmi_start_logger.py 0xEE || true
+    - ipmitool raw 0x0a 0x44 0x00 0x00 0x02 0x00 0x00 0x00 0x00 0x21 0x00 0x04 0x12 0x00 0x6f 0xee 0x00 0x00 2>/dev/null || true
   late-commands:
     - echo 'root:${PASSWORD}' | chroot /target chpasswd
     - curtin in-target --target=/target -- sed -i 's/^#\\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config

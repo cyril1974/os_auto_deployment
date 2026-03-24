@@ -10,7 +10,13 @@
 
 ### Features & Fixes
 
-1. **Optimization: IPMI Marker Specification Update (v20260324-v2-rev18):**
+1. **Feature: Automated Install-Fail Telemetry (v20260324-v2-rev19):**
+   - **Addition:** Added the `error-commands` block to the autoinstall YAML.
+   - **Protocol:** Defined Marker `0xEE` for installation aborts/failures.
+   - **Automation:** The installer will now automatically emit the `0xEE` marker if it encounters a fatal error during any stage.
+   - **Utility Update:** Updated `ipmi_start_logger.py` to accept custom markers (e.g. `0xEE`) from the command line.
+
+2. **Optimization: IPMI Marker Specification Update (v20260324-v2-rev18):**
    - **Protocol Update:** Reassigned Event Data 1 (Marker) bytes per new user specification:
      - `0x01`: OS Installation Start
      - `0xAA`: OS Installation Complete

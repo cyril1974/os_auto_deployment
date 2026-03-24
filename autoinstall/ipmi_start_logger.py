@@ -81,12 +81,28 @@ def send_ipmi_raw(netfn, cmd, data):
         os.close(fd)
 
 if __name__ == "__main__":
-    # OS Installation Starting (Marker 0x01)
+    # Milestone Mapping:
+    # 0x01: Start (Default)
+    # 0xEE: Fail/Abort
+    
+    data1_val = 0x01  # Default to "Start"
+    
+    if len(sys.argv) > 1:
+        try:
+            val = sys.argv[1]
+            if val.startswith("0x"):
+                data1_val = int(val, 16)
+            else:
+                data1_val = int(val)
+        except ValueError:
+            print(f"[!] Invalid hex/int value provided: {sys.argv[1]}. Using default 0x01.")
+
+    # OS Installation Milestone Entry
     # NetFn: 0x0a (Storage), Cmd: 0x44 (Add SEL Entry)
     netfn = 0x0a
     cmd = 0x44
+    
     # 16-byte SEL Data (Type 0x02 Record)
-    # CID[2] RecType Timestamp[4] GenID[2] EvMRev SensorType SensorNum EventType EvData1 EvData2 EvData3
     data = [
         0x00, 0x00, # CID (auto-generated)
         0x02,       # Record Type (System Event)
@@ -96,8 +112,9 @@ if __name__ == "__main__":
         0x12,       # Sensor Type (System Event)
         0x00,       # Sensor Number
         0x6f,       # Event Type (Specific)
-        0x01,       # Event Data 1 (OS Installation Starting)
+        data1_val,  # Event Data 1 (Category Marker)
         0x00, 0x00  # Event Data 2/3 (Padding)
     ]
     
+    print(f"[*] Logging milestone marker 0x{data1_val:02x} to BMC SEL...")
     send_ipmi_raw(netfn, cmd, data)

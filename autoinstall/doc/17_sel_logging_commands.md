@@ -37,7 +37,13 @@ Used after all scripts successfully execute.
 - **Data 1**: `0xaa` (Event Marker: Completed)
 - **Data 2/3**: `0x00 0x00` (Standardized Padding)
 
-### 2.4 Installation Audit: Storage Verification
+### 2.5 OS Installation Aborted/Failed
+Triggered by the `error-commands` block if Subiquity encounters a fatal error.
+- **Command**: `0x0a 0x44 0x00 0x00 0x02 0x00 0x00 0x00 0x00 0x21 0x00 0x04 0x12 0x00 0x6f 0xee 0x00 0x00`
+- **Data 1**: `0xee` (Event Marker: Aborted/Failed)
+- **Data 2/3**: `0x00 0x00` (Standardized Padding)
+
+### 2.6 Installation Audit: Storage Verification
 Used to log the outcome of the root disk serial number check.
 - **Success**: `0x0a 0x44 0x00 0x00 0x02 ... 0x6f 0x05 0x4f 0x4b` (ASCII 'OK')
 - **Failure**: `0x0a 0x44 0x00 0x00 0x02 ... 0x6f 0x05 0x45 0x52` (ASCII 'ER')
@@ -59,7 +65,7 @@ Used to log the outcome of the root disk serial number check.
 | 12 | Sensor Type | `0x12` | OS Boot / System Event |
 | 13 | Sensor Num | `0x00` | Generic Placeholder |
 | 14 | Event Type | `0x6f` | Sensor-specific Discrete |
-| 15 | Event Data 1 | Var | **Marker:** (0x01=Start, 0xAA=Finish, 0x03=IP1, 0x04=IP2, 0x05=Audit) |
+| 15 | Event Data 1 | Var | **Marker:** (0x01=Start, 0xAA=Finish, 0x03=IP1, 0x04=IP2, 0x05=Audit, 0xEE=Abort) |
 | 16 | Event Data 2 | Var | Primary payload byte |
 | 17 | Event Data 3 | Var | Secondary payload byte |
 
