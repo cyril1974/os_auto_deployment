@@ -189,7 +189,7 @@ def getTargetBMCDateTime(target,auth):
                 "status":"ok",
                 "data":{
                     "string":data["DateTime"][:19],
-                    "timestamp":datetime.fromisoformat(data["DateTime"].replace('Z', '+00:00')).timestamp()
+                    "timestamp":datetime.fromisoformat(data["DateTime"][:19]).timestamp()
                     }
             }
         except Exception as e:
@@ -305,8 +305,9 @@ def getSystemEventLog(target,auth,fromtimestamp):
                 for item in data:
                     try:
                         # Full ISO8601 parsing handles timezone (+00:00) correctly
-                        created_str = item["Created"].replace('Z', '+00:00')
-                        event_time = int(datetime.fromisoformat(created_str).timestamp())
+                        # created_str = item["Created"].replace('Z', '+00:00')
+                        # event_time = int(datetime.fromisoformat(created_str).timestamp())
+                        event_time = int(datetime.fromisoformat(item["Created"][:19]).timestamp())
                         if event_time > fromtimestamp:      
                             return_data.append(item) 
                     except (ValueError, KeyError):

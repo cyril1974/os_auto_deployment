@@ -62,6 +62,18 @@ POWER_RESTORE_EVENT = "Power restore policy applied"
 
 # EventLogPrefix = "FFFF02000020040F6F04"
 EventLogPrefix = "0000020000000021000412006F"
+
+EventLogMessage = {
+    "01": "OS Installation Start",
+    "0F": "Package Pre-install Start",
+    "1F": "Package Pre-install Complete",
+    "AA": "OS Installation Completed",
+    "03": "IP Address Logging (Part 1)",
+    "04": "IP Address Logging (Part 2)",
+    "05": "Installation Audit: Storage Verification",
+    "EE": "OS Installation Aborted/Failed"
+}
+
 EventLogSServerity = {
     "00": "[Notice]",
     "01": "[OK]",
