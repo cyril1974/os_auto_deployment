@@ -10,7 +10,16 @@
 
 ### Features & Fixes
 
-1. **Fix: Python struct.pack Alignment in IPMI Logger (v20260324-v2-rev17):**
+1. **Optimization: IPMI Marker Specification Update (v20260324-v2-rev18):**
+   - **Protocol Update:** Reassigned Event Data 1 (Marker) bytes per new user specification:
+     - `0x01`: OS Installation Start
+     - `0xAA`: OS Installation Complete
+     - `0x03`: IP Address Part 1 (Octets 1 & 2)
+     - `0x04`: IP Address Part 2 (Octets 3 & 4)
+     - `0x05`: Storage Selection Audit (Success/Failure)
+   - **Benefit:** Provides categorical distinction in forensic logs and avoids marker overlap.
+
+2. **Fix: Python struct.pack Alignment in IPMI Logger (v20260324-v2-rev17):**
    - **Bug:** `ipmi_start_logger.py` failed with `struct.error: argument for 's' must be a bytes object`.
    - **Resolution:** Replaced the manual `struct.pack` calls with robust `ctypes.Structure` definitions for `IPMIReq`, `IPMIMsg`, and `IPMISystemInterfaceAddr`.
    - **Impact:** Reliable binary-less IPMI logging on all Python 3 versions.
