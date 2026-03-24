@@ -595,18 +595,15 @@ autoinstall:
     - sleep 2
     # Log START INSTALL immediately using Python (Binary-less)
     # This ensures OOB telemetry works BEFORE ipmitool is even installed.
-    - python3 /cdrom/pool/extra/ipmi_start_logger.py || true
+    - python3 /cdrom/pool/extra/ipmi_start_logger.py 0x01 || true
+    - sleep 2
+    # Log Package Pre-install Start (Marker: 0x0F)
+    - python3 /cdrom/pool/extra/ipmi_start_logger.py 0x0F || true
     # Install ipmitool from pre-bundled .deb files on ISO (no network needed)
     # Packages are version-matched for the target Ubuntu release during ISO build.
     - dpkg -i /cdrom/pool/extra/*.deb 2>/dev/null || true
-    # Write SEL entry - OS Installation Starting
-    # Uses Add SEL Entry (NetFn=Storage 0x0a, Cmd=0x44) to directly write to the SEL.
-    # MiTAC BMC prohibits using BMC Generator ID (0x20); we use software ID (0x21).
-    # 16-byte format: RecordID[2] RecType Timestamp[4] GenID[2] EvMRev SensorType SensorNum EventType EvData1 EvData2 EvData3
-    # RecordID=0x0000(auto) RecType=0x02(SystemEvent) Timestamp=0x00000000(auto)
-    # GenID=0x2100(SWid=0x01) EvMRev=0x04 SensorType=0x12(SystemEvent) SensorNum=0x00
-    # EventType=0x6f(sensor-specific,assertion) EvData1=0x01(Starting) EvData2=0xff EvData3=0xff
-    - ipmitool raw 0x0a 0x44 0x00 0x00 0x02 0x00 0x00 0x00 0x00 0x21 0x00 0x04 0x12 0x00 0x6f 0x01 0x00 0x00 2>/dev/null || true
+    # Log Package Pre-install Complete (Marker: 0x1F)
+    - python3 /cdrom/pool/extra/ipmi_start_logger.py 0x1F || true
   error-commands:
     # Ensure drivers are loaded for the abort signal (in case subiquity failed very early)
     - modprobe ipmi_devintf 2>/dev/null || true

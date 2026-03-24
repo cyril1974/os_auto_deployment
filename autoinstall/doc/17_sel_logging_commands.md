@@ -25,13 +25,18 @@ Used in `early-commands` to signal the beginning of the deployment process.
 - **Data 1**: `0x01` (Event Marker: Starting)
 - **Data 2/3**: `0x00 0x00` (Standardized Padding)
 
-### 2.2 IP Address Logging (Two-Part)
+### 2.2 Package Pre-installation (ipmitool dependency)
+Fires during `early-commands` as the ISO bundles its own `.deb` installer packages.
+- **Pre-install Start**: `0x0a 0x44 0x00 0x00 ... 0x6f 0x0f 0x00 0x00` (Marker: `0x0f`)
+- **Pre-install Complete**: `0x0a 0x44 0x00 0x00 ... 0x6f 0x1f 0x00 0x00` (Marker: `0x1f`)
+
+### 2.3 IP Address Logging (Two-Part)
 Used in `late-commands` to record the assigned network IP.
 - **Part 1 (Octets 1.2)**: `0x0a 0x44 0x00 0x00 0x02 0x00 0x00 0x00 0x00 0x21 0x00 0x04 0x12 0x00 0x6f 0x03 [h1] [h2]`
 - **Part 2 (Octets 3.4)**: `0x0a 0x44 0x00 0x00 0x02 0x00 0x00 0x00 0x00 0x21 0x00 0x04 0x12 0x00 0x6f 0x04 [h3] [h4]`
 - **Data 1**: `0x03` (IP Part 1), `0x04` (IP Part 2).
 
-### 2.3 OS Installation Completed
+### 2.4 OS Installation Completed
 Used after all scripts successfully execute.
 - **Command**: `0x0a 0x44 0x00 0x00 0x02 0x00 0x00 0x00 0x00 0x21 0x00 0x04 0x12 0x00 0x6f 0xaa 0x00 0x00`
 - **Data 1**: `0xaa` (Event Marker: Completed)
@@ -65,7 +70,7 @@ Used to log the outcome of the root disk serial number check.
 | 12 | Sensor Type | `0x12` | OS Boot / System Event |
 | 13 | Sensor Num | `0x00` | Generic Placeholder |
 | 14 | Event Type | `0x6f` | Sensor-specific Discrete |
-| 15 | Event Data 1 | Var | **Marker:** (0x01=Start, 0xAA=Finish, 0x03=IP1, 0x04=IP2, 0x05=Audit, 0xEE=Abort) |
+| 15 | Event Data 1 | Var | **Marker:** (0x01=Start, 0x0F=PreStart, 0x1F=PreDone, 0xAA=Finish, 0x03=IP1, 0x04=IP2, 0x05=Audit, 0xEE=Abort) |
 | 16 | Event Data 2 | Var | Primary payload byte |
 | 17 | Event Data 3 | Var | Secondary payload byte |
 

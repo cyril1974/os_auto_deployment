@@ -10,7 +10,14 @@
 
 ### Features & Fixes
 
-1. **Fix: Channel 0x0F Support in IPMI Logger (v20260324-v2-rev20):**
+1. **Feature: Package Pre-install Milestones (v20260324-v2-rev21):**
+   - **Protocol Update:** Added secondary markers for the early-command phase:
+     - `0x0F`: Package Pre-install Start
+     - `0x1F`: Package Pre-install Complete
+   - **Implementation:** Integrated these markers into the `early-commands` block using the binary-less Python logger to ensure coverage before `ipmitool` is ready.
+   - **Documentation:** Updated Technical Doc **`#17`** with the new markers and byte-table.
+
+2. **Fix: Channel 0x0F Support in IPMI Logger (v20260324-v2-rev20):**
    - **Bug:** `ipmi_start_logger.py` failed on some hardware with `[Errno 22] Invalid argument`.
    - **Resolution:** Added a brute-force hardware probe for different NetFn (raw vs shifted) and Address Channels (0x00 vs 0x0F) until the IOCTL succeeds.
    - **Verification:** Successfully tested on node `.91` (requires Channel 0x0F).
