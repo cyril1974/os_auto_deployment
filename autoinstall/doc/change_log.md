@@ -10,7 +10,12 @@
 
 ### Features & Fixes
 
-1. **Optimization: SEL Data Padding (v20260323-v2-rev12):**
+1. **Fix: SEL Write Race Condition (v20260323-v2-rev13):**
+   - **Bug (OOB):** Found that consecutive `ipmitool` commands using the same Marker ID (Data1=0x02) can be dropped by the BMC if sent too fast. This caused the second half of the IP address and the installation completion log to collide.
+   - **Resolution:** Introduced `sleep 1` between all sequential IPMI RAW calls in `late-commands`.
+   - **Impact:** Reliable three-stage post-install logging: IP Part 1 -> (sleep) -> IP Part 2 -> (sleep) -> Completed.
+
+2. **Optimization: SEL Data Padding (v20260323-v2-rev12):**
    - **Requirement:** Update SEL commands to match user diagnostic tool string `SEL Entry Added:210012006F`.
    - **Change:** Modified "Start Install" and "Complete Install" commands to use `0x00 0x00` padding instead of `0xff 0xff`.
    - **Documentation:** Updated technical doc #17 to reflect the new standardized padding value.
