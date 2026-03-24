@@ -10,7 +10,13 @@
 
 ### Features & Fixes
 
-1. **Feature: Automated Install-Fail Telemetry (v20260324-v2-rev19):**
+1. **Fix: Channel 0x0F Support in IPMI Logger (v20260324-v2-rev20):**
+   - **Bug:** `ipmi_start_logger.py` failed on some hardware with `[Errno 22] Invalid argument`.
+   - **Resolution:** Added a brute-force hardware probe for different NetFn (raw vs shifted) and Address Channels (0x00 vs 0x0F) until the IOCTL succeeds.
+   - **Verification:** Successfully tested on node `.91` (requires Channel 0x0F).
+   - **Benefit:** Broadens OOB telemetry support across varying BMC hardware configurations.
+
+2. **Feature: Automated Install-Fail Telemetry (v20260324-v2-rev19):**
    - **Addition:** Added the `error-commands` block to the autoinstall YAML to capture fatal subiquity crashes.
    - **Protocol:** Defined Marker **`0xEE`** for installation aborts/failures.
    - **Automation:** The installer now automatically emits the `0xEE` marker if it fails early or late.
