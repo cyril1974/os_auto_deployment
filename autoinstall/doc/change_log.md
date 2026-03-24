@@ -17,6 +17,7 @@
      - `0x03`: IP Address Part 1 (Octets 1 & 2)
      - `0x04`: IP Address Part 2 (Octets 3 & 4)
      - `0x05`: Storage Selection Audit (Success/Failure)
+   - **Documentation:** Fully updated Technical Doc **`#17 (sel_logging_commands.md)`** with new examples and byte-breakdown.
    - **Benefit:** Provides categorical distinction in forensic logs and avoids marker overlap.
 
 2. **Fix: Python struct.pack Alignment in IPMI Logger (v20260324-v2-rev17):**
