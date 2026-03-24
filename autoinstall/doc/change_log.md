@@ -10,11 +10,16 @@
 
 ### Features & Fixes
 
-1. **Optimization: Extended SEL Write Delay (v20260324-v2-rev15):**
+1. **Fix: SCRIPT_DIR Unbound Variable (v20260324-v2-rev16):**
+   - **Bug:** The previous revision used `BASE_DIR` which was not properly defined, causing a script crash (unbound variable).
+   - **Resolution:** Added `SCRIPT_DIR` definition and corrected the source path for `ipmi_start_logger.py`.
+   - **Impact:** Fixes the crash during ISO generation.
+
+2. **Optimization: Extended SEL Write Delay (v20260324-v2-rev15):**
    - **Tuning:** Increased the delay between sequential IPMI commands from `sleep 1` to **`sleep 5`**.
    - **Rationale:** On some slower BMCs, the previous 1s gap was still leading to intermittent command drops of the final IP octets. 5s provides a safe buffer for NVM write commit.
 
-2. **Feature: Binary-less IPMI Start Logger (v20260324-v2-rev14):**
+3. **Feature: Binary-less IPMI Start Logger (v20260324-v2-rev14):**
    - **Improvement:** Added a Python-based utility (`ipmi_start_logger.py`) that uses `ioctl` to communicate with `/dev/ipmi0` directly.
    - **Benefit:** Eliminates the telemetry gap at boot-time; logs the "Start" marker before `ipmitool` is even installed.
 

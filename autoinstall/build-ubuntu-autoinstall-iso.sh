@@ -57,6 +57,9 @@ EOF
 }
 
 # Check for help flag or skip-install flag
+# Get the directory of the script for relative path resolution
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+
 SKIP_INSTALL=false
 for arg in "$@"; do
     if [[ "$arg" == "--skip-install" ]]; then
@@ -314,8 +317,8 @@ APTEOF
         fi
 
         # Also bundle the binary-less Python IPMI logger into the ISO
-        if [ -f "${BASE_DIR}/autoinstall/ipmi_start_logger.py" ]; then
-            cp "${BASE_DIR}/autoinstall/ipmi_start_logger.py" "$extra_pool/"
+        if [ -f "${SCRIPT_DIR}/ipmi_start_logger.py" ]; then
+            cp "${SCRIPT_DIR}/ipmi_start_logger.py" "$extra_pool/"
             chmod +x "$extra_pool/ipmi_start_logger.py"
         fi
     else
@@ -676,7 +679,7 @@ autoinstall:
             
             # Part 1: IP Octets 1.2 (192.168)
             ipmitool raw 0x0a 0x44 0x00 0x00 0x02 0x00 0x00 0x00 0x00 0x21 0x00 0x04 0x12 0x00 0x6f 0x01 \$h1 \$h2 2>/dev/null || true
-            sleep 1
+            sleep 5
             # Part 2: IP Octets 3.4 (236.120)
             ipmitool raw 0x0a 0x44 0x00 0x00 0x02 0x00 0x00 0x00 0x00 0x21 0x00 0x04 0x12 0x00 0x6f 0x02 \$h3 \$h4 2>/dev/null || true
             echo "[+] IP \$IP logged to SEL."
