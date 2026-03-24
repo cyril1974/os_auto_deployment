@@ -206,26 +206,30 @@ def getPostCodeLog(target,auth,fromtimestamp):
         data = response.json()["Members"]
         if data is not None and len(data) > 0:
             for item in data:
-                event_time = int(datetime.fromisoformat(item["Created"][:19]).timestamp())
-                bootID = item["Id"]
+                try:
+                    created_str = item["Created"].replace('Z', '+00:00')
+                    event_time = int(datetime.fromisoformat(created_str).timestamp())
+                    bootID = item["Id"]
 
-                if gen == "6":
-                    boot_count = item["MessageArgs"][0]
-                    tmp = item["MessageArgs"][2].split(":")
-                    event_code = tmp[0].strip()
-                    event_text = tmp[1].strip()
-                elif gen == "7":
-                    boot_count = item["MessageArgs"][0]
-                    event_code = item["MessageArgs"][2]
-                    event_text = item["MessageArgs"][3]
-                if event_time > fromtimestamp:
-                    return_data.append({
-                        "boot_id":bootID,
-                        "boot_count":boot_count,
-                        "time":item["Created"],
-                        "PostCode":event_code,
-                        "text":event_text
-                    }) 
+                    if gen == "6":
+                        boot_count = item["MessageArgs"][0]
+                        tmp = item["MessageArgs"][2].split(":")
+                        event_code = tmp[0].strip()
+                        event_text = tmp[1].strip()
+                    elif gen == "7":
+                        boot_count = item["MessageArgs"][0]
+                        event_code = item["MessageArgs"][2]
+                        event_text = item["MessageArgs"][3]
+                    if event_time > fromtimestamp:
+                        return_data.append({
+                            "boot_id":bootID,
+                            "boot_count":boot_count,
+                            "time":item["Created"],
+                            "PostCode":event_code,
+                            "text":event_text
+                        }) 
+                except (ValueError, KeyError, IndexError):
+                    continue
         # except Exception as e:
         #     print("Get Post Log Fail !!")    
     return return_data
@@ -297,9 +301,15 @@ def getSystemEventLog(target,auth,fromtimestamp):
             data = response.json()["Members"]
             if data is not None and len(data) > 0:
                 for item in data:
-                    event_time = int(datetime.fromisoformat(item["Created"][:19]).timestamp())
-                    if event_time > fromtimestamp:      
-                            return_data.append(item) 
+                    try:
+                        # Parse the full ISO8601 string to preserve timezone (+00:00)
+                        # Redfish dates are typically YYYY-MM-DDTHH:MM:SS+HH:MM or ...Z
+                        created_str = item["Created"].replace('Z', '+00:00')
+                        event_time = int(datetime.fromisoformat(created_str).timestamp())
+                        if event_time > fromtimestamp:      
+                                return_data.append(item) 
+                    except (ValueError, KeyError):
+                        continue
         except Exception as e:
             print("Get Event Log Fail !!")    
     # print(f"[{datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')}] Send Event Log {len(return_data)} !!")
