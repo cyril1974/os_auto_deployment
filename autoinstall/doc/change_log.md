@@ -10,7 +10,15 @@
 
 ### Features & Fixes
 
-1. **Refinement: Deployment Engine and Protocol Alignment (v20260324-v2-rev22):**
+1. **Hardening: Universal Redfish Pagination and Timezone Sync (v20260324-v2-rev23 to v2-rev33):**
+   - **Pagination:** Implemented a universal "Skip-to-End" logic in `getSystemEventLog`. The engine now retrieves the total log count via `Members@odata.count` and applies a calculated `$skip` offset. This ensures recent 2026 milestones are captured even on BMCs with massive (4,000+) historical log buffers (verified on node `.59`).
+   - **Timezone Alignment:** Resolved the "8-hour search shift" by making `getTargetBMCDateTime` and `getSystemEventLog` fully timezone-aware. By removing character slicing (`[:19]`) and preserving ISO8601 offsets (e.g., `+00:00`), the engine correctly synchronizes the search window regardless of the host's local time setting (+08:00).
+   - **Forensic IP Capture:** Integrated automated IP address extraction from markers `0x03` and `0x04`. Included a **Hex-to-Decimal** conversion layer and a validation check (`all(x != "NA")`) to ensure partial IP fragments are not reported.
+   - **milestone Mapping:** Populated the `EventLogMessage` dictionary with human-readable descriptions for all eight forensic markers (0x01, 0x0F, 0x1F, 0xAA, 0x03, 0x04, 0x05, 0xEE).
+   - **Timeout Optimization:** Increased `PROCESS_TIMEOUT` to **3600** seconds to accommodate long-running OS installations in restricted network environments.
+   - **Stability:** Updated `decode_event` to use the new mapped markers and simplified the log-printing loop in `main.py`.
+
+2. **Refinement: Deployment Engine and Protocol Alignment (v20260324-v2-rev22):**
    - **Protocol Update:** Updated `EventLogPrefix` in `constants.py` to `0000020000000021000412006F` to match the new Software ID (0x21) forensic standard.
    - **Sequencing:** Reordered `early-commands` in `build-ubuntu-autoinstall-iso.sh` to emit the `0x01` (OS Installation Start) marker *after* the package pre-installation phase.
    - **Cleanup:** Removed legacy `VERSION_GET_API` entries and commented out firmware update monitoring logic in `main.py` to focus exclusively on OS installation milestones.

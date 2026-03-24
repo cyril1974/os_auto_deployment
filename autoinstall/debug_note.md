@@ -233,3 +233,35 @@ Node `.91` (and potentially other servers in the cluster) requires **Channel 15 
 1.  **Hardening**: Updated `ipmi_start_logger.py` to become a "smart probe".
 2.  **Implementation**: It now attempts to send the marker by iterating through multiple permutations of Channels (0x00, 0x0F) and NetFn formats (0x0a, 0x28).
 3.  **Validation**: Successfully established telemetry on `.91` using **NetFn=0x0a** and **Channel=0x0f**.
+---
+
+# Debug Note - Vanishing Milestones (Pagination Failure) on 10.99.236.59
+**Date/Time:** 2026-03-24 13:45:00 (GMT+8)
+
+---
+
+### Symptom
+The deployment engine reported "Export 0 Event Log" on node `.59`, even though manual Redfish queries confirmed the existence of recent `0x01` and `0xEE` markers in the BMC.
+
+### Diagnosis
+Node `.59` was found to have **4,197** total SEL entries. By default, the Redfish API returns the **oldest** records first in its initial 25-entry chunk (mostly legacy logs from 1970 and 2024). The existing logic did not fetch enough pages to reach the 2026 installation events.
+
+### Resolution (v2-rev25)
+Switched to a **Skip-to-End** strategy. The engine now performs a dummy `$top=1` query to retrieve the `odata.count` property, then executes the actual log-fetch with a calculated `$skip` value. This forces the BMC to return the most recent 500 entries, successfully uncovering the hidden forensic markers.
+
+---
+
+# Debug Note - The 8-Hour "Look-Back" Search Window (Timezone Drift)
+**Date/Time:** 2026-03-24 14:15:00 (GMT+8)
+
+---
+
+### Symptom
+The log-fetcher unexpectedly returned **96** irrelevant records from several hours ago, even when a surgical `from_timestamp` was provided.
+
+### Root Cause (v2-rev22-29)
+The legacy `getTargetBMCDateTime` function used character slicing (`[:19]`) to parse the BMC's clock, which discarded the `+00:00` (UTC) offset. Since the host Python script was running in **+08:00 (Local Time)**, `datetime.fromisoformat` interpreted the string as local wall-clock time. 
+This caused the search window to effectively shift **8 hours into the past** (e.g., searching for events after 04:00 today UTC resulted in a search after 20:00 yesterday UTC).
+
+### Resolution (v2-rev30)
+Hardened both `getTargetBMCDateTime` and `getSystemEventLog` to be fully timezone-aware. By preserving the full ISO8601 string and utilizing Python's native timezone handling, the engine now maintains a perfectly synchronized search window between the BMC and the deployment controller.
