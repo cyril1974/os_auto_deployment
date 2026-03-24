@@ -311,8 +311,12 @@ APTEOF
         
         if [ "$deb_count" -gt 0 ]; then
              echo "[*] Bundled $deb_count package(s) into ISO ($extra_pool/)."
-        else
-            echo "[!] WARNING: No .deb files found in cache archives for ${codename}."
+        fi
+
+        # Also bundle the binary-less Python IPMI logger into the ISO
+        if [ -f "${BASE_DIR}/autoinstall/ipmi_start_logger.py" ]; then
+            cp "${BASE_DIR}/autoinstall/ipmi_start_logger.py" "$extra_pool/"
+            chmod +x "$extra_pool/ipmi_start_logger.py"
         fi
     else
         echo "[!] WARNING: Failed to fetch package index for ${codename}"
@@ -586,6 +590,9 @@ autoinstall:
     - modprobe ipmi_si 2>/dev/null || true
     - modprobe ipmi_msghandler 2>/dev/null || true
     - sleep 2
+    # Log START INSTALL immediately using Python (Binary-less)
+    # This ensures OOB telemetry works BEFORE ipmitool is even installed.
+    - python3 /cdrom/pool/extra/ipmi_start_logger.py || true
     # Install ipmitool from pre-bundled .deb files on ISO (no network needed)
     # Packages are version-matched for the target Ubuntu release during ISO build.
     - dpkg -i /cdrom/pool/extra/*.deb 2>/dev/null || true

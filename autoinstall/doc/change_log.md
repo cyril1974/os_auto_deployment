@@ -10,7 +10,12 @@
 
 ### Features & Fixes
 
-1. **Fix: SEL Write Race Condition (v20260324-v2-rev13):**
+1. **Feature: Binary-less IPMI Start Logger (v20260324-v2-rev14):**
+   - **Improvement:** Added a Python-based utility (`ipmi_start_logger.py`) that uses `ioctl` to communicate with `/dev/ipmi0` directly.
+   - **Optimization:** Moved the "OS Installation Starting" SEL signal to fire **BEFORE** the `ipmitool` package installation (`dpkg -i`).
+   - **Benefit:** Provides immediate OOB telemetry as soon as the ISO boots, eliminating the silent window during initial package extraction.
+
+2. **Fix: SEL Write Race Condition (v20260324-v2-rev13):**
    - **Bug (OOB):** Found that consecutive `ipmitool` commands using the same Marker ID (Data1=0x02) can be dropped by the BMC if sent too fast (observed 1ms gap on node .85).
    - **Resolution:** Introduced `sleep 1` between all sequential IPMI RAW calls in `late-commands`.
    - **Impact:** Guaranteed three-stage post-install logging: IP Part 1 -> IP Part 2 -> Completed.
