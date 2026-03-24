@@ -10,7 +10,13 @@
 
 ### Features & Fixes
 
-1. **Feature: Package Pre-install Milestones (v20260324-v2-rev21):**
+1. **Refinement: Deployment Engine and Protocol Alignment (v20260324-v2-rev22):**
+   - **Protocol Update:** Updated `EventLogPrefix` in `constants.py` to `0000020000000021000412006F` to match the new Software ID (0x21) forensic standard.
+   - **Sequencing:** Reordered `early-commands` in `build-ubuntu-autoinstall-iso.sh` to emit the `0x01` (OS Installation Start) marker *after* the package pre-installation phase.
+   - **Cleanup:** Removed legacy `VERSION_GET_API` entries and commented out firmware update monitoring logic in `main.py` to focus exclusively on OS installation milestones.
+   - **Logging:** Enabled verbose Redfish API connection logging for better deployment visibility.
+
+2. **Feature: Package Pre-install Milestones (v20260324-v2-rev21):**
    - **Protocol Update:** Added secondary markers for the early-command phase:
      - `0x0F`: Package Pre-install Start
      - `0x1F`: Package Pre-install Complete
