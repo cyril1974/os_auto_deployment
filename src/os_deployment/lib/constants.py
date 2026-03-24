@@ -60,7 +60,8 @@ PROCESS_TIMEOUT = 180
 REDFISH_SESSION = None
 POWER_RESTORE_EVENT = "Power restore policy applied"
 
-EventLogPrefix = "FFFF02000020040F6F04"
+# EventLogPrefix = "FFFF02000020040F6F04"
+EventLogPrefix = "0000020000000021000412006F"
 EventLogSServerity = {
     "00": "[Notice]",
     "01": "[OK]",
