@@ -281,25 +281,36 @@ def getSystemEventLog(target,auth,fromtimestamp):
         gen = str(state_manager.state.generation)
         event_cnt = 0
         show_log_cnt = 500
-        if gen == "6":
-            url = f"{constants.LOG_FETCH_API}/?$top=1"
-            response = redfish_get_request(url,bmc_ip=target,auth=auth,custom_timeout=10)
-            try:
-                event_cnt = int(response.json()["Members@odata.count"])
-                # print(f"[{datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')}] EGS Platform ,Get Event Log Count {event_cnt} !!")
-            except Exception as e:
-                print("Get Event Log Count Fail !!")    
-            
-        url = constants.LOG_FETCH_API if event_cnt <= 0 else f"{constants.LOG_FETCH_API}/?$skip={event_cnt-show_log_cnt}&$top={show_log_cnt}"
-        # print(f"[{datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')}] {url}")
-        response = redfish_get_request(url,bmc_ip=target,auth=auth,custom_timeout=10)
+        
+        # 1. Get total count of logs to calculate skip offset
+        url_count = f"{constants.LOG_FETCH_API}/?$top=1"
+        response = redfish_get_request(url_count, bmc_ip=target, auth=auth, custom_timeout=10)
         try:
-            data = response.json()["Members"]
-            if data is not None and len(data) > 0:
+            if response and response.status_code == 200:
+                event_cnt = int(response.json().get("Members@odata.count", 0))
+        except (ValueError, KeyError, AttributeError):
+            pass
+
+        # 2. Fetch the latest batch (typically 500 entries)
+        if event_cnt > show_log_cnt:
+            url = f"{constants.LOG_FETCH_API}/?$skip={event_cnt - show_log_cnt}&$top={show_log_cnt}"
+        else:
+            url = f"{constants.LOG_FETCH_API}/?$top={show_log_cnt}"
+            
+        # print(f"[{datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')}] {gen} Platform, fetching from: {url}")
+        response = redfish_get_request(url, bmc_ip=target, auth=auth, custom_timeout=10)
+        try:
+            data = response.json().get("Members", [])
+            if data and len(data) > 0:
                 for item in data:
-                    event_time = int(datetime.fromisoformat(item["Created"][:19]).timestamp())
-                    if event_time > fromtimestamp:      
+                    try:
+                        # Full ISO8601 parsing handles timezone (+00:00) correctly
+                        created_str = item["Created"].replace('Z', '+00:00')
+                        event_time = int(datetime.fromisoformat(created_str).timestamp())
+                        if event_time > fromtimestamp:      
                             return_data.append(item) 
+                    except (ValueError, KeyError):
+                        continue
         except Exception as e:
             print("Get Event Log Fail !!")    
     # print(f"[{datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')}] Send Event Log {len(return_data)} !!")
