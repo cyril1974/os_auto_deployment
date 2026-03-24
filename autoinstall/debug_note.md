@@ -148,3 +148,44 @@ The Docker entry was successfully updated to use relative paths, but the Kuberne
 ### Resolution (v2-rev6)
 1.  **Manual Fix**: Corrected path on `.88` using `sed`.
 2.  **Permanent Fix**: Updated `build-ubuntu-autoinstall-iso.sh` (Line 621) to remove the remaining `/target/` prefix from the Kubernetes configuration.
+
+---
+
+# Debug Note - Missing SEL IP Part 2 on 10.99.236.85
+**Date/Time:** 2026-03-24 08:30:00 (GMT+8)
+
+---
+
+### Symptom
+SEL logs showed "Install Starting" and "Install Completed" but skipped the second half of the IP address (Data1=0x02). Entry `F02EC55` was missing.
+
+### Diagnosis
+Audit of `/var/log/installer/subiquity-server-debug.log`:
+Consecutive `ipmitool` commands for IP Part 2 and Completion signal were sent with a **1ms gap**. Manual testing confirmed the raw command works on root shell.
+
+### Root Cause (v2-rev13)
+The BMC (Mitac G6) cannot process back-to-back SEL writes using the same Marker ID (0x02) at such high speeds; the second command collides with the first in the NVM buffer.
+
+### Resolution (v2-rev15)
+1.  **Fix**: Added `sleep 5` between each IPMI RAW call in `late-commands`.
+2.  **Verification**: Continuous logging on `.85` now shows all three segments reliably.
+
+---
+
+# Debug Note - Script Crash during ISO Mastering
+**Date/Time:** 2026-03-24 09:15:00 (GMT+8)
+
+---
+
+### Symptom
+The `build-ubuntu-autoinstall-iso.sh` crashed with `BASE_DIR: unbound variable`.
+
+### Diagnosis
+`set -u` (strict mode) caught an uninitialized global variable used in a `cp` command within the `download_extra_packages` function.
+
+### Root Cause (v2-rev14 regression)
+The newly introduced `ipmi_start_logger.py` copy logic used `BASE_DIR` instead of a resolved local path.
+
+### Resolution (v2-rev16)
+1.  **Fix**: Specifically defined `SCRIPT_DIR` at the script header using `cd $(dirname $0)` to ensure canonical path resolution.
+2.  **Fix**: Corrected the source path for `ipmi_start_logger.py`.
