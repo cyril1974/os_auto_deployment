@@ -359,10 +359,6 @@ def main():
     # print(f"From TimeStamp : {from_timestamp} , Date Time String {datetime.fromtimestamp(from_timestamp).strftime('%Y-%m-%d %H:%M:%S')}")
     # print(f"Stop TimeStamp : {stop_timestamp} , Date Time String {datetime.fromtimestamp(stop_timestamp).strftime('%Y-%m-%d %H:%M:%S')}")
     loop = 0
-    sup_updating = False
-    bios_updating = bmc_updating = rot_updating = cpld_updating = False
-    cpld_log_got = False
-    sup_updating_reboot = False
     last_log_id = ""
     reboot.set_boot_cdrom(bmcip,auth_string)
     print(f"[{utils.formatted_time()}] Get Event Log From Timestamp {datetime.fromtimestamp(from_timestamp).isoformat()} ({from_timestamp})")
@@ -379,8 +375,9 @@ def main():
             # print(f"Get {len(result)} Event Log from {from_timestamp}")
             # print(f"Export {len(export)} Event Log from {from_timestamp}")
             # print(f"{export}")
-            check_power_restore = utils.filter_message_event(result,constants.POWER_RESTORE_EVENT)
+            # check_power_restore = utils.filter_message_event(result,constants.POWER_RESTORE_EVENT)
             currentID =last_log_id 
+            IP = ["NA","NA","NA","NA"]
             for item in export:
                 # if int(item["Id"]) >last_log_id:
                 if item["Id"] >last_log_id:
@@ -389,29 +386,15 @@ def main():
                     eventString = utils.decode_event(eventMessage)
                     #if eventMessage[-6:] == "00000A" and use_enquit
                     # dpoint != "":
-                    if eventMessage[-6:] == "00001C":
-                        cpld_updating = True
-                    if eventMessage[-6:] == "00001D":        
-                        cpld_updating = False
-                    if eventMessage[-6:] == "00000C":
-                        sup_updating = True
-                        utils.print_message(target,auth_string,"Print Current Versions")
-                        support_category = constants.VERSION_GET_API.keys()
-                        print("Current Version :")
-                        current_ver_info = {cate: utils.get_version(target, auth_string, cate) for cate in support_category}
-                        print(utils.print_board_version(current_ver_info))
-                    if eventMessage[-6:] in ["000013","000014"]:
-                        sup_updating = False     
-                    if  eventMessage[-6:] in ["000000","FFFFFF","000020","000021"]:  # If message is Abort or Complete , End process
-                        print(f"[{utils.formatted_time()}] Collecting Log and dumping to ({constants.DEFAULT_LOG_PATH})....")
-                        result = utils.log_collect(target,auth_string,constants.DEFAULT_LOG_PATH,local_path=LOG_SAVE_LOCAL_PATH)
-                        sys.exit("DEBUG!!!")
-                        # print("Successful!!") if result else print("Fail!!")
-                        utils.print_message(target,auth_string,f"Umount Virtual Media : {use_endpoint}")
-                        utils.umount_media(target,auth_string,use_endpoint)
-                        reboot_datetime = reboot.reboot_cdrom(target,config_json)  
-                        
-                        is_complete = True  
+                    if eventMessage[-6:-4] in ["AA","EE"]:
+                        is_complete = True
+                    if eventMessage[-6:-4] == "03":        
+                        IP[0] = str(int(eventMessage[-4:-2], 16))
+                        IP[1] = str(int(eventMessage[-2:], 16))
+                    if eventMessage[-6:-4] == "04":        
+                        IP[2] = str(int(eventMessage[-4:-2], 16))
+                        IP[3] = str(int(eventMessage[-2:], 16))
+                        print(f"IP Address : {IP[0]}.{IP[1]}.{IP[2]}.{IP[3]}")
                     print(f"[{eventTime}] {eventString}")
                 currentID = item["Id"]      
             last_log_id = currentID   
