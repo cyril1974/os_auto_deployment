@@ -394,6 +394,7 @@ def main():
                     if eventMessage[-6:-4] == "04":        
                         IP[2] = str(int(eventMessage[-4:-2], 16))
                         IP[3] = str(int(eventMessage[-2:], 16))
+                    if eventMessage[-6:-4] in ["03","04"] and all(x != "NA" for x in IP):
                         print(f"IP Address : {IP[0]}.{IP[1]}.{IP[2]}.{IP[3]}")
                     print(f"[{eventTime}] {eventString}")
                 currentID = item["Id"]      
