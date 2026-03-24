@@ -2,47 +2,38 @@
 
 ---
 
-## 2026-03-24: Binary-less IPMI and SEL Reliability Tuning (v2-rev14-15)
+## 2026-03-24: Binary-less IPMI, Forensic Specs, and Failure Telemetry (v2-rev14 to v2-rev19)
 
-**Files:** `build-ubuntu-autoinstall-iso.sh`, `ipmi_start_logger.py`, `19_debug_missing_ip_part_2.md`
+**Files:** `build-ubuntu-autoinstall-iso.sh`, `ipmi_start_logger.py`, `17_sel_logging_commands.md`, `debug_note.md`
 
 ---
 
 ### Features & Fixes
 
 1. **Feature: Automated Install-Fail Telemetry (v20260324-v2-rev19):**
-   - **Addition:** Added the `error-commands` block to the autoinstall YAML.
-   - **Protocol:** Defined Marker `0xEE` for installation aborts/failures.
-   - **Automation:** The installer will now automatically emit the `0xEE` marker if it encounters a fatal error during any stage.
-   - **Utility Update:** Updated `ipmi_start_logger.py` to accept custom markers (e.g. `0xEE`) from the command line.
+   - **Addition:** Added the `error-commands` block to the autoinstall YAML to capture fatal subiquity crashes.
+   - **Protocol:** Defined Marker **`0xEE`** for installation aborts/failures.
+   - **Automation:** The installer now automatically emits the `0xEE` marker if it fails early or late.
+   - **Utility Update:** Enhanced `ipmi_start_logger.py` to accept custom markers from the command line.
 
 2. **Optimization: IPMI Marker Specification Update (v20260324-v2-rev18):**
-   - **Protocol Update:** Reassigned Event Data 1 (Marker) bytes per new user specification:
-     - `0x01`: OS Installation Start
-     - `0xAA`: OS Installation Complete
-     - `0x03`: IP Address Part 1 (Octets 1 & 2)
-     - `0x04`: IP Address Part 2 (Octets 3 & 4)
-     - `0x05`: Storage Selection Audit (Success/Failure)
-   - **Documentation:** Fully updated Technical Doc **`#17 (sel_logging_commands.md)`** with new examples and byte-breakdown.
-   - **Benefit:** Provides categorical distinction in forensic logs and avoids marker overlap.
+   - **Protocol Update:** Fully reassigned markers: `0x01` (Start), `0xAA` (Complete), `0x03` (IP Part 1), `0x04` (IP Part 2), `0x05` (Audit).
+   - **Documentation:** Fully updated Technical Doc **`#17 (sel_logging_commands.md)`**.
 
-2. **Fix: Python struct.pack Alignment in IPMI Logger (v20260324-v2-rev17):**
-   - **Bug:** `ipmi_start_logger.py` failed with `struct.error: argument for 's' must be a bytes object`.
-   - **Resolution:** Replaced the manual `struct.pack` calls with robust `ctypes.Structure` definitions for `IPMIReq`, `IPMIMsg`, and `IPMISystemInterfaceAddr`.
-   - **Impact:** Reliable binary-less IPMI logging on all Python 3 versions.
+3. **Fix: Python struct.pack Alignment in IPMI Logger (v20260324-v2-rev17):**
+   - **Bug:** `ipmi_start_logger.py` failed with `struct.error` on some systems.
+   - **Resolution:** Refactored utility to use **`ctypes.Structure`** for robust memory alignment.
 
-2. **Fix: SCRIPT_DIR Unbound Variable (v20260324-v2-rev16):**
-   - **Bug:** The previous revision used `BASE_DIR` which was not properly defined, causing a script crash (unbound variable).
-   - **Resolution:** Added `SCRIPT_DIR` definition and corrected the source path for `ipmi_start_logger.py`.
-   - **Impact:** Fixes the crash during ISO generation.
+4. **Fix: SCRIPT_DIR Unbound Variable (v20260324-v2-rev16):**
+   - **Bug:** `BASE_DIR` was used without definition, causing an ISO build crash.
+   - **Resolution:** Canonicalized path resolution with `SCRIPT_DIR` at the script header.
 
-2. **Optimization: Extended SEL Write Delay (v20260324-v2-rev15):**
-   - **Tuning:** Increased the delay between sequential IPMI commands from `sleep 1` to **`sleep 5`**.
-   - **Rationale:** On some slower BMCs, the previous 1s gap was still leading to intermittent command drops of the final IP octets. 5s provides a safe buffer for NVM write commit.
+5. **Optimization: Extended SEL Write Delay (v20260324-v2-rev15):**
+   - **Tuning:** Increased sequential command sleeps from 1s to **5s**.
+   - **Rationale:** Resolves BMC buffer collisions observed on Mitac G6 hardware.
 
-3. **Feature: Binary-less IPMI Start Logger (v20260324-v2-rev14):**
-   - **Improvement:** Added a Python-based utility (`ipmi_start_logger.py`) that uses `ioctl` to communicate with `/dev/ipmi0` directly.
-   - **Benefit:** Eliminates the telemetry gap at boot-time; logs the "Start" marker before `ipmitool` is even installed.
+6. **Feature: Binary-less IPMI Start Logger (v20260324-v2-rev14):**
+   - **Benefit:** Logs the "Start" marker before package install using built-in Python 3.
 
 ---
 
