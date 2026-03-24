@@ -2,15 +2,25 @@
 
 ---
 
-## 2026-03-23: Mastering Directory Hardening and Persistent APT Cache (v2-rev7)
+## 2026-03-24: Binary-less IPMI and SEL Reliability Tuning (v2-rev14-15)
 
-**Files:** `build-ubuntu-autoinstall-iso.sh` (Modified), `debug_note.md` (Updated)
+**Files:** `build-ubuntu-autoinstall-iso.sh`, `ipmi_start_logger.py`, `19_debug_missing_ip_part_2.md`
 
 ---
 
 ### Features & Fixes
 
-1. **Feature: Binary-less IPMI Start Logger (v20260324-v2-rev14):**
+1. **Optimization: Extended SEL Write Delay (v20260324-v2-rev15):**
+   - **Tuning:** Increased the delay between sequential IPMI commands from `sleep 1` to **`sleep 5`**.
+   - **Rationale:** On some slower BMCs, the previous 1s gap was still leading to intermittent command drops of the final IP octets. 5s provides a safe buffer for NVM write commit.
+
+2. **Feature: Binary-less IPMI Start Logger (v20260324-v2-rev14):**
+   - **Improvement:** Added a Python-based utility (`ipmi_start_logger.py`) that uses `ioctl` to communicate with `/dev/ipmi0` directly.
+   - **Benefit:** Eliminates the telemetry gap at boot-time; logs the "Start" marker before `ipmitool` is even installed.
+
+---
+
+## 2026-03-23: Mastering Directory Hardening and Persistent APT Cache (v2-rev7-13)
    - **Improvement:** Added a Python-based utility (`ipmi_start_logger.py`) that uses `ioctl` to communicate with `/dev/ipmi0` directly.
    - **Optimization:** Moved the "OS Installation Starting" SEL signal to fire **BEFORE** the `ipmitool` package installation (`dpkg -i`).
    - **Benefit:** Provides immediate OOB telemetry as soon as the ISO boots, eliminating the silent window during initial package extraction.
