@@ -10,10 +10,11 @@
 
 ### Features & Fixes
 
-1. **Fix: SEL Write Race Condition (v20260323-v2-rev13):**
-   - **Bug (OOB):** Found that consecutive `ipmitool` commands using the same Marker ID (Data1=0x02) can be dropped by the BMC if sent too fast. This caused the second half of the IP address and the installation completion log to collide.
+1. **Fix: SEL Write Race Condition (v20260324-v2-rev13):**
+   - **Bug (OOB):** Found that consecutive `ipmitool` commands using the same Marker ID (Data1=0x02) can be dropped by the BMC if sent too fast (observed 1ms gap on node .85).
    - **Resolution:** Introduced `sleep 1` between all sequential IPMI RAW calls in `late-commands`.
-   - **Impact:** Reliable three-stage post-install logging: IP Part 1 -> (sleep) -> IP Part 2 -> (sleep) -> Completed.
+   - **Impact:** Guaranteed three-stage post-install logging: IP Part 1 -> IP Part 2 -> Completed.
+   - **Documentation:** See full report in `autoinstall/doc/19_debug_missing_ip_part_2.md`.
 
 2. **Optimization: SEL Data Padding (v20260323-v2-rev12):**
    - **Requirement:** Update SEL commands to match user diagnostic tool string `SEL Entry Added:210012006F`.
