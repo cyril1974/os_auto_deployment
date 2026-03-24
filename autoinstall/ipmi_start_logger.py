@@ -1,50 +1,73 @@
 #!/usr/bin/env python3
 import os
-import struct
 import fcntl
+import ctypes
 import sys
 
 # Linux IPMI IOCTL code and address type (from <linux/ipmi.h>)
 IPMICTL_SEND_COMMAND = 0x8028690d
 IPMI_SYSTEM_INTERFACE_ADDR_TYPE = 0x0c
 
+# Definitions for C-style structures
+class IPMISystemInterfaceAddr(ctypes.Structure):
+    _fields_ = [
+        ("addr_type", ctypes.c_int),
+        ("channel", ctypes.c_short),
+        ("lun", ctypes.c_ubyte),
+    ]
+
+class IPMIMsg(ctypes.Structure):
+    _fields_ = [
+        ("netfn", ctypes.c_ubyte),
+        ("cmd", ctypes.c_ubyte),
+        ("data_len", ctypes.c_ushort),
+        ("data", ctypes.c_void_p),
+    ]
+
+class IPMIReq(ctypes.Structure):
+    _fields_ = [
+        ("addr", ctypes.c_void_p),
+        ("addr_len", ctypes.c_uint),
+        ("msgid", ctypes.c_long),
+        ("msg", IPMIMsg),
+    ]
+
 def send_ipmi_raw(netfn, cmd, data):
     """
-    Sends a RAW IPMI command via /dev/ipmi0 using ioctls.
+    Sends a RAW IPMI command via /dev/ipmi0 using ctypes for correct structure alignment.
     """
-    # 1. Device Open
     try:
         fd = os.open("/dev/ipmi0", os.O_RDWR)
     except FileNotFoundError:
         print("[!] /dev/ipmi0 not found. Is ipmi_devintf loaded?")
         return False
+    except PermissionError:
+        print("[!] Permission denied opening /dev/ipmi0. Need root.")
+        return False
 
-    # 2. Address Packing (struct ipmi_system_interface_addr)
-    # int addr_type, short channel, unsigned char lun
-    addr = struct.pack("ishB", IPMI_SYSTEM_INTERFACE_ADDR_TYPE, 0, 0, 0)
-
-    # 3. Message Packing (struct ipmi_msg)
-    # unsigned char netfn, unsigned char cmd, unsigned short data_len, unsigned char *data_ptr
-    # In Python, we have to handle the pointer. We'll use ctypes to get the address of our data buffer.
-    import ctypes
+    # 1. Prepare Data Buffer
     data_bytes = bytes(data)
-    data_ptr = ctypes.c_char_p(data_bytes)
-    
-    # struct ipmi_msg { netfn, cmd, data_len, data_ptr }
-    # Padding/Alignment: B B H L (NetFn, Cmd, Len, Ptr)
-    # On 64-bit, pointers are 8 bytes. We use 'P' for pointer.
-    msg = struct.pack("BBHP", netfn << 2, cmd, len(data_bytes), ctypes.cast(data_ptr, ctypes.c_void_p).value)
+    data_buffer = ctypes.create_string_buffer(data_bytes)
 
-    # 4. Request Packing (struct ipmi_req)
-    # struct ipmi_req { addr_ptr, addr_len, msgid, ipmi_msg }
-    # Padding: P I q (Pointer, Len, ID, struct)
-    addr_ptr = ctypes.c_char_p(addr)
-    req = struct.pack("PIqBBHP", 
-                      ctypes.cast(addr_ptr, ctypes.c_void_p).value, 
-                      len(addr), 
-                      0, # msgid
-                      netfn << 2, cmd, len(data_bytes), 
-                      ctypes.cast(data_ptr, ctypes.c_void_p).value)
+    # 2. Prepare Address Structure
+    addr = IPMISystemInterfaceAddr()
+    addr.addr_type = IPMI_SYSTEM_INTERFACE_ADDR_TYPE
+    addr.channel = 0
+    addr.lun = 0
+
+    # 3. Prepare Message Structure
+    msg = IPMIMsg()
+    msg.netfn = netfn << 2  # NetFn is 6 bits, shift by 2
+    msg.cmd = cmd
+    msg.data_len = len(data_bytes)
+    msg.data = ctypes.addressof(data_buffer)
+
+    # 4. Prepare Request Structure
+    req = IPMIReq()
+    req.addr = ctypes.addressof(addr)
+    req.addr_len = ctypes.sizeof(addr)
+    req.msgid = 0
+    req.msg = msg
 
     # 5. Execute IOCTL
     try:
@@ -63,17 +86,18 @@ if __name__ == "__main__":
     netfn = 0x0a
     cmd = 0x44
     # 16-byte SEL Data (Type 0x02 Record)
+    # CID[2] RecType Timestamp[4] GenID[2] EvMRev SensorType SensorNum EventType EvData1 EvData2 EvData3
     data = [
-        0x00, 0x00, # CID
-        0x02,       # RecType
-        0x00, 0x00, 0x00, 0x00, # Timestamp
-        0x21, 0x00, # GenID (SW 0x21)
-        0x04,       # EvMRev
-        0x12,       # SensorType (SystemEvent)
-        0x00,       # SensorNum
-        0x6f,       # EventType (Specific)
-        0x01,       # Data1 (Starting)
-        0x00, 0x00  # Data2/3 (Padding)
+        0x00, 0x00, # CID (auto-generated)
+        0x02,       # Record Type (System Event)
+        0x00, 0x00, 0x00, 0x00, # Timestamp (auto-generated)
+        0x21, 0x00, # Generator ID (Software ID 0x21)
+        0x04,       # EvM Revision
+        0x12,       # Sensor Type (System Event)
+        0x00,       # Sensor Number
+        0x6f,       # Event Type (Specific)
+        0x01,       # Event Data 1 (OS Installation Starting)
+        0x00, 0x00  # Event Data 2/3 (Padding)
     ]
     
     send_ipmi_raw(netfn, cmd, data)

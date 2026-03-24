@@ -10,7 +10,12 @@
 
 ### Features & Fixes
 
-1. **Fix: SCRIPT_DIR Unbound Variable (v20260324-v2-rev16):**
+1. **Fix: Python struct.pack Alignment in IPMI Logger (v20260324-v2-rev17):**
+   - **Bug:** `ipmi_start_logger.py` failed with `struct.error: argument for 's' must be a bytes object`.
+   - **Resolution:** Replaced the manual `struct.pack` calls with robust `ctypes.Structure` definitions for `IPMIReq`, `IPMIMsg`, and `IPMISystemInterfaceAddr`.
+   - **Impact:** Reliable binary-less IPMI logging on all Python 3 versions.
+
+2. **Fix: SCRIPT_DIR Unbound Variable (v20260324-v2-rev16):**
    - **Bug:** The previous revision used `BASE_DIR` which was not properly defined, causing a script crash (unbound variable).
    - **Resolution:** Added `SCRIPT_DIR` definition and corrected the source path for `ipmi_start_logger.py`.
    - **Impact:** Fixes the crash during ISO generation.
