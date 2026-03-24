@@ -243,8 +243,8 @@ deb [trusted=yes] http://archive.ubuntu.com/ubuntu ${codename} main universe
 deb [trusted=yes] http://archive.ubuntu.com/ubuntu ${codename}-updates main universe
 APTEOF
 
-    # Use the provided OFFLINE_PACKAGES if set, otherwise fallback to default mandatory ipmitool
-    local pkgs_to_download="${OFFLINE_PACKAGES:-ipmitool}"
+    # Mandatory offline packages for both OOB telemetry and UEFI booting in restricted environments
+    local pkgs_to_download="${OFFLINE_PACKAGES:-ipmitool grub-efi-amd64-signed shim-signed efibootmgr}"
 
     # Create the autoinstall directory early for GPG key storage
     mkdir -p "$workdir/autoinstall"
@@ -556,7 +556,7 @@ autoinstall:
     authorized-keys:
       - ${PUB_KEY}
     allow-pw: true
-  updates: security
+  updates: none
   refresh-installer:
     update: no
   apt:
@@ -595,8 +595,6 @@ autoinstall:
     - sleep 2
     # Log START INSTALL immediately using Python (Binary-less)
     # This ensures OOB telemetry works BEFORE ipmitool is even installed.
-    - python3 /cdrom/pool/extra/ipmi_start_logger.py 0x01 || true
-    - sleep 2
     # Log Package Pre-install Start (Marker: 0x0F)
     - python3 /cdrom/pool/extra/ipmi_start_logger.py 0x0F || true
     # Install ipmitool from pre-bundled .deb files on ISO (no network needed)
@@ -604,6 +602,9 @@ autoinstall:
     - dpkg -i /cdrom/pool/extra/*.deb 2>/dev/null || true
     # Log Package Pre-install Complete (Marker: 0x1F)
     - python3 /cdrom/pool/extra/ipmi_start_logger.py 0x1F || true
+    - sleep 2
+    # Log OS Installation Start (Marker: 0x01)
+    - python3 /cdrom/pool/extra/ipmi_start_logger.py 0x01 || true
   error-commands:
     # Ensure drivers are loaded for the abort signal (in case subiquity failed very early)
     - modprobe ipmi_devintf 2>/dev/null || true
@@ -611,7 +612,7 @@ autoinstall:
     - sleep 1
     # Log ABORTED/FAILED (Marker: 0xEE)
     - python3 /cdrom/pool/extra/ipmi_start_logger.py 0xEE || true
-    - ipmitool raw 0x0a 0x44 0x00 0x00 0x02 0x00 0x00 0x00 0x00 0x21 0x00 0x04 0x12 0x00 0x6f 0xee 0x00 0x00 2>/dev/null || true
+    # - ipmitool raw 0x0a 0x44 0x00 0x00 0x02 0x00 0x00 0x00 0x00 0x21 0x00 0x04 0x12 0x00 0x6f 0xee 0x00 0x00 2>/dev/null || true
   late-commands:
     - echo 'root:${PASSWORD}' | chroot /target chpasswd
     - curtin in-target --target=/target -- sed -i 's/^#\\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
