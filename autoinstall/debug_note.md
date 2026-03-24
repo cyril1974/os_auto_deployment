@@ -189,3 +189,24 @@ The newly introduced `ipmi_start_logger.py` copy logic used `BASE_DIR` instead o
 ### Resolution (v2-rev16)
 1.  **Fix**: Specifically defined `SCRIPT_DIR` at the script header using `cd $(dirname $0)` to ensure canonical path resolution.
 2.  **Fix**: Corrected the source path for `ipmi_start_logger.py`.
+
+---
+
+# Debug Note - Python Traceback (struct.error) in ipmi_start_logger.py
+**Date/Time:** 2026-03-24 10:10:00 (GMT+8)
+
+---
+
+### Symptom
+The `ipmi_start_logger.py` utility failed with a Python traceback during `early-commands`:
+`struct.error: argument for 's' must be a bytes object`.
+
+### Diagnosis
+The script used manual `struct.pack` calls to build the `ipmi_system_interface_addr` and `ipmi_req` structures. Under Python 3's `struct` module, the "s" (bytes) and "P" (void pointer) formatting requires exact byte-object alignment which is sensitive to OS and CPU architecture.
+
+### Root Cause (v2-rev14 regression)
+Manual byte-packing in Python 3 is unreliable for complex C-structures containing nested pointers (like `struct ipmi_req msg`). The alignment for the `addr` buffer was incorrectly specified in the format string.
+
+### Resolution (v2-rev17)
+1.  **Refactor**: Replaced `struct.pack` with **`ctypes.Structure`** for `IPMIReq`, `IPMIMsg`, and `IPMISystemInterfaceAddr`.
+2.  **Benefit**: `ctypes` handles the underlying C-style pointer mapping (void*) to Python's memory buffer automatically, ensuring binary compatibility with the Linux kernel driver across all platforms.
