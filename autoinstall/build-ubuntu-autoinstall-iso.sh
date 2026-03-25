@@ -556,12 +556,12 @@ autoinstall:
     authorized-keys:
       - ${PUB_KEY}
     allow-pw: true
-  updates: none
+  updates: security
   refresh-installer:
     update: no
   apt:
     fallback: offline-install
-    geoip: true
+    geoip: false
     preserve_sources_list: false
     primary:
       - arches: [default]
