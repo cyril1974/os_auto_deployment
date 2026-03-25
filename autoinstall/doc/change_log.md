@@ -1320,3 +1320,70 @@ SEL trace confirmed `0x03` (IP Part 1: `10.99`) present, `0x13` (IP Part 2) abse
 | `build-ubuntu-autoinstall-iso.sh` | Modified | IP Part 2 offset `0x04` → `0x13` |
 | `src/os_deployment/main.py` | Modified | `0x05` audit decode: hex string → ASCII characters |
 | `src/os_deployment/main.py` | Modified | Print as `Audit Result : <text>` |
+
+---
+
+## v2-rev39 — Multi-Gen Redfish Version Gate + PostCode Clear + Timeout Tuning
+**Date:** 2026-03-25
+
+### Problem 1 — Gen-7 EventLog Prefix Mismatch on Older Firmware
+`filter_custom_event` and `decode_event` hard-coded the gen from `state_manager.state.generation`. On Gen-7 hardware running BMC firmware with Redfish < 1.17.0, the SEL log path and message prefix still follow the gen-6 format, causing zero forensic milestones to be decoded.
+
+### Problem 2 — PostCode Log Stale Entry Interference
+Stale `boot_count` entries from previous cycles caused the PostCode log export loop to exit early via the `boot_count != "1"` guard, missing valid current-cycle entries.
+
+### Problem 3 — Timeouts Too Short for Gen-7 Hardware
+Gen-7 nodes require significantly longer reboot and installation windows. The previous 300s/3600s limits caused premature monitoring exits.
+
+### Solution
+
+**1. Redfish Version Fetching (new)**
+- `utils.get_redfish_version(target, auth)`: `GET /redfish/v1` → `RedfishVersion`
+- `state_manager.GlobalState.redfish_version`: stores it globally for all modules
+
+**2. Version-Aware Gen Resolution (new `_resolve_event_gen()`)**
+```
+Gen-7 + Redfish >= 1.17.0  →  effective gen = "7"  (new SEL API + prefix)
+Gen-7 + Redfish <  1.17.0  →  effective gen = "6"  (legacy EventLog API + prefix)
+Gen-6             (any)    →  effective gen = "6"
+```
+Both `filter_custom_event` and `decode_event` call `_resolve_event_gen()` instead of reading `state.generation` directly.
+
+**3. Constants — Gen-keyed dicts**
+- `LOG_FETCH_API`: converted from string → `{"6": ..., "7": ...}` dict; all callers updated to `LOG_FETCH_API[gen]`
+- `EventLogPrefix`: converted from string → `{"6": ..., "7": ...}` dict
+- `POSTCODE_LOG_CLEAR_API`: new constant for the PostCode log clear action endpoint
+
+**4. PostCode Log Clear (new `reboot.clear_postcode_log`)**
+- `reboot._clear_postcode_log(target, auth_header)`: private helper that POSTs to `POSTCODE_LOG_CLEAR_API`
+- `reboot.clear_postcode_log(target, config)`: public entry point; called in `main.py` before reboot for gen-7 nodes to ensure a clean PostCode baseline
+
+**5. PostCode Loop Guard Removed**
+- Commented out `boot_count != "1"` early-exit in `getPostCodeLog` to allow all entries within the time window
+
+**6. Timeout Increases**
+- `REBOOT_TIMEOUT`: `300` → `1200` s
+- `PROCESS_TIMEOUT`: `3600` → `7200` s
+
+**7. main.py — Redfish Version Print**
+- Logs `Redfish Version : X.Y.Z` at startup after generation detection
+
+### Summary of File Changes
+| File | Change Type | Description |
+|---|---|---|
+| `src/os_deployment/lib/state_manager.py` | Modified | Added `redfish_version = None` field |
+| `src/os_deployment/lib/utils.py` | Modified | `get_redfish_version()`: GET /redfish/v1 → RedfishVersion |
+| `src/os_deployment/lib/utils.py` | Modified | `_resolve_event_gen()`: version-aware gen-6/7 selector |
+| `src/os_deployment/lib/utils.py` | Modified | `filter_custom_event()`: use `_resolve_event_gen()` |
+| `src/os_deployment/lib/utils.py` | Modified | `decode_event()`: use `_resolve_event_gen()` |
+| `src/os_deployment/lib/utils.py` | Modified | `getSystemEventLog`: `LOG_FETCH_API[gen]` keyed access |
+| `src/os_deployment/lib/utils.py` | Modified | `getPostCodeLog`: commented out `boot_count != "1"` guard |
+| `src/os_deployment/lib/constants.py` | Modified | `LOG_FETCH_API` string → gen-keyed dict |
+| `src/os_deployment/lib/constants.py` | Modified | `EventLogPrefix` string → gen-keyed dict |
+| `src/os_deployment/lib/constants.py` | Added | `POSTCODE_LOG_CLEAR_API` constant |
+| `src/os_deployment/lib/constants.py` | Modified | `REBOOT_TIMEOUT` 300→1200, `PROCESS_TIMEOUT` 3600→7200 |
+| `src/os_deployment/lib/reboot.py` | Added | `_clear_postcode_log()` and `clear_postcode_log()` |
+| `src/os_deployment/lib/reboot.py` | Modified | `from . import constants` import added |
+| `src/os_deployment/main.py` | Modified | Fetch + store + print Redfish version after gen detect |
+| `src/os_deployment/main.py` | Modified | `clear_postcode_log` called before reboot (gen-7 only) |
+| `src/os_deployment/main.py` | Modified | Commented out redundant `set_boot_cdrom` in monitor loop |

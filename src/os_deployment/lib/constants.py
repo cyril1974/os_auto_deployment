@@ -34,13 +34,18 @@ GETFILE_IMAGE_API = {
     "7":"/redfish/v1/Managers/bmc/VirtualMedia/Inband/Actions/Oem/VirtualMedia.GetFileFromImage",
     "6":"/redfish/v1/Managers/bmc/VirtualMedia/Internal/Actions/Oem/VirtualMedia.GetFileFromImage"
     }
+
+LOG_FETCH_API = {
+    "6":"/redfish/v1/Systems/system/LogServices/EventLog/Entries",
+    "7":"/redfish/v1/Managers/bmc/LogServices/SEL/Entries"
+    }
 MOUNT_IMAGE_API = {
     "7":"/redfish/v1/Managers/bmc/VirtualMedia/Inband/Actions/Oem/VirtualMedia.MountImage",
     "6":"/redfish/v1/Managers/bmc/VirtualMedia/Internal/Actions/Oem/VirtualMedia.MountImage"
     }
 BMC_MANAGER_API = "/redfish/v1/Managers/bmc"
 POSTCODE_LOG_API = "/redfish/v1/Systems/system/LogServices/PostCodes/Entries"
-LOG_FETCH_API = "/redfish/v1/Systems/system/LogServices/EventLog/Entries"
+POSTCODE_LOG_CLEAR_API = "/redfish/v1/Systems/system/LogServices/PostCodes/Actions/LogService.ClearLog"
 
 VERSION_GET_API = {}
 VERSION_GET_API["BIOS"] = "/redfish/v1/UpdateService/FirmwareInventory/bios_active"
@@ -55,8 +60,8 @@ PLATFROM_STRING = {
 DEFAULT_LOG_PATH = "./logs"
 IMAGESIZE = 192
 REDFISH_TIMEOUT = 15
-REBOOT_TIMEOUT = 300
-PROCESS_TIMEOUT = 180
+REBOOT_TIMEOUT = 1200
+PROCESS_TIMEOUT = 7200
 REDFISH_SESSION = None
 POWER_RESTORE_EVENT = "Power restore policy applied"
 
@@ -64,74 +69,17 @@ POWER_RESTORE_EVENT = "Power restore policy applied"
 EventLogPrefix = "0000020000000021000412006F"
 
 EventLogMessage = {
-    "01": "OS Installation Start",
-    "0F": "Package Pre-install Start",
-    "1F": "Package Pre-install Complete",
-    "AA": "OS Installation Completed",
-    "03": "IP Address Logging (Part 1)",
-    "04": "IP Address Logging (Part 2)",
-    "05": "Installation Audit: Storage Verification",
-    "EE": "OS Installation Aborted/Failed"
+    "01": "[Info] OS Installation Start",
+    "0F": "[Info] Package Pre-install Start",
+    "1F": "[Info] Package Pre-install Complete",
+    "AA": "[Info] OS Installation Completed",
+    "03": "[Info] IP Address Logging (Part 1)",
+    "04": "[Info] IP Address Logging (Part 2)",
+    "05": "[Info] Installation Audit: Storage Verification",
+    "EE": "[Error] OS Installation Aborted/Failed"
 }
 
-EventLogSServerity = {
-    "00": "[Notice]",
-    "01": "[OK]",
-    "02": "[Warning]",
-    "03": "[Critical]",
-    "04": "[Debug]"
-    
-}
 
-EventLogCategory = {
-    "00":"[Flow]",
-    "01":"[SUP]",
-    "02":"[Component]",
-    "03":"[SSD]"
-}
 
-EventMessage = {
-    "000000":"Process Complete",
-    "000001":"Server Boot Up OK and Enter startup.nsh",
-    "000002":"Files Copy Complete",
-    "000003":"Found no Utility Package image is mounted , stop update",
-    "000004":"Found no Custom Firmwate Update Package image is mounted , stop update",
-    "000005":"Utility package is copied to RAM Disk Complete",
-    "000006":"Custom Firmwate Update Package is cpoied to RAM Disk Complete",
-    "000007":"Copy Utility Files to RAM Disk Start",
-    "000008":"Copy Custom Firmwate Update Files to RAM Disk Start",
-    "000009":"Copy Utility Files to RAM Disk Complete",
-    "00000A":"Copy Custom Firmwate UpdateFiles to RAM Disk Complete",
-    "00000B":"Start to Update Firmware",
-    "00000C":"Find Board Firmware , Start to Update Board Firmware (CPLD/BMC/BIOS/ROT)",
-    "00000D":"Find No Board Firmware , Bypass Board Firmware Update",
-    "00000E":"Find Component Firmware , Start to Update Component Firmware (NIC/RAID)",
-    "00000F":"Find No Component Firmware , Bypass Component Firmware Update",
-    "000010":"Find SSD Firmware , Start to Update SSD Firmware",
-    "000011":"Find No SSD Firmware , Bypass SSD Firmware Update",
-    "000012":"LOG Collecting Start",
-    "000013":"Board Firmware (SUP/FUP) Update Success",
-    "000014":"Board Firmware (SUP/FUP) Update Fail",
-    "000015":"Components Firmware (RAID/NIC) Update Success",
-    "000016":"Components Firmware (RAID/NIC) Update Fail",
-    "000017":"Board Firmware is Updated and Reboot",
-    "000018":"Start to Update BIOS Firmware",
-    "000019":"Update BIOS Firmware Complete",
-    "00001A":"Start to Update BMC Firmware",
-    "00001B":"Update BMC Firmware Complete",
-    "00001C":"Start to Update CPLD Firmware",
-    "00001D":"Update CPLD Firmware Complete",
-    "00001E":"Start to Update ROT Firmware",
-    "00001F":"Update ROT Firmware Complete",
-    "000020":"SSD Firmware Update Success",
-    "000021":"SSD Firmware Update Fail",
-    "000022":"Copy SSD Firmware Update Boot Image to RAM Disk",
-    "000023":"Try to Boot system and load initrd to execute SSD Firmware Update",
-    "000024":"Success boot into initrd and try to mount internalVM for logging",
-    "000025":"Fail to mount internalVM for logging , exit Update",
-    "000026":"Success to mount internalVM for logging and try to trigger ssd firmware update tool issdfut",
-    "000027":"Fail to execute firmware update tool issdfut , SSD update exit",
-    "000028":"Reboot System",
-    "000029":"Component Firmware is Updated and Reboot",
-    "FFFFFF":"Process Abort"
-}
+
+

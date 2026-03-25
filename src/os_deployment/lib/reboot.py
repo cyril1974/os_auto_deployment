@@ -7,6 +7,7 @@ import urllib3.exceptions
 import os_deployment.lib.state_manager as state_manager
 from . import auth
 from . import utils
+from . import constants
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 ENDPOINT = "/redfish/v1/Systems/system"
@@ -57,7 +58,41 @@ def _set_boot_cdrom(target: str , auth_header: str):
     except requests.RequestException as e:
         print(f"[{utils.formatted_time()}] Set {target} Boot to CD-ROM FAIL via {url} with data {data}")
         
-    return return_value        
+    return return_value
+
+def _clear_postcode_log(target: str, auth_header: str) -> bool:
+    """POST to POSTCODE_LOG_CLEAR_API to wipe the PostCode log on the BMC."""
+    return_value = False
+    url = f"https://{target}{constants.POSTCODE_LOG_CLEAR_API}"
+    headers = {
+        "Accept": "application/json",
+        "Authorization": auth_header,
+        "Content-Type": "application/json"
+    }
+    try:
+        response = requests.post(url, headers=headers, data="{}", verify=False)
+        if response.status_code in (200, 204):
+            # print(f"[{utils.formatted_time()}] PostCode Log cleared successfully.")
+            return_value = True
+        else:
+            try:
+                json_data = response.json()
+            except Exception:
+                json_data = None
+            print(f"[{utils.formatted_time()}] Clear PostCode Log FAIL via {url}, "
+                  f"Status Code {response.status_code}\n{json_data}")
+    except requests.RequestException as e:
+        print(f"[{utils.formatted_time()}] Clear PostCode Log FAIL via {url}: {e}")
+    return return_value
+
+def clear_postcode_log(target: str, config: dict) -> bool:
+    """Public entry point: authenticate then clear the PostCode log."""
+    try:
+        auth_header = auth.get_auth_header(target, config)
+        return _clear_postcode_log(target, auth_header)
+    except Exception as e:
+        print(f"[{utils.formatted_time()}] Clear PostCode Log exception: {e}")
+        return False
 
 def _exec_reboot(target: str , auth_header: str):
     return_value = False

@@ -196,8 +196,19 @@ def getTargetBMCDateTime(target,auth):
             return {"status":"error","data":"Get BMC Manager Data Fail"}        
     
     # print(json.dumps(response.json(),indent=4))
-    
+
+def get_redfish_version(target: str, auth: str) -> str | None:
+    """GET /redfish/v1 and return the RedfishVersion string (e.g. '1.9.0'), or None on failure."""
+    try:
+        response = redfish_get_request("/redfish/v1", bmc_ip=target, auth=auth)
+        if response and response.status_code == 200:
+            return response.json().get("RedfishVersion", None)
+    except Exception as e:
+        print(f"[{formatted_time()}] Get Redfish Version FAIL: {e}")
+    return None
+
 def getPostCodeLog(target,auth,fromtimestamp):
+
     return_data = []
     gen = str(state_manager.state.generation)
     if check_redfish_api(target,auth): 
@@ -205,10 +216,11 @@ def getPostCodeLog(target,auth,fromtimestamp):
         # try:
         data = response.json()["Members"]
         if data is not None and len(data) > 0:
+            # print(f"From Timestamp:{fromtimestamp}")
             for item in data:
                 event_time = int(datetime.fromisoformat(item["Created"][:19]).timestamp())
                 bootID = item["Id"]
-
+                # print(f"Boot ID:{bootID} Event Time:{event_time}")
                 if gen == "6":
                     boot_count = item["MessageArgs"][0]
                     tmp = item["MessageArgs"][2].split(":")
@@ -218,6 +230,7 @@ def getPostCodeLog(target,auth,fromtimestamp):
                     boot_count = item["MessageArgs"][0]
                     event_code = item["MessageArgs"][2]
                     event_text = item["MessageArgs"][3]
+                # print(f"Boot ID:{bootID} Event Time:{event_time} Message:{event_text}")
                 if event_time > fromtimestamp:
                     return_data.append({
                         "boot_id":bootID,
@@ -245,8 +258,8 @@ def wait_for_reboot(target,auth,fromtimestamp):
         if len(result_log) > 0: # and len(result_log)>start_idx:
             export_log = []
             for row in result_log:
-                if row['boot_count'] != "1":
-                    break
+                # if row['boot_count'] != "1":
+                #    break
                 export_log.append(f"{row['time']}\t{row['PostCode']}\t{row['text']}")
                 if boot_complete_string[gen] in row['text']:
                     booted_time = row['time'][:19]
@@ -283,7 +296,7 @@ def getSystemEventLog(target,auth,fromtimestamp):
         show_log_cnt = 500
         
         # 1. Get total count of logs to calculate skip offset
-        url_count = f"{constants.LOG_FETCH_API}/?$top=1"
+        url_count = f"{constants.LOG_FETCH_API[gen]}/?$top=1"
         response = redfish_get_request(url_count, bmc_ip=target, auth=auth, custom_timeout=10)
         try:
             if response and response.status_code == 200:
@@ -293,9 +306,9 @@ def getSystemEventLog(target,auth,fromtimestamp):
 
         # 2. Fetch the latest batch (typically 500 entries)
         if event_cnt > show_log_cnt:
-            url = f"{constants.LOG_FETCH_API}/?$skip={event_cnt - show_log_cnt}&$top={show_log_cnt}"
+            url = f"{constants.LOG_FETCH_API[gen]}/?$skip={event_cnt - show_log_cnt}&$top={show_log_cnt}"
         else:
-            url = f"{constants.LOG_FETCH_API}/?$top={show_log_cnt}"
+            url = f"{constants.LOG_FETCH_API[gen]}/?$top={show_log_cnt}"
             
         # print(f"[{datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')}] {gen} Platform, fetching from: {url}")
         response = redfish_get_request(url, bmc_ip=target, auth=auth, custom_timeout=10)
@@ -318,8 +331,27 @@ def getSystemEventLog(target,auth,fromtimestamp):
     # print(f"{return_data}")
     return return_data 
 
+def _resolve_event_gen() -> str:
+    """Return the effective gen key for EventLogPrefix / LOG_FETCH_API.
+    
+    If the hardware is gen-7 but the Redfish firmware is older than 1.17.0,
+    the SEL message format still matches the gen-6 prefix, so fall back to '6'.
+    """
+    gen = str(state_manager.state.generation)
+    if gen == "7":
+        ver = state_manager.state.redfish_version  # e.g. '1.9.0' or None
+        if ver:
+            try:
+                parts = [int(x) for x in ver.split(".")]
+                if parts < [1, 17, 0]:
+                    gen = "6"  # older firmware uses gen-6 SEL format
+            except ValueError:
+                pass  # unparseable version — keep gen=7
+    return gen
+
 def filter_custom_event(data):
-    prefix = constants.EventLogPrefix
+    gen = _resolve_event_gen()
+    prefix = constants.EventLogPrefix[gen]
     return [
         item for item in data
         if "SEL Entry Added" in item.get("Message", "")
@@ -332,18 +364,16 @@ def filter_message_event(data,search_for):
         if search_for in item.get("Message", "")
     ]
 def decode_event(data):
+    gen = _resolve_event_gen()
+    prefix = constants.EventLogPrefix[gen]
     export_string = ""
-    if data.startswith(constants.EventLogPrefix):
-        suffix = data[len(constants.EventLogPrefix):]  # get "000000000008"
-        sev_code = suffix[0:2]
-        cat_code = suffix[2:4]
-        msg_code = suffix[6:12]  # skip 2 reserved chars
+    if data.startswith(prefix):
+        suffix = data[len(prefix):]  # get "010000"
+        status_code = suffix[0:2]
         
         # Lookup each value in its dict
-        severity = constants.EventLogSServerity.get(sev_code, f"UnknownSeverity({sev_code})")
-        category = constants.EventLogCategory.get(cat_code, f"UnknownCategory({cat_code})")
-        message = constants.EventMessage.get(msg_code, f"UnknownMessage({msg_code})")
-        export_string = f"{severity} {category} {message}"
+        status = constants.EventLogMessage.get(status_code, f"UnknownStatus({status_code})")
+        export_string = f"{status}"
     return export_string
 
 def umount_media(target,auth,vmedia_point):

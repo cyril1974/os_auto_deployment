@@ -316,3 +316,36 @@ The command **did write successfully** (returned `53 00` - the new SEL ID). `ipm
 The label "PEF Action" is the **standard IPMI text** for `Sensor Type 0x12, Event Offset 0x04` per IPMI spec Table 42-3. It is a cosmetic display artifact — the raw payload is intact and the deployment engine reads it correctly via Redfish.
 
 **No fix needed.** The offset was subsequently changed from `0x04` → `0x13` in `v2-rev38` to avoid this confusing label.
+
+---
+
+# Debug Note — Gen-7 Redfish SEL Format Mismatch (Firmware Version Gate)
+**Date/Time:** 2026-03-25 16:35:00 (GMT+8)
+
+---
+
+### Symptom
+On Gen-7 hardware (D50DNP) running **older BMC firmware** (Redfish version < 1.17.0), the EventLog entries retrieved from `/redfish/v1/Managers/bmc/LogServices/SEL/Entries` did not match the expected `EventLogPrefix` for gen-7 (`210012006F`). As a result, `filter_custom_event` returned an empty list and no forensic milestones were decoded.
+
+### Root Cause
+The SEL Redfish API path and the message prefix format changed across BMC firmware versions:
+
+| Redfish Version | Log API used | SEL Prefix |
+|---|---|---|
+| `>= 1.17.0` | `/redfish/v1/Managers/bmc/LogServices/SEL/Entries` | `210012006F` (gen-7) |
+| `< 1.17.0` | `/redfish/v1/Systems/system/LogServices/EventLog/Entries` | `0000020000000021000412006F` (gen-6 format) |
+
+Gen-7 hardware running older firmware sends EventLog messages in the gen-6 format. Hard-coding the gen to `"7"` caused prefix mismatch — no entries matched.
+
+### Resolution (v2-rev39)
+1. **Fetched Redfish version** at startup via `GET /redfish/v1` → `RedfishVersion` field.
+2. **Stored** it in `state_manager.state.redfish_version`.
+3. **Introduced `_resolve_event_gen()`** — a shared helper called by both `filter_custom_event` and `decode_event`. If gen=7 but Redfish version < 1.17.0, the effective gen is downgraded to `"6"` for prefix and API path selection.
+
+### PostCode Log Clearing (Debug Finding)
+During PostCode log debugging, it was found that stale entries from a previous boot cycle were being parsed before the new boot's entries, causing `.boot_count` filtering to exit prematurely. Fix: commented out the `boot_count != "1"` early-exit guard in `getPostCodeLog` to allow all entries in the time window to be exported regardless of boot cycle count.
+
+### REBOOT_TIMEOUT / PROCESS_TIMEOUT Increase
+After live testing, the gen-7 hardware required significantly longer boot and installation windows. Timeouts were increased:
+- `REBOOT_TIMEOUT`: `300` → `1200` seconds (20 min)
+- `PROCESS_TIMEOUT`: `3600` → `7200` seconds (2 hours)

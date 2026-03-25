@@ -281,7 +281,11 @@ def main():
     state_manager.state.product_model = gen[0]
     
     print(f"[{utils.formatted_time()}] Detect Product Generation {gen}.....")
-    
+
+    redfish_ver = utils.get_redfish_version(bmcip, auth_string)
+    state_manager.state.redfish_version = redfish_ver
+    print(f"[{utils.formatted_time()}] Redfish Version : {redfish_ver if redfish_ver else 'Unknown'}")
+
     
     # Check Virtual Media Permission
     print(f"[{utils.formatted_time()}] Check Virtual Media Permission .....",end="")
@@ -340,6 +344,14 @@ def main():
     if not no_reboot:
         print(f"[{utils.formatted_time()}] Ready to Reboot Target Server ({bmcip}) .....")
         #try:
+        if gen[1]== 7:
+            print(f"[{utils.formatted_time()}] Clear PostCode Log .....",end="")
+            try:
+                reboot.clear_postcode_log(bmcip,config_json)
+                print("OK")
+            except Exception as e:
+                print(f"FAIL {e}")
+                sys.exit(f"Clear PostCode Log FAIL !! Exit")
         from_datetime = reboot.reboot_cdrom(bmcip,config_json)
         print(f"[{utils.formatted_time()}] Return TimeStamp after reboot {from_datetime}") 
         if from_datetime is None:
@@ -360,7 +372,7 @@ def main():
     # print(f"Stop TimeStamp : {stop_timestamp} , Date Time String {datetime.fromtimestamp(stop_timestamp).strftime('%Y-%m-%d %H:%M:%S')}")
     loop = 0
     last_log_id = ""
-    reboot.set_boot_cdrom(bmcip,auth_string)
+    # reboot.set_boot_cdrom(bmcip,auth_string)
     print(f"[{utils.formatted_time()}] Get Event Log From Timestamp {datetime.fromtimestamp(from_timestamp).isoformat()} ({from_timestamp})")
     
     while not is_complete and current_timestamp < stop_timestamp:
