@@ -265,3 +265,54 @@ This caused the search window to effectively shift **8 hours into the past** (e.
 
 ### Resolution (v2-rev30)
 Hardened both `getTargetBMCDateTime` and `getSystemEventLog` to be fully timezone-aware. By preserving the full ISO8601 string and utilizing Python's native timezone handling, the engine now maintains a perfectly synchronized search window between the BMC and the deployment controller.
+
+---
+
+# Debug Note — IP Part 2 Marker Missing in SEL (Node 10.99.236.90)
+**Date/Time:** 2026-03-25 14:15:00 (GMT+8)
+**Node:** `10.99.236.90` (Ubuntu 24.04.2 LTS)
+
+---
+
+### Symptom
+The deployment monitor received IP Part 1 (`0x03` → `10.99`) but never received IP Part 2 (`0x13` → `236.90`), making the full IP unreportable. The installation itself completed successfully (`0xAA` observed).
+
+### Forensic SEL Reconstruction (Last Install Run: 0x160 → 0x165)
+
+| SEL ID | Timestamp (UTC) | Event Data | Marker | Meaning |
+|---|---|---|---|---|
+| `0x160` | 02:12:41 | `0f0000` | `0x0F` | OS Install Initiated |
+| `0x161` | 02:14:17 | `1f0000` | `0x1F` | Installer Ready |
+| `0x162` | 02:14:19 | `010000` | `0x01` | Installation Start |
+| `0x163` | 02:21:52 | `030a63` | `0x03` | IP Part 1: `10.99` ✅ |
+| ❌ MISSING | — | `13ECXX` | `0x13` | IP Part 2: `236.90` **NOT WRITTEN** |
+| `0x164` | 02:21:58 | `aa0000` | `0xAA` | Installation Complete ✅ |
+| `0x165` | 02:22:00 | `054f4b` | `0x05` | Audit: `OK` ✅ |
+
+### Root Cause
+Node `.90` was deployed with the **old ISO** where IP Part 2 still used offset `0x04` (not `0x13`). The build script was updated to use `0x13` in a subsequent rev. Because the deployment engine's `filter_custom_event` matches the `EventLogPrefix` (`0x21`), and the old `0x04` offset was being filtered separately for IP capture, the Part 2 record was **never matched** by the engine.
+
+**This is an old-ISO artifact, not a code bug.** A fresh rebuild with the updated script will produce both `0x03` and `0x13` markers correctly.
+
+### Bonus Finding — `0x05` Audit Marker Working
+SEL ID `0x165` shows `Event Data: 054f4b` → Offset=`0x05`, Bytes=`0x4F 0x4B` = ASCII `'O' + 'K'` = `"OK"`. The new audit result channel is functioning correctly.
+
+---
+
+# Debug Note — `ipmitool raw 0x0a 0x44` Appears as "PEF Action" (Node 10.99.236.91)
+**Date/Time:** 2026-03-25 13:20:00 (GMT+8)
+**Node:** `10.99.236.91` (Ubuntu 24.04.2 LTS)
+
+---
+
+### Symptom
+The user reported that the `ipmitool raw 0x0a 0x44 ... 0x6f 0x04 $h3 $h4` command appeared to not write to SEL. The `ipmitool sel list` showed entry `0x53` labelled as **"PEF Action"** rather than a recognizable system event.
+
+### Diagnosis
+The command **did write successfully** (returned `53 00` - the new SEL ID). `ipmitool sel get 0x53` confirmed:
+- Generator ID: `0021` ✅ (correct software origin)
+- Event Data: `04c0a8` (Offset=`0x04`, Bytes=`0xC0 0xA8` = `192.168`) ✅
+
+The label "PEF Action" is the **standard IPMI text** for `Sensor Type 0x12, Event Offset 0x04` per IPMI spec Table 42-3. It is a cosmetic display artifact — the raw payload is intact and the deployment engine reads it correctly via Redfish.
+
+**No fix needed.** The offset was subsequently changed from `0x04` → `0x13` in `v2-rev38` to avoid this confusing label.

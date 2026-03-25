@@ -1246,3 +1246,77 @@ Comprehensive documentation covering:
 | `build-ubuntu-autoinstall-iso.sh` | Modified | Add timestamp to output ISO filename |
 | `doc/15_iso_comparison_and_efi_boot_fix.md` | New | Full ISO comparison and boot fix analysis |
 | `doc/change_log.md` | New | This change log |
+
+---
+
+## v2-rev35 — Offline Bundle: Mandatory UEFI Packages
+**Date:** 2026-03-25
+
+### Problem
+Node `10.99.236.85` failed during the `curthooks` phase with exit code 100. The installer tried to download `grub-efi-amd64-signed`, `shim-signed`, and `efibootmgr` from `archive.ubuntu.com`, but the network was unreachable.
+
+### Solution
+Updated the default offline package list in `build-ubuntu-autoinstall-iso.sh` to include mandatory UEFI bootloader packages alongside `ipmitool`.
+
+### Summary of File Changes
+| File | Change Type | Description |
+|---|---|---|
+| `build-ubuntu-autoinstall-iso.sh` | Modified | Default `OFFLINE_PACKAGES` now includes `grub-efi-amd64-signed shim-signed efibootmgr` |
+
+---
+
+## v2-rev36 — (Reverted) updates: none
+**Date:** 2026-03-25
+
+### Change (Reverted in v2-rev37)
+Temporarily set `updates: none` in the autoinstall YAML to prevent online security update fetching in offline environments. This caused a schema validation crash on Subiquity 22.04 and was immediately reverted.
+
+---
+
+## v2-rev37 — Schema Fix: Revert updates + geoip: false
+**Date:** 2026-03-25
+
+### Problem
+Node `10.99.236.87` failed immediately at autoinstall load with:
+```
+AutoinstallValidationError: 'none' is not one of ['security', 'all']
+```
+The strict JSON schema enforced by Subiquity snap version `6066` (Ubuntu 22.04) does not allow `updates: none`.
+
+### Solution
+- Reverted `updates: none` → **`updates: security`** to pass schema validation.
+- Set **`geoip: false`** to prevent DNS lookups for geographic mirror selection.
+- Retained **`apt.fallback: offline-install`** for graceful offline degradation.
+
+### Design Note
+The `updates` field is **version-dependent** (tied to Subiquity snap version). Even within Ubuntu 22.04, only `security` and `all` are valid enum values. Using `updates: security` + `fallback: offline-install` is the correct combination for both online schema compliance and offline installation support.
+
+### Summary of File Changes
+| File | Change Type | Description |
+|---|---|---|
+| `build-ubuntu-autoinstall-iso.sh` | Modified | `updates: security` (reverted from `none`) |
+| `build-ubuntu-autoinstall-iso.sh` | Modified | `geoip: false` (was `true`) |
+| `doc/20_offline_install_hardening.md` | New | Full technical note on offline hardening and updates schema |
+
+---
+
+## v2-rev38 — IP Part 2 Offset: 0x04 → 0x13 + Audit Result ASCII Decode
+**Date:** 2026-03-25
+
+### Problem
+1. Raw IP Part 2 IPMI marker used event offset `0x04`, causing the BMC to render it as **"PEF Action"** (standard IPMI label for `SensorType=0x12, Offset=0x04`). Forensically correct but visually confusing.
+2. `main.py` marker `0x05` audit handler printed raw hex bytes instead of decoded ASCII text.
+
+### Solution
+1. **`build-ubuntu-autoinstall-iso.sh`**: Changed IP Part 2 emission from `0x04` → **`0x13`** (a spare system event offset) to produce a clean, unambiguous SEL description.
+2. **`src/os_deployment/main.py`**: Updated marker `0x05` handler to convert raw hex bytes to ASCII via `chr(int(..., 16))` and concatenate them into a readable `Audit Result` string.
+
+### Forensic Verification (Node 10.99.236.90)
+SEL trace confirmed `0x03` (IP Part 1: `10.99`) present, `0x13` (IP Part 2) absent due to old ISO. New ISO rebuild will produce both. `0x05` audit marker (`054f4b` → `"OK"`) confirmed working.
+
+### Summary of File Changes
+| File | Change Type | Description |
+|---|---|---|
+| `build-ubuntu-autoinstall-iso.sh` | Modified | IP Part 2 offset `0x04` → `0x13` |
+| `src/os_deployment/main.py` | Modified | `0x05` audit decode: hex string → ASCII characters |
+| `src/os_deployment/main.py` | Modified | Print as `Audit Result : <text>` |

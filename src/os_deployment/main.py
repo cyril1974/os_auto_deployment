@@ -396,6 +396,11 @@ def main():
                         IP[3] = str(int(eventMessage[-2:], 16))
                     if eventMessage[-6:-4] in ["03","04"] and all(x != "NA" for x in IP):
                         print(f"IP Address : {IP[0]}.{IP[1]}.{IP[2]}.{IP[3]}")
+                    if eventMessage[-6:-4] == "05":
+                        text1 = chr(int(eventMessage[-4:-2], 16))
+                        text2 = chr(int(eventMessage[-2:], 16))
+                        audit_result = text1 + text2
+                        print(f"Audit Result : {audit_result}")
                     print(f"[{eventTime}] {eventString}")
                 currentID = item["Id"]      
             last_log_id = currentID   
