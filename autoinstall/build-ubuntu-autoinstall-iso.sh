@@ -363,7 +363,8 @@ ORIG_ISO=$(lookup_iso_path "$OS_NAME")
 echo "[*] Found ISO: $ORIG_ISO"
 
 # Generate a unique build ID based on datetime and random alphanumeric suffix to support parallel execution
-BUILD_ID="$(date +%Y%m%d%H%M%S)_$(LC_ALL=C tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c 4)"
+# Using mktemp -u to avoid SIGPIPE (141) errors associated with pipefail and /dev/urandom pipelines
+BUILD_ID="$(date +%Y%m%d%H%M%S)_$(mktemp -u XXXX)"
 WORKDIR="./workdir_custom_iso/${BUILD_ID}"
 OUT_ISO_DIR="./output_custom_iso/${BUILD_ID}"
 
