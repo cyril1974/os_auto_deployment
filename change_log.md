@@ -10,6 +10,7 @@
    - Implemented `get_redfish_version()` to identify BMC firmware capabilities.
    - Added `_resolve_event_gen()` to dynamically switch between Gen-6 and Gen-7 SEL prefixes based on the Redfish version (Gate: `1.17.0`).
    - Standardized `LOG_FETCH_API` and `EventLogPrefix` as generation-keyed dictionaries in `constants.py`.
+   - **Feature (Gen-7):** Automated retrieval of forensic markers from **`AdditionalDataURI`** for Gen-7 systems. The engine now detects if the `SENSOR_DATA` is stored externally and performs an authenticated GET to recover the payload for real-time monitoring.
 
 2. **Binary-less IPMI Logging (ipmi_start_logger.py):**
    - Enhanced the Python-based IOCTL logger to support multi-byte payloads (up to 3 bytes).

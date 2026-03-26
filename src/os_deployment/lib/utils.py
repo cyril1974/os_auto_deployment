@@ -349,15 +349,34 @@ def _resolve_event_gen() -> str:
                 pass  # unparseable version — keep gen=7
     return gen
 
-def filter_custom_event(data):
+def filter_custom_event(data, target=None, auth=None):
     gen = _resolve_event_gen()
     prefix = constants.EventLogPrefix[gen]
-    return [
-        item for item in data
-        if "SEL Entry Added" in item.get("Message", "")
-        and (msg := item["Message"].split(":")[-1].strip()).startswith(prefix)
-        and len(msg) > len(prefix)
-    ]
+    
+    filtered = []
+    for item in data:
+        if "SEL Entry Added" in item.get("Message", ""):
+            msg_parts = item["Message"].split(":")
+            if len(msg_parts) > 1:
+                msg = msg_parts[-1].strip()
+                if msg.startswith(prefix):
+                    # For Gen-7 with newer firmware, raw data might be in AdditionalDataURI
+                    if gen == "7" and "AdditionalDataURI" in item and target and auth:
+                        try:
+                            # Construct the full URL for the additional data
+                            url = f"https://{target}{item['AdditionalDataURI']}"
+                            # Use the existing requests session/timeout parameters
+                            response = requests.get(url, headers=auth, verify=False, timeout=5)
+                            if response.status_code == 200:
+                                add_data = response.json()
+                                if "SENSOR_DATA" in add_data:
+                                    # Attach SENSOR_DATA to the item for decoding in main.py
+                                    item["SENSOR_DATA"] = add_data["SENSOR_DATA"]
+                        except Exception:
+                            # Fail gracefully if the URI is unreachable
+                            pass
+                    filtered.append(item)
+    return filtered
 def filter_message_event(data,search_for):
     return [
         item for item in data

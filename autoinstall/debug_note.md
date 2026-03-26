@@ -369,3 +369,10 @@ The previous update changed the EventLog retrieval logic to use gen-keyed dictio
 1. Hardened `constants.py` by converting `EventLogPrefix` into a generation-keyed dictionary.
 2. Verified the fix by clearing all `__pycache__` artifacts and ensuring standard dictionary access works.
 3. Consolidated the IP Part 2 "13" offset in the `EventLogMessage` dictionary for consistent decoding.
+
+### 2026-03-26 - Gen-7 AdditionalData Integration
+**Issue:** On Gen-7 systems with newer firmware, the `Message` field only contains the forensic prefix, while the actual marker (e.g. `AA`, `01`, `03`) is stored in an external `AdditionalDataURI` endpoint.
+**Fix:** 
+1. Enhanced `filter_custom_event` to take `target` and `auth` credentials.
+2. Added a GET request to `AdditionalDataURI` within the filter loop for Gen-7 events.
+3. Successfully combined the base Message with the retrieved `SENSOR_DATA` to restore the complete forensic payload for the monitor.

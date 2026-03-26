@@ -383,7 +383,7 @@ def main():
                pass
             
             result = utils.getSystemEventLog(bmcip,auth_string,from_timestamp)
-            export = utils.filter_custom_event(result)
+            export = utils.filter_custom_event(result, bmcip, auth_string)
             # print(f"Get {len(result)} Event Log from {from_timestamp}")
             # print(f"Export {len(export)} Event Log from {from_timestamp}")
             # print(f"{export}")
@@ -394,7 +394,13 @@ def main():
                 # if int(item["Id"]) >last_log_id:
                 if item["Id"] >last_log_id:
                     eventTime = item["Created"][:19]
-                    eventMessage = str(item["Message"]).split(":")[1].strip()
+                    eventMessage_raw = str(item["Message"]).split(":")[-1].strip()
+                    # If gen 7, we might have SENSOR_DATA from AdditionalDataURI
+                    if "SENSOR_DATA" in item:
+                        eventMessage = eventMessage_raw + item["SENSOR_DATA"]
+                    else:
+                        eventMessage = eventMessage_raw
+
                     eventString = utils.decode_event(eventMessage)
                     #if eventMessage[-6:] == "00000A" and use_enquit
                     # dpoint != "":
@@ -403,10 +409,10 @@ def main():
                     if eventMessage[-6:-4] == "03":        
                         IP[0] = str(int(eventMessage[-4:-2], 16))
                         IP[1] = str(int(eventMessage[-2:], 16))
-                    if eventMessage[-6:-4] == "04":        
+                    if eventMessage[-6:-4] in ["04", "13"]:        
                         IP[2] = str(int(eventMessage[-4:-2], 16))
                         IP[3] = str(int(eventMessage[-2:], 16))
-                    if eventMessage[-6:-4] in ["03","04"] and all(x != "NA" for x in IP):
+                    if eventMessage[-6:-4] in ["03","04","13"] and all(x != "NA" for x in IP):
                         print(f"IP Address : {IP[0]}.{IP[1]}.{IP[2]}.{IP[3]}")
                     if eventMessage[-6:-4] == "05":
                         text1 = chr(int(eventMessage[-4:-2], 16))
