@@ -1,4 +1,18 @@
-# Change Log - os_auto_deployment
+## 2026-03-26: Forensic Stability and IP Reporting Fixes (v2-rev42)
+
+### Major Changes:
+
+1.  **IP Address Reporting Hardening:**
+    - Modified ISO build script to use a more robust `awk -F.` + `eval` pattern for extracting IP octets from `hostname -I`.
+    - This update addresses a bug where Octet 4 was incorrectly captured as `0` on systems with multiple network interfaces or trailing whitespace.
+    - Added comprehensive escaping for `$` variables (`\$1`, etc.) within the recursive heredoc structure of the `late-commands` block.
+
+2.  **Forensic Payload Reconstruction Fix (`main.py`):**
+    - Corrected the concatenation logic in the monitoring engine to include the **full 6-character `SENSOR_DATA`** (Marker + Byte1 + Byte2).
+    - This ensures that the `StatusCode` parser (`[-6:-4]`) correctly identifies forensic markers even when they are fetched from external Redfish URIs (Gen-7 systems).
+
+3.  **Persistence:**
+    - Documented all debug steps and root cause analysis in **`main_debug_note.md`**.
 
 ---
 
