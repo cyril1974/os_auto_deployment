@@ -49,6 +49,7 @@
    - Standardized on `0x13` for IP Part 2 offset to avoid "PEF Action" label collisions in generic IPMI viewers.
    - Added ASCII decoding for the `0x05` Audit Marker (converting hex payload `4f4b` to `OK`).
    - Implemented `clear_postcode_log()` in `reboot.py` to ensure a clean forensic baseline for Gen-7 deployments.
+   - **Hardening:** Added IP address reporting to **`error-commands`**; ensure the BMC captures the node's final IP identity even during deployment failures (`0xEE` abort signal).
 
 4. **Reliability and Timeout Tuning:**
    - Doubled deployment timeouts (`REBOOT_TIMEOUT`: 1200s, `PROCESS_TIMEOUT`: 7200s) to accommodate Gen-7 hardware initialization.

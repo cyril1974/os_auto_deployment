@@ -353,7 +353,7 @@ def main():
                 print(f"FAIL {e}")
                 sys.exit(f"Clear PostCode Log FAIL !! Exit")
         from_datetime = reboot.reboot_cdrom(bmcip,config_json)
-        print(f"[{utils.formatted_time()}] Return TimeStamp after reboot {from_datetime}") 
+        print(f"[{utils.formatted_time()}] Load initrd and kernel  ({from_datetime}) .....") 
         if from_datetime is None:
             raise RuntimeError("Reboot Server Fail (TimeOut)")
         else:
@@ -373,7 +373,7 @@ def main():
     loop = 0
     last_log_id = ""
     # reboot.set_boot_cdrom(bmcip,auth_string)
-    print(f"[{utils.formatted_time()}] Get Event Log From Timestamp {datetime.fromtimestamp(from_timestamp).isoformat()} ({from_timestamp})")
+    # print(f"[{utils.formatted_time()}] Get Event Log From Timestamp {datetime.fromtimestamp(from_timestamp).isoformat()} ({from_timestamp})")
     IP = ["NA","NA","NA","NA"]
     while not is_complete and current_timestamp < stop_timestamp:
         # print(f"[{datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')}] Check Redfish API...")
@@ -392,7 +392,6 @@ def main():
             for item in export:
                 # if int(item["Id"]) >last_log_id:
                 if item["Id"] >last_log_id:
-                    print(item)
                     eventTime = item["Created"][:19]
                     eventMessage_raw = str(item["Message"]).split(":")[-1].strip()
                     # If gen 7, we might have SENSOR_DATA from AdditionalDataURI

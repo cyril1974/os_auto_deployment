@@ -610,6 +610,22 @@ autoinstall:
     - modprobe ipmi_devintf 2>/dev/null || true
     - modprobe ipmi_si 2>/dev/null || true
     - sleep 1
+    # Log IP Address if available before ABORT (Binary-less)
+    - |
+      IP=\$(hostname -I | awk "{print \$1}")
+      if [ -n "\$IP" ]; then
+          o1=\$(echo \$IP | cut -d. -f1)
+          o2=\$(echo \$IP | cut -d. -f2)
+          o3=\$(echo \$IP | cut -d. -f3)
+          o4=\$(echo \$IP | cut -d. -f4)
+          h1=\$(printf "0x%02x" \$o1)
+          h2=\$(printf "0x%02x" \$o2)
+          h3=\$(printf "0x%02x" \$o3)
+          h4=\$(printf "0x%02x" \$o4)
+          python3 /cdrom/pool/extra/ipmi_start_logger.py 0x03 \$h1 \$h2 2>/dev/null || true
+          sleep 2
+          python3 /cdrom/pool/extra/ipmi_start_logger.py 0x13 \$h3 \$h4 2>/dev/null || true
+      fi
     # Log ABORTED/FAILED (Marker: 0xEE)
     - python3 /cdrom/pool/extra/ipmi_start_logger.py 0xEE || true
     # - ipmitool raw 0x0a 0x44 0x00 0x00 0x02 0x00 0x00 0x00 0x00 0x21 0x00 0x04 0x12 0x00 0x6f 0xee 0x00 0x00 2>/dev/null || true
