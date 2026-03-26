@@ -2,6 +2,45 @@
 
 ---
 
+## 2026-03-24 - 2026-03-26: Forensic Telemetry Hardening and Multi-Gen Support (v2-rev35 - v2-rev40)
+
+### Major Changes
+
+1. **Generation-Aware Redfish Engine:**
+   - Implemented `get_redfish_version()` to identify BMC firmware capabilities.
+   - Added `_resolve_event_gen()` to dynamically switch between Gen-6 and Gen-7 SEL prefixes based on the Redfish version (Gate: `1.17.0`).
+   - Standardized `LOG_FETCH_API` and `EventLogPrefix` as generation-keyed dictionaries in `constants.py`.
+
+2. **Binary-less IPMI Logging (ipmi_start_logger.py):**
+   - Enhanced the Python-based IOCTL logger to support multi-byte payloads (up to 3 bytes).
+   - Fully replaced `ipmitool` in the autoinstall ISO with the Python logger for:
+     - OS Installation Start/Complete
+     - IP Address Logging (Parts 1 & 2)
+     - Storage Verification Audits (OK/ER)
+
+3. **Observability and Forensic Accuracy:**
+   - Standardized on `0x13` for IP Part 2 offset to avoid "PEF Action" label collisions in generic IPMI viewers.
+   - Added ASCII decoding for the `0x05` Audit Marker (converting hex payload `4f4b` to `OK`).
+   - Implemented `clear_postcode_log()` in `reboot.py` to ensure a clean forensic baseline for Gen-7 deployments.
+
+4. **Reliability and Timeout Tuning:**
+   - Doubled deployment timeouts (`REBOOT_TIMEOUT`: 1200s, `PROCESS_TIMEOUT`: 7200s) to accommodate Gen-7 hardware initialization.
+   - Fixed a critical `TypeError` in `utils.py` caused by `EventLogPrefix` dictionary indexing.
+   - Removed stale `boot_count` loop guards in PostCode log retrieval.
+
+### Summary of File Changes (Recent)
+
+| File | Change | Description |
+|---|---|---|
+| `src/os_deployment/lib/constants.py` | Modified | Added gen-keyed dicts for APIs and Prefixes; fixed `TypeError` |
+| `src/os_deployment/lib/utils.py` | Modified | Redfish version gate logic; generation-aware event decoding |
+| `src/os_deployment/lib/reboot.py` | Added | PostCode log clearing via Redfish |
+| `src/os_deployment/main.py` | Modified | Integrated version detection, audit decoding, and log clearing |
+| `autoinstall/ipmi_start_logger.py`| Modified | Multi-byte payload support for IP/Audit logging |
+| `autoinstall/build-ubuntu-autoinstall-iso.sh` | Modified | Full transition to binary-less forensic logging |
+
+---
+
 ## 2026-03-19: Advanced Offline Integrations (Docker/K8s) and Subiquity Fixes
 
 **File:** `autoinstall/build-ubuntu-autoinstall-iso.sh` (Modified), `autoinstall/package_list` (Updated)
@@ -99,7 +138,10 @@
 
 ### Description
 
-Reverted the `updates` configuration in the autoinstall `user-data` from `none` to `security`. The `none` value (introduced on 2026-03-09 to skip unattended upgrades) is not a valid enum value in the Subiquity schemas for newer Ubuntu versions (like 24.04), causing a FATAL validation error during boot.
+1. **Malformed 'updates' Section:**
+   - **Problem:** Reverting to `updates: none` on 2026-03-09 caused a "Malformed autoinstall" validation error on newer Subiquity versions (specifically Ubuntu 24.04 and some 22.04 updates). The installer would halt and drop to a shell.
+   - **Fix:** Reverted `updates: none` back to `updates: security`.
+   - **Note:** To avoid long installation hangs during unattended upgrades when offline, the configuration relies on `apt: fallback: offline-install` (and optionally could use an empty security URI, though `offline-install` is generally sufficient).
 
 ---
 
@@ -111,7 +153,7 @@ Reverted the `updates` configuration in the autoinstall `user-data` from `none` 
 
 ### Description
 
-Added a new optional `--iso` command-line parameter that allows users to provide a path to a pre-built ISO file. When specified, the entire ISO generation process (autoinstall script execution) is bypassed, and the provided ISO is used directly for deployment.
+1. **Added a new optional `--iso` command-line parameter that allows users to provide a path to a pre-built ISO file.** When specified, the entire ISO generation process (autoinstall script execution) is bypassed, and the provided ISO is used directly for deployment.
 
 Additionally, `-O/--os` is now **conditionally required**: it is only required when `--iso` is not provided. When `--iso` is used, `-O` can be omitted since no ISO generation is needed.
 
@@ -266,42 +308,3 @@ BMC Auth Validation Failed: Authentication failed: invalid username or password 
 | `src/os_deployment/lib/reboot.py` | Modified | Renamed `reboot_uefi` → `reboot_cdrom` |
 | `src/os_deployment/main.py` | Modified | Uncommented `reboot` import; updated initial reboot call to `reboot_cdrom` |
 | `change_log.md` | Modified | Added boot target refactor entries |
-
----
-
-## 2026-03-24 - 2026-03-26: Forensic Telemetry Hardening and Multi-Gen Support (v2-rev35 - v2-rev40)
-
-### Major Changes
-
-1. **Generation-Aware Redfish Engine:**
-   - Implemented `get_redfish_version()` to identify BMC firmware capabilities.
-   - Added `_resolve_event_gen()` to dynamically switch between Gen-6 and Gen-7 SEL prefixes based on the Redfish version (Gate: `1.17.0`).
-   - Standardized `LOG_FETCH_API` and `EventLogPrefix` as generation-keyed dictionaries in `constants.py`.
-
-2. **Binary-less IPMI Logging (ipmi_start_logger.py):**
-   - Enhanced the Python-based IOCTL logger to support multi-byte payloads (up to 3 bytes).
-   - Fully replaced `ipmitool` in the autoinstall ISO with the Python logger for:
-     - OS Installation Start/Complete
-     - IP Address Logging (Parts 1 & 2)
-     - Storage Verification Audits (OK/ER)
-
-3. **Observability and Forensic Accuracy:**
-   - Standardized on `0x13` for IP Part 2 offset to avoid "PEF Action" label collisions in generic IPMI viewers.
-   - Added ASCII decoding for the `0x05` Audit Marker (converting hex payload `4f4b` to `OK`).
-   - Implemented `clear_postcode_log()` in `reboot.py` to ensure a clean forensic baseline for Gen-7 deployments.
-
-4. **Reliability and Timeout Tuning:**
-   - Doubled deployment timeouts (`REBOOT_TIMEOUT`: 1200s, `PROCESS_TIMEOUT`: 7200s) to accommodate Gen-7 hardware initialization.
-   - Fixed a critical `TypeError` in `utils.py` caused by `EventLogPrefix` dictionary indexing.
-   - Removed stale `boot_count` loop guards in PostCode log retrieval.
-
-### Summary of File Changes (Recent)
-
-| File | Change | Description |
-|---|---|---|
-| `src/os_deployment/lib/constants.py` | Modified | Added gen-keyed dicts for APIs and Prefixes; fixed `TypeError` |
-| `src/os_deployment/lib/utils.py` | Modified | Redfish version gate logic; generation-aware event decoding |
-| `src/os_deployment/lib/reboot.py` | Added | PostCode log clearing via Redfish |
-| `src/os_deployment/main.py` | Modified | Integrated version detection, audit decoding, and log clearing |
-| `autoinstall/ipmi_start_logger.py`| Modified | Multi-byte payload support for IP/Audit logging |
-| `autoinstall/build-ubuntu-autoinstall-iso.sh` | Modified | Full transition to binary-less forensic logging |
