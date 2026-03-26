@@ -365,8 +365,9 @@ echo "[*] Found ISO: $ORIG_ISO"
 # Generate a unique build ID based on datetime and random alphanumeric suffix to support parallel execution
 # Using mktemp -u to avoid SIGPIPE (141) errors associated with pipefail and /dev/urandom pipelines
 BUILD_ID="$(date +%Y%m%d%H%M%S)_$(mktemp -u XXXX)"
-WORKDIR="./workdir_custom_iso/${BUILD_ID}"
-OUT_ISO_DIR="./output_custom_iso/${BUILD_ID}"
+# Use absolute paths so xorriso subshell (which cd's into WORKDIR) can still find the output directory
+WORKDIR="$(pwd)/workdir_custom_iso/${BUILD_ID}"
+OUT_ISO_DIR="$(pwd)/output_custom_iso/${BUILD_ID}"
 
 echo "[*] Initializing unique build environment: ${BUILD_ID}"
 mkdir -p "$WORKDIR"
@@ -1091,7 +1092,7 @@ else
       -partition_offset 16
       -appended_part_as_gpt
       -iso_mbr_part_type a2a0d0ebe5b9334487c068b6b72699c7
-      -o "../$OUT_ISO" .
+      -o "$OUT_ISO" .
     )
 
     if [ -n "$BIOS_BOOT_IMG" ]; then
