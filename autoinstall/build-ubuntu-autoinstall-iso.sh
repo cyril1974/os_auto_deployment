@@ -362,21 +362,20 @@ echo "[*] Looking up ISO path for OS: $OS_NAME"
 ORIG_ISO=$(lookup_iso_path "$OS_NAME")
 echo "[*] Found ISO: $ORIG_ISO"
 
-WORKDIR="./workdir_custom_iso"
-echo "[*] Cleaning work directory..."
-rm -rf "$WORKDIR"
+# Generate a unique build ID based on datetime and random digits to support parallel execution
+BUILD_ID="$(date +%Y%m%d%H%M%S)_$((RANDOM % 9000 + 1000))"
+WORKDIR="./workdir_custom_iso/${BUILD_ID}"
+OUT_ISO_DIR="./output_custom_iso/${BUILD_ID}"
+
+echo "[*] Initializing unique build environment: ${BUILD_ID}"
 mkdir -p "$WORKDIR"
-OUT_ISO_DIR="./output_custom_iso"
-# Extract base filename and create autoinstall version with underscores
+mkdir -p "$OUT_ISO_DIR"
+
+# Extract base filename and create autoinstall version
 ISO_BASENAME=$(basename "$ORIG_ISO" .iso)
 TIMESTAMP=$(date +%Y%m%d%H%M)
 ISO_AUTOINSTALL="${ISO_BASENAME//-/_}_autoinstall_${TIMESTAMP}.iso"
 OUT_ISO="${OUT_ISO_DIR}/${ISO_AUTOINSTALL}"
-
-echo "[*] Clean Work directory and Output Folder"
-rm -rf ${WORKDIR}
-rm -rf ${OUT_ISO_DIR}
-mkdir -p ${OUT_ISO_DIR}
 
 
 if [ ! -f "$ORIG_ISO" ]; then

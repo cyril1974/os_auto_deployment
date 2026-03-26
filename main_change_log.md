@@ -52,7 +52,8 @@
    - **Hardening:** Added IP address reporting to **`error-commands`**; ensure the BMC captures the node's final IP identity even during deployment failures (`0xEE` abort signal).
    - **Persistence:** Enabled locally persistent logging of all IPMI commands and results; the ISO-side `ipmi_start_logger.py` now appends to `/var/log/ipmi_telemetry.log`, and this file is copied to `/target/var/log/` upon a successful installation for post-deployment review.
 
-4. **Reliability and Timeout Tuning:**
+4. **Reliability and Parallelism:**
+   - **Parallel Construction:** Modified ISO build script to use unique **`BUILD_ID`** (Timestamp + Random suffix) for both `WORKDIR` and `OUT_ISO_DIR`. This safely supports multiple concurrent ISO generations on the same host without directory collision or race conditions.
    - Doubled deployment timeouts (`REBOOT_TIMEOUT`: 1200s, `PROCESS_TIMEOUT`: 7200s) to accommodate Gen-7 hardware initialization.
    - Fixed a critical `TypeError` in `utils.py` caused by `EventLogPrefix` dictionary indexing.
    - Removed stale `boot_count` loop guards in PostCode log retrieval.
