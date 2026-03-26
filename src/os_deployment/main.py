@@ -374,7 +374,7 @@ def main():
     last_log_id = ""
     # reboot.set_boot_cdrom(bmcip,auth_string)
     print(f"[{utils.formatted_time()}] Get Event Log From Timestamp {datetime.fromtimestamp(from_timestamp).isoformat()} ({from_timestamp})")
-    
+    IP = ["NA","NA","NA","NA"]
     while not is_complete and current_timestamp < stop_timestamp:
         # print(f"[{datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')}] Check Redfish API...")
         if utils.check_redfish_api(bmcip,auth_string): 
@@ -389,21 +389,23 @@ def main():
             # print(f"{export}")
             # check_power_restore = utils.filter_message_event(result,constants.POWER_RESTORE_EVENT)
             currentID =last_log_id 
-            IP = ["NA","NA","NA","NA"]
             for item in export:
                 # if int(item["Id"]) >last_log_id:
                 if item["Id"] >last_log_id:
+                    print(item)
                     eventTime = item["Created"][:19]
                     eventMessage_raw = str(item["Message"]).split(":")[-1].strip()
                     # If gen 7, we might have SENSOR_DATA from AdditionalDataURI
                     if "SENSOR_DATA" in item:
-                        eventMessage = eventMessage_raw + item["SENSOR_DATA"]
+                        eventMessage = eventMessage_raw + item["SENSOR_DATA"][-4:]
                     else:
                         eventMessage = eventMessage_raw
 
                     eventString = utils.decode_event(eventMessage)
                     #if eventMessage[-6:] == "00000A" and use_enquit
                     # dpoint != "":
+
+                    StatusCode = eventMessage[-6:-4]
                     if eventMessage[-6:-4] in ["AA","EE"]:
                         is_complete = True
                     if eventMessage[-6:-4] == "03":        
@@ -419,7 +421,7 @@ def main():
                         text2 = chr(int(eventMessage[-2:], 16))
                         audit_result = text1 + text2
                         print(f"Audit Result : {audit_result}")
-                    print(f"[{eventTime}] {eventString}")
+                    print(f"[{eventTime}] {eventString} (Event : {eventMessage}) (Code : {StatusCode})")
                 currentID = item["Id"]      
             last_log_id = currentID   
         else:

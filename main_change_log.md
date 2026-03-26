@@ -2,6 +2,32 @@
 
 ---
 
+## 2026-03-26: Gen-7 Forensic Payload Reconstruction and Monitoring Persistence (v2-rev41)
+
+### Major Changes
+
+1. **Forensic Payload Reconstruction (main.py):**
+   - Implemented Gen-7 payload reconstruction by concatenating the base `EventLog` prefix with the retrieved `SENSOR_DATA`.
+   - Optimized payload slicing to specifically use `SENSOR_DATA[-4:]` for marker data, ensuring compatibility with newer Gen-7 firmware formats.
+   - Added `StatusCode` extraction logic (`eventMessage[-6:-4]`) to reliably identify forensic milestones.
+
+2. **Monitoring Logic Improvements:**
+   - **Persistence:** Moved the `IP` address state variable (`IP = ["NA","NA","NA","NA"]`) outside the monitoring loop. This ensures that IP octets captured in early log fetches persist in the dashboard even if subsequent fetches only contain the "Completed" signal.
+   - **Observability:** Added raw event logging (`print(item)`) and enhanced the deployment console output to include both the human-readable string and the raw `Event` hex and `Code`.
+
+3. **Standardized Redfish Retrieval (utils.py):**
+   - Refactored `filter_custom_event` to use the centralized `redfish_get_request` helper for fetching `AdditionalDataURI` content. This ensures consistent handling of authentication, SSL verification, and timeouts.
+   - Added explicit error logging (`Get Sensor Data Fail !!`) for better field diagnostics when the BMC's external data endpoint is unreachable.
+
+### Summary of File Changes
+
+| File | Change | Description |
+|---|---|---|
+| `src/os_deployment/main.py` | Modified | Persistence of IP state; payload reconstruction logic (`[-4:]`); enhanced logging |
+| `src/os_deployment/lib/utils.py` | Modified | Switched to `redfish_get_request` for forensic data fetching; added error diagnostics |
+
+---
+
 ## 2026-03-24 - 2026-03-26: Forensic Telemetry Hardening and Multi-Gen Support (v2-rev35 - v2-rev40)
 
 ### Major Changes

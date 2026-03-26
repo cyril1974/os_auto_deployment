@@ -352,30 +352,42 @@ def _resolve_event_gen() -> str:
 def filter_custom_event(data, target=None, auth=None):
     gen = _resolve_event_gen()
     prefix = constants.EventLogPrefix[gen]
-    
     filtered = []
+
     for item in data:
-        if "SEL Entry Added" in item.get("Message", ""):
-            msg_parts = item["Message"].split(":")
-            if len(msg_parts) > 1:
-                msg = msg_parts[-1].strip()
-                if msg.startswith(prefix):
-                    # For Gen-7 with newer firmware, raw data might be in AdditionalDataURI
-                    if gen == "7" and "AdditionalDataURI" in item and target and auth:
-                        try:
-                            # Construct the full URL for the additional data
-                            url = f"https://{target}{item['AdditionalDataURI']}"
-                            # Use the existing requests session/timeout parameters
-                            response = requests.get(url, headers=auth, verify=False, timeout=5)
-                            if response.status_code == 200:
-                                add_data = response.json()
-                                if "SENSOR_DATA" in add_data:
-                                    # Attach SENSOR_DATA to the item for decoding in main.py
-                                    item["SENSOR_DATA"] = add_data["SENSOR_DATA"]
-                        except Exception:
-                            # Fail gracefully if the URI is unreachable
-                            pass
-                    filtered.append(item)
+        message = item.get("Message", "")
+        if "SEL Entry Added" not in message:
+            continue
+
+        msg_parts = message.split(":")
+        if len(msg_parts) < 2:
+            continue
+
+        payload = msg_parts[-1].strip()
+        if not payload.startswith(prefix):
+            continue
+
+        # For Gen-7 with newer firmware, raw markers may be in AdditionalDataURI
+        # We fetch it now so main.py doesn't have to worry about connectivity.
+        data_uri = item.get("AdditionalDataURI")
+        if gen == "7" and data_uri and target and auth:
+            try:
+                url = f"https://{target}{data_uri}"
+                # print(f"{item.get('Id', '')}: {url}")
+                # resp = requests.get(url, headers=auth, verify=False, timeout=5)
+                resp = redfish_get_request(url, bmc_ip=target, auth=auth)
+                # print(f"{resp.status_code}")
+                # print(f"{resp.json()}")
+                if resp.status_code == 200:
+                    sensor_data = resp.json().get("SENSOR_DATA")
+                    if sensor_data:
+                        item["SENSOR_DATA"] = sensor_data
+            except Exception as e:
+                print(f"Get Sensor Data Fail !! {e}")
+            #    pass  # Fail gracefully if URI is unreachable
+
+        filtered.append(item)
+
     return filtered
 def filter_message_event(data,search_for):
     return [
