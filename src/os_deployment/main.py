@@ -396,7 +396,9 @@ def main():
                     eventMessage_raw = str(item["Message"]).split(":")[-1].strip()
                     # If gen 7, we might have SENSOR_DATA from AdditionalDataURI
                     if "SENSOR_DATA" in item:
-                        eventMessage = eventMessage_raw + item["SENSOR_DATA"][-4:]
+                        # Concatenate full 6-character payload (Marker + 2 Bytes) to ensure indexing works
+                        # eventMessage_raw typically ends with the forensic prefix
+                        eventMessage = eventMessage_raw + item["SENSOR_DATA"]
                     else:
                         eventMessage = eventMessage_raw
 
@@ -413,7 +415,7 @@ def main():
                     if eventMessage[-6:-4] in ["04", "13"]:        
                         IP[2] = str(int(eventMessage[-4:-2], 16))
                         IP[3] = str(int(eventMessage[-2:], 16))
-                    if eventMessage[-6:-4] in ["03","04","13"] and all(x != "NA" for x in IP):
+                    if eventMessage[-6:-4] in ["13"] and all(x != "NA" for x in IP):
                         print(f"IP Address : {IP[0]}.{IP[1]}.{IP[2]}.{IP[3]}")
                     if eventMessage[-6:-4] == "05":
                         text1 = chr(int(eventMessage[-4:-2], 16))

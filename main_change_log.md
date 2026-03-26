@@ -54,6 +54,8 @@
 
 4. **Reliability and Parallelism:**
    - **Parallel Construction:** Modified ISO build script to use unique **`BUILD_ID`** (Timestamp + Random suffix) for both `WORKDIR` and `OUT_ISO_DIR`. This safely supports multiple concurrent ISO generations on the same host without directory collision or race conditions.
+   - **Forensic Stability:** Optimized IP octet extraction in the autoinstall script using `awk` and `eval` to prevent field-parsing errors on nodes with multiple network interfaces.
+   - **Gen-7 Reconstruction Fix:** Corrected `main.py` to use the full `SENSOR_DATA` payload during forensic reconstruction, ensuring marker bytes are never truncated during decoding.
    - Doubled deployment timeouts (`REBOOT_TIMEOUT`: 1200s, `PROCESS_TIMEOUT`: 7200s) to accommodate Gen-7 hardware initialization.
    - Fixed a critical `TypeError` in `utils.py` caused by `EventLogPrefix` dictionary indexing.
    - Removed stale `boot_count` loop guards in PostCode log retrieval.

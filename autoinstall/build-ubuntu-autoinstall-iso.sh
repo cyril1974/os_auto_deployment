@@ -613,17 +613,17 @@ autoinstall:
     - |
       IP=\$(hostname -I | awk "{print \$1}")
       if [ -n "\$IP" ]; then
-          o1=\$(echo \$IP | cut -d. -f1)
-          o2=\$(echo \$IP | cut -d. -f2)
-          o3=\$(echo \$IP | cut -d. -f3)
-          o4=\$(echo \$IP | cut -d. -f4)
-          h1=\$(printf "0x%02x" \$o1)
-          h2=\$(printf "0x%02x" \$o2)
-          h3=\$(printf "0x%02x" \$o3)
-          h4=\$(printf "0x%02x" \$o4)
-          python3 /cdrom/pool/extra/ipmi_start_logger.py 0x03 \$h1 \$h2 2>/dev/null || true
+          # Split IP into 4 octets robustly
+          eval \$(echo "\$IP" | awk -F. "{printf \"o1=%s; o2=%s; o3=%s; o4=%s\", \$1, \$2, \$3, \$4}")
+          
+          h1=\$(printf "0x%02x" "\$o1" 2>/dev/null || echo "0x00")
+          h2=\$(printf "0x%02x" "\$o2" 2>/dev/null || echo "0x00")
+          h3=\$(printf "0x%02x" "\$o3" 2>/dev/null || echo "0x00")
+          h4=\$(printf "0x%02x" "\$o4" 2>/dev/null || echo "0x00")
+          
+          python3 /cdrom/pool/extra/ipmi_start_logger.py 0x03 "\$h1" "\$h2" 2>/dev/null || true
           sleep 2
-          python3 /cdrom/pool/extra/ipmi_start_logger.py 0x13 \$h3 \$h4 2>/dev/null || true
+          python3 /cdrom/pool/extra/ipmi_start_logger.py 0x13 "\$h3" "\$h4" 2>/dev/null || true
       fi
     # Log ABORTED/FAILED (Marker: 0xEE)
     - python3 /cdrom/pool/extra/ipmi_start_logger.py 0xEE || true
@@ -686,24 +686,21 @@ autoinstall:
       curtin in-target --target=/target -- sh -c '
         IP=\$(hostname -I | awk "{print \$1}")
         if [ -n "\$IP" ]; then
-            # Split IP into 4 octets
-            o1=\$(echo \$IP | cut -d. -f1)
-            o2=\$(echo \$IP | cut -d. -f2)
-            o3=\$(echo \$IP | cut -d. -f3)
-            o4=\$(echo \$IP | cut -d. -f4)
+            # Split IP into 4 octets robustly
+            eval \$(echo "\$IP" | awk -F. "{printf \"o1=%s; o2=%s; o3=%s; o4=%s\", \$1, \$2, \$3, \$4}")
             
             # Convert to hex bytes
-            h1=\$(printf "0x%02x" \$o1)
-            h2=\$(printf "0x%02x" \$o2)
-            h3=\$(printf "0x%02x" \$o3)
-            h4=\$(printf "0x%02x" \$o4)
+            h1=\$(printf "0x%02x" "\$o1" 2>/dev/null || echo "0x00")
+            h2=\$(printf "0x%02x" "\$o2" 2>/dev/null || echo "0x00")
+            h3=\$(printf "0x%02x" "\$o3" 2>/dev/null || echo "0x00")
+            h4=\$(printf "0x%02x" "\$o4" 2>/dev/null || echo "0x00")
             
             # Part 1: IP Octets 1.2 (192.168)
-            python3 /cdrom/pool/extra/ipmi_start_logger.py 0x03 \$h1 \$h2 2>/dev/null || true
-            sleep 5
+            python3 /cdrom/pool/extra/ipmi_start_logger.py 0x03 "\$h1" "\$h2" 2>/dev/null || true
+            sleep 2
             # Part 2: IP Octets 3.4 (236.120)
-            python3 /cdrom/pool/extra/ipmi_start_logger.py 0x13 \$h3 \$h4 2>/dev/null || true
-            echo "[+] IP \$IP logged to SEL."
+            python3 /cdrom/pool/extra/ipmi_start_logger.py 0x13 "\$h3" "\$h4" 2>/dev/null || true
+            echo "[+] IP \$IP logged to SEL (Parts 0x03/0x13)."
         fi
       '
     # Write SEL entry - OS Installation Completed
