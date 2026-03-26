@@ -362,8 +362,8 @@ echo "[*] Looking up ISO path for OS: $OS_NAME"
 ORIG_ISO=$(lookup_iso_path "$OS_NAME")
 echo "[*] Found ISO: $ORIG_ISO"
 
-# Generate a unique build ID based on datetime and random digits to support parallel execution
-BUILD_ID="$(date +%Y%m%d%H%M%S)_$((RANDOM % 9000 + 1000))"
+# Generate a unique build ID based on datetime and random alphanumeric suffix to support parallel execution
+BUILD_ID="$(date +%Y%m%d%H%M%S)_$(LC_ALL=C tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c 4)"
 WORKDIR="./workdir_custom_iso/${BUILD_ID}"
 OUT_ISO_DIR="./output_custom_iso/${BUILD_ID}"
 
