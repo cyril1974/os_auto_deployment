@@ -78,21 +78,42 @@ def send_ipmi_raw(netfn, cmd, data):
     os.close(fd)
     return success
 
-if __name__ == "__main__":
-    data1_val = 0x01  # Default to "Start"
-    if len(sys.argv) > 1:
-        try:
-            val = sys.argv[1]
-            data1_val = int(val, 16) if val.startswith("0x") else int(val)
-        except ValueError: pass
+def parse_val(val):
+    try:
+        return int(val, 16) if str(val).startswith("0x") else int(val)
+    except (ValueError, TypeError):
+        return 0
 
-    # OS Installation Milestone Entry
+if __name__ == "__main__":
+    marker = 0x0f  # Default to Install Initiated
+    byte1  = 0x00
+    byte2  = 0x00
+
+    if len(sys.argv) > 1:
+        marker = parse_val(sys.argv[1])
+    if len(sys.argv) > 2:
+        byte1 = parse_val(sys.argv[2])
+    if len(sys.argv) > 3:
+        byte2 = parse_val(sys.argv[3])
+
+    # OS Installation Milestone Entry (Add SEL Entry)
     # NetFn: 0x0a (Storage), Cmd: 0x44 (Add SEL Entry)
     netfn = 0x0a
     cmd = 0x44
+    
+    # SEL Record Structure (Total 16 Bytes)
+    # 00-01: Record ID (0000 = dynamic)
+    # 02: Record Type (02 = System Event)
+    # 03-06: Timestamp (00000000 = dynamic)
+    # 07-08: Generator ID (0021 = software id)
+    # 09: Event Message Revision (04)
+    # 0a: Sensor Type (12 = System Event)
+    # 0b: Sensor Number (00)
+    # 0c: Event Direction/Type (6f = discrete sensor-specific)
+    # 0d-0f: Event Data 1, 2, 3 (Marker/Payload)
     data = [
         0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x21, 
-        0x00, 0x04, 0x12, 0x00, 0x6f, data1_val, 0x00, 0x00
+        0x00, 0x04, 0x12, 0x00, 0x6f, marker, byte1, byte2
     ]
     
     send_ipmi_raw(netfn, cmd, data)

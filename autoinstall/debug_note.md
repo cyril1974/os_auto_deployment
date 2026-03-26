@@ -349,3 +349,23 @@ During PostCode log debugging, it was found that stale entries from a previous b
 After live testing, the gen-7 hardware required significantly longer boot and installation windows. Timeouts were increased:
 - `REBOOT_TIMEOUT`: `300` → `1200` seconds (20 min)
 - `PROCESS_TIMEOUT`: `3600` → `7200` seconds (2 hours)
+
+---
+
+# Debug Note — Fixed TypeError on EventLogPrefix index
+**Date/Time:** 2026-03-26 09:10:00 (GMT+8)
+
+---
+
+### Symptom
+A `TypeError: string indices must be integers, not 'str'` fatal crash occurred in the deployment monitor:
+`File ".../lib/utils.py", line 354, in filter_custom_event`
+`prefix = constants.EventLogPrefix[gen]`
+
+### Diagnosis
+The previous update changed the EventLog retrieval logic to use gen-keyed dictionaries for `LOG_FETCH_API` and `EventLogPrefix` to handle architectural differences between gen-6 and gen-7. However, `constants.EventLogPrefix` was still defined as a single string in the actual `constants.py` file, leading to the indexing error when accessed with string key `"6"` or `"7"`.
+
+### Resolution (v2-rev40)
+1. Hardened `constants.py` by converting `EventLogPrefix` into a generation-keyed dictionary.
+2. Verified the fix by clearing all `__pycache__` artifacts and ensuring standard dictionary access works.
+3. Consolidated the IP Part 2 "13" offset in the `EventLogMessage` dictionary for consistent decoding.

@@ -1387,3 +1387,25 @@ Both `filter_custom_event` and `decode_event` call `_resolve_event_gen()` instea
 | `src/os_deployment/main.py` | Modified | Fetch + store + print Redfish version after gen detect |
 | `src/os_deployment/main.py` | Modified | `clear_postcode_log` called before reboot (gen-7 only) |
 | `src/os_deployment/main.py` | Modified | Commented out redundant `set_boot_cdrom` in monitor loop |
+
+---
+
+## v2-rev40 — Hardened Multi-Gen Event Decoding (IPMI Start Logger Integration)
+**Date:** 2026-03-26
+
+### Problem — EventLogPrefix TypeError
+A `TypeError` occurred when attempting to decode SEL entries because `constants.EventLogPrefix` was accessed as a dictionary (`[gen]`) but still defined as a raw string. 
+
+### Solution
+1. **`constants.py`**: Properly defined `EventLogPrefix` as a generation-keyed dictionary.
+2. **`EventLogMessage`**: Added the `"13"` offset label to match the new IP Part 2 marker.
+3. Updated `ipmi_start_logger.py` to support multi-byte payloads (marker, byte1, byte2) for binary-less IP logging.
+4. Integrated `ipmi_start_logger.py` into the `late-commands` of `build-ubuntu-autoinstall-iso.sh` to log the final IP address using binary-less IOCTLs instead of `ipmitool`.
+
+### Summary of File Changes
+| File | Change Type | Description |
+|---|---|---|
+| `autoinstall/ipmi_start_logger.py` | Modified | Support for multi-argument payloads (marker, b1, b2) |
+| `autoinstall/build-ubuntu-autoinstall-iso.sh` | Modified | Use `ipmi_start_logger.py` for all IP/completion logging |
+| `src/os_deployment/lib/constants.py` | Modified | Fixed `EventLogPrefix` dictionary structure |
+| `src/os_deployment/lib/constants.py` | Modified | Added `"13"` key to `EventLogMessage` |
