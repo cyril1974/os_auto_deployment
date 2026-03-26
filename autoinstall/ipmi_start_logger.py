@@ -3,6 +3,7 @@ import os
 import fcntl
 import ctypes
 import sys
+from datetime import datetime
 
 # Constants for IPMI IOCTL (Standard for x64)
 # Some kernels use 0x8028690d (_IOR), others 0x4028690d (_IOW)
@@ -84,6 +85,27 @@ def parse_val(val):
     except (ValueError, TypeError):
         return 0
 
+def log_command_execution(marker, b1, b2, success):
+    """Logs the command results to a persistent file for post-install review."""
+    log_paths = ["/var/log/ipmi_telemetry.log", "/tmp/ipmi_telemetry.log"]
+    timestamp = datetime.now().isoformat()
+    status = "SUCCESS" if success else "FAILED"
+    payload = f"0x{marker:02x} 0x{b1:02x} 0x{b2:02x}"
+    log_line = f"[{timestamp}] IPMI Entry: {payload} | Status: {status}\n"
+    
+    for path in log_paths:
+        try:
+            # Check if directory exists
+            dir_name = os.path.dirname(path)
+            if not os.path.exists(dir_name):
+                continue
+            with open(path, "a") as f:
+                f.write(log_line)
+            return True
+        except Exception:
+            continue
+    return False
+
 if __name__ == "__main__":
     marker = 0x0f  # Default to Install Initiated
     byte1  = 0x00
@@ -101,19 +123,13 @@ if __name__ == "__main__":
     netfn = 0x0a
     cmd = 0x44
     
-    # SEL Record Structure (Total 16 Bytes)
-    # 00-01: Record ID (0000 = dynamic)
-    # 02: Record Type (02 = System Event)
-    # 03-06: Timestamp (00000000 = dynamic)
-    # 07-08: Generator ID (0021 = software id)
-    # 09: Event Message Revision (04)
-    # 0a: Sensor Type (12 = System Event)
-    # 0b: Sensor Number (00)
-    # 0c: Event Direction/Type (6f = discrete sensor-specific)
-    # 0d-0f: Event Data 1, 2, 3 (Marker/Payload)
+    # SEL Record Structure (Marker/Payload)
     data = [
         0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x21, 
         0x00, 0x04, 0x12, 0x00, 0x6f, marker, byte1, byte2
     ]
     
-    send_ipmi_raw(netfn, cmd, data)
+    success = send_ipmi_raw(netfn, cmd, data)
+    log_command_execution(marker, byte1, byte2, success)
+    
+    sys.exit(0 if success else 1)

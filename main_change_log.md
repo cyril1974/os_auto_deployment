@@ -50,6 +50,7 @@
    - Added ASCII decoding for the `0x05` Audit Marker (converting hex payload `4f4b` to `OK`).
    - Implemented `clear_postcode_log()` in `reboot.py` to ensure a clean forensic baseline for Gen-7 deployments.
    - **Hardening:** Added IP address reporting to **`error-commands`**; ensure the BMC captures the node's final IP identity even during deployment failures (`0xEE` abort signal).
+   - **Persistence:** Enabled locally persistent logging of all IPMI commands and results; the ISO-side `ipmi_start_logger.py` now appends to `/var/log/ipmi_telemetry.log`, and this file is copied to `/target/var/log/` upon a successful installation for post-deployment review.
 
 4. **Reliability and Timeout Tuning:**
    - Doubled deployment timeouts (`REBOOT_TIMEOUT`: 1200s, `PROCESS_TIMEOUT`: 7200s) to accommodate Gen-7 hardware initialization.

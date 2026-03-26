@@ -739,6 +739,10 @@ autoinstall:
             python3 /cdrom/pool/extra/ipmi_start_logger.py 0x05 0x45 0x52 2>/dev/null || true
         fi
       '
+    # Persistence: Copy forensic logs to the installed system for review
+    - cp /var/log/ipmi_telemetry.log /target/var/log/ipmi_telemetry.log 2>/dev/null || true
+    - cp /tmp/ipmi_telemetry.log /target/var/log/ipmi_telemetry.log 2>/dev/null || true
+    - cp /var/log/install_disk_audit.log /target/var/log/install_disk_audit.log 2>/dev/null || true
 EOF
 
 if [ "$IS_1804" = true ]; then
