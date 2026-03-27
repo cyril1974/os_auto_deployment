@@ -1,3 +1,221 @@
+# Debug Note - Installation Failure on 10.99.236.95 (YAML Syntax Error)
+**Date/Time:** 2026-03-27 14:35:00 (GMT+8)
+
+---
+
+### Symptom
+Installation crashed immediately after boot with subiquity showing "ERROR" state. The installer never started the automated installation process.
+
+### Diagnosis Steps
+
+1. **SSH Connection to Live Environment:**
+   ```bash
+   sshpass -p 'ubuntu' ssh ubuntu-server@10.99.236.95
+   ```
+   - ✅ Successfully connected to Ubuntu 24.04.2 LTS
+   - ✅ System in live installer mode
+
+2. **Check Subiquity State:**
+   ```bash
+   sudo cat /run/subiquity/server-state
+   ```
+   Output: `ERROR`
+   - ❌ Installer in ERROR state, not WAITING or RUNNING
+
+3. **Check Installer Logs:**
+   ```bash
+   sudo tail -100 /var/log/installer/subiquity-server-debug.log | grep -i error
+   ```
+   **CRITICAL FINDING:**
+   ```
+   yaml.scanner.ScannerError: while scanning a block scalar
+     in "/autoinstall.yaml", line 195, column 7
+   expected a comment or a line break, but found 'H'
+     in "/autoinstall.yaml", line 195, column 14
+   ```
+
+4. **Read Traceback:**
+   ```bash
+   sudo cat /var/log/installer/subiquity-traceback.txt
+   ```
+   - Python traceback shows YAML parsing failure in `yaml.safe_load()`
+   - Error occurs when loading `/autoinstall.yaml`
+   - Line 195 contains invalid YAML syntax
+
+5. **Inspect Problematic Line:**
+   ```bash
+   sudo sed -n "190,200p" /autoinstall.yaml
+   ```
+   Line 195: `- |      HOST_IP=$(hostname -I | awk '{print $1}')`
+   - ❌ Block scalar `|` has content starting on the same line with spaces
+   - ❌ YAML expects newline after `|` before block content begins
+
+### Root Cause
+
+**YAML Syntax Error in late-commands IP Logging Block**
+
+In `build-ubuntu-autoinstall-iso.sh` at **line 706**, the YAML late-command uses incorrect pipe-literal syntax:
+
+```yaml
+- |\
+  HOST_IP=$(hostname -I | awk '{print $1}')
+```
+
+**Problem:** The `|\` (pipe with trailing backslash) creates malformed YAML:
+- The backslash is a shell line continuation character, NOT a YAML feature
+- When the heredoc processes this, it results in: `- |      HOST_IP=...` (pipe followed by spaces and content on same line)
+- YAML specification requires block scalar content to start on a **new line** after the `|` indicator
+- The parser expected a line break but found 'H' (from "HOST_IP")
+
+**YAML Block Scalar Rules:**
+```yaml
+# CORRECT - content on new line
+- |
+  echo "content here"
+
+# INCORRECT - content on same line with spaces
+- |      echo "content here"
+```
+
+### Resolution
+
+**Fix:** Remove the trailing backslash from the pipe literal indicator:
+
+```bash
+# Before (line 706):
+    - |\
+      HOST_IP=$(hostname -I | awk '{print $1}')
+
+# After (line 706):
+    - |
+      HOST_IP=$(hostname -I | awk '{print $1}')
+```
+
+**Why This Works:**
+- ✅ Content starts on new line after `|` (proper YAML syntax)
+- ✅ No trailing spaces or backslashes to confuse parser
+- ✅ Shell escaping (`\$`) still works correctly in heredoc
+- ✅ YAML parser successfully loads the autoinstall configuration
+
+### Verification
+
+To verify the fix works:
+1. Rebuild the ISO with the corrected build script
+2. Boot the new ISO and check logs: `sudo tail -f /var/log/installer/subiquity-server-debug.log`
+3. Should see: `DEBUG subiquity.server.server:724 load_autoinstall_config ... SUCCESS`
+4. Should NOT see: `yaml.scanner.ScannerError`
+
+**Impact:** This was a critical bug preventing **ALL** installations from starting. Any ISO built with the broken syntax would crash immediately upon boot.
+
+---
+
+# Debug Note - Interactive Install UI on 10.99.236.86 (Ubuntu 24.04.2)
+**Date/Time:** 2026-03-27 06:30:00 (GMT+8)
+
+---
+
+### Symptom
+The Ubuntu 24.04.2 autoinstall ISO unexpectedly showed the interactive installation UI instead of performing an automated installation. The installer appeared to be waiting for manual input at the initial screen.
+
+### Diagnosis Steps
+
+1. **SSH Connection to Live Environment:**
+   ```bash
+   sshpass -p 'ubuntu' ssh -o StrictHostKeyChecking=no ubuntu-server@10.99.236.86
+   ```
+   - Successfully connected to the installer environment
+   - Confirmed Ubuntu 24.04.2 LTS (Noble Numbat) was running
+   - System was in live installer mode, not fully installed
+
+2. **Boot Parameter Verification:**
+   ```bash
+   cat /proc/cmdline
+   ```
+   Output: `BOOT_IMAGE=/casper/vmlinuz boot=casper autoinstall ds=nocloud;s=/cdrom/autoinstall/ console=ttyS0,115200n8 console=tty0 ---`
+   - ✅ Boot parameters were correct
+   - ✅ `autoinstall` keyword present
+   - ✅ Data source correctly pointed to `/cdrom/autoinstall/`
+
+3. **ISO Content Verification:**
+   ```bash
+   ls -la /cdrom/autoinstall/
+   ```
+   - ✅ `user-data` exists and contains valid autoinstall config
+   - ✅ `meta-data` exists
+   - ✅ All required files present on the ISO
+
+4. **Cloud-init Status Check:**
+   ```bash
+   tail -n 100 /var/log/cloud-init.log
+   ```
+   Key findings:
+   - Cloud-init completed successfully
+   - DataSource recognized: `DataSourceNoCloud [seed=cmdline,/var/lib/cloud/seed/nocloud,/cdrom/autoinstall/]`
+   - No cloud-init errors detected
+
+5. **Subiquity Installer Log Analysis:**
+   ```bash
+   sudo grep -i "autoinstall\|interactive" /var/log/installer/subiquity-server-debug.log.4140
+   ```
+   **CRITICAL FINDINGS:**
+   ```
+   DEBUG subiquity.server.server:872 no autoinstall found in cloud-config
+   DEBUG subiquity.server.server:554 apply_autoinstall_config: skipping Locale as interactive
+   DEBUG subiquity.server.server:554 apply_autoinstall_config: skipping Filesystem as interactive
+   DEBUG subiquity.server.server:554 apply_autoinstall_config: skipping Identity as interactive
+   DEBUG subiquity.server.server:554 apply_autoinstall_config: skipping SSH as interactive
+   ```
+   - ❌ Subiquity did NOT recognize the autoinstall configuration
+   - ❌ ALL critical sections marked as "interactive"
+   - ❌ Installer fell back to manual mode
+
+6. **Configuration File Search:**
+   ```bash
+   sudo ls -la /autoinstall.yaml
+   sudo ls -la /run/subiquity/
+   ```
+   - ❌ `/autoinstall.yaml` did NOT exist at boot time
+   - ❌ No autoinstall config files found in `/run/subiquity/` when early-commands ran
+   - **ROOT CAUSE IDENTIFIED:** The `early-commands` tried to patch config files that didn't exist yet
+
+### Root Cause
+
+The `early-commands` in the autoinstall configuration attempted to replace the `__ID_SERIAL__` placeholder with the detected disk serial:
+
+```bash
+for cfg in /autoinstall.yaml /run/subiquity/autoinstall.yaml /run/subiquity/cloud.autoinstall.yaml; do
+    if [ -f "$cfg" ]; then
+        sed -i "s/__ID_SERIAL__/${serial}/g" "$cfg"
+    fi
+done
+```
+
+**Problem:** These files don't exist when `early-commands` execute because subiquity hasn't processed the autoinstall config yet. This created a race condition:
+
+1. Subiquity looks for `/autoinstall.yaml` → **NOT FOUND**
+2. Subiquity reads `/cdrom/autoinstall/user-data` → **Contains `__ID_SERIAL__` placeholder**
+3. Subiquity validates storage config → **FAILS** (invalid serial)
+4. Subiquity falls back to **INTERACTIVE MODE**
+5. `early-commands` run → **No files to patch** (too late)
+
+### Resolution
+
+**Solution:** Create `/autoinstall.yaml` symlink **during ISO build** pointing to `/cdrom/autoinstall/user-data`:
+
+```bash
+ln -sf /cdrom/autoinstall/user-data "$WORKDIR/autoinstall.yaml"
+```
+
+This ensures:
+- ✅ Subiquity finds the config at the expected `/autoinstall.yaml` location
+- ✅ `early-commands` can patch the symlink (which modifies the actual file)
+- ✅ Disk serial replacement happens BEFORE subiquity validates storage config
+- ✅ Automated installation proceeds without manual intervention
+
+**Implementation:** Modified `build-ubuntu-autoinstall-iso.sh` at line ~502 to create the symlink before writing user-data, and enhanced early-commands to explicitly patch `/autoinstall.yaml` first with debug logging to `/dev/console`.
+
+---
+
 # Debug Note - Autoinstall Failure on 10.99.236.85 (R2520G6 Server)
 **Date/Time:** 2026-03-18 10:15:00 (GMT+8)
 

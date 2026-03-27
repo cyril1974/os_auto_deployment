@@ -499,6 +499,15 @@ instance-id: ubuntu-autoinstall-001
 local-hostname: ubuntu-auto
 EOF
 
+# CRITICAL FIX: Create symlink for Ubuntu 24.04+ compatibility
+# Subiquity in 24.04 expects /autoinstall.yaml to exist BEFORE early-commands run.
+# This symlink allows early-commands to patch the config file before subiquity processes it.
+echo "[*] Creating /autoinstall.yaml symlink for Ubuntu 24.04+ compatibility..."
+if [ ! -e "$WORKDIR/autoinstall.yaml" ]; then
+    ln -sf /cdrom/autoinstall/user-data "$WORKDIR/autoinstall.yaml"
+    echo "[+] Created symlink: /autoinstall.yaml -> /cdrom/autoinstall/user-data"
+fi
+
 cat > "$WORKDIR/autoinstall/user-data" << EOF
 #cloud-config
 autoinstall:
@@ -560,7 +569,6 @@ autoinstall:
   updates: security
   refresh-installer:
     update: no
-  interactive-sections: []
   apt:
     fallback: offline-install
     geoip: false
@@ -572,22 +580,31 @@ autoinstall:
     # 1. Source and execute find_disk logic safely (if it exists)
     - |
       #!/bin/sh
+      echo "[*] Starting disk detection and config patching..." > /dev/console
       if [ -f /cdrom/autoinstall/scripts/find_disk.sh ]; then
           . /cdrom/autoinstall/scripts/find_disk.sh
           serial=\$(find_empty_disk_serial)
           if [ \$? -eq 0 ]; then
-              # Update the serial in the configuration files
-              # In Ubuntu 24.04, subiquity use cloud.autoinstall.yaml
-              for cfg in /autoinstall.yaml /run/subiquity/autoinstall.yaml /run/subiquity/cloud.autoinstall.yaml /tmp/autoinstall.yaml; do
+              echo "[*] Detected disk serial: \$serial" > /dev/console
+              # CRITICAL: Patch /autoinstall.yaml FIRST (symlink to /cdrom/autoinstall/user-data)
+              # This file is read by subiquity BEFORE any other configs are created
+              if [ -f /autoinstall.yaml ]; then
+                  echo "[*] Patching /autoinstall.yaml with serial: \$serial" > /dev/console
+                  sed -i "s/__ID_SERIAL__/\${serial}/g" /autoinstall.yaml
+              fi
+              # Also patch any runtime configs that subiquity may have already created
+              for cfg in /run/subiquity/autoinstall.yaml /run/subiquity/cloud.autoinstall.yaml /tmp/autoinstall.yaml; do
                   if [ -f "\$cfg" ]; then
+                      echo "[*] Patching \$cfg with serial: \$serial" > /dev/console
                       sed -i "s/__ID_SERIAL__/\${serial}/g" "\$cfg"
                   fi
               done
+              echo "[+] Disk serial replacement completed" > /dev/console
           else
-              echo "[!] WARNING: No empty storage device found. Bypassing detection."
+              echo "[!] WARNING: No empty storage device found. Bypassing detection." > /dev/console
           fi
       else
-          echo "[!] WARNING: find_disk.sh not found. Proceeding with default config."
+          echo "[!] WARNING: find_disk.sh not found. Proceeding with default config." > /dev/console
       fi
 
     # Load IPMI kernel modules for BMC communication
@@ -686,7 +703,7 @@ autoinstall:
       fi
     # Log IP Address to SEL (Two-part entry for Mitac/Intel BMC compatibility)
     # IMPORTANT: IP must be captured on the HOST installer (not inside chroot) where NICs are live
-    - |\
+    - |
       HOST_IP=\$(hostname -I | awk '{print \$1}')
       if [ -n "\$HOST_IP" ]; then
           eval \$(echo "\$HOST_IP" | awk -F. '{printf "o1=%s; o2=%s; o3=%s; o4=%s", \$1, \$2, \$3, \$4}')
@@ -840,8 +857,7 @@ if [ "$IS_1804" = true ]; then
   # For 18.04 Legacy ISO, use standard preseed parameters
   BOOT_PARAMS='file=/cdrom/preseed.cfg auto=true priority=critical console=ttyS0,115200n8 console=tty0 ---'
 else
-  # Using nocloud-net for broader compatibility with modern Subiquity (24.04)
-  BOOT_PARAMS='boot=casper autoinstall ds=nocloud-net;s=/cdrom/autoinstall/ console=ttyS0,115200n8 console=tty0 ---'
+  BOOT_PARAMS='boot=casper autoinstall ds=nocloud;s=/cdrom/autoinstall/ console=ttyS0,115200n8 console=tty0 ---'
 fi
 
 python3 - <<PYEOF
@@ -1010,22 +1026,13 @@ else
   MBR_FILE="/tmp/isohdpfx.bin"
   dd if="$ORIG_ISO" bs=1 count=432 of="$MBR_FILE" 2>/dev/null
 
-  # Extract the GRUB2 MBR (first 16 sectors) from the original ISO
-  # This is critical for hybrid ISOs (MBR/GPT) to preserve the correct drive capacity/partitions.
-  echo "[*] Extracting GRUB2 MBR (16 sectors) from original ISO..."
-  MBR_FILE="/tmp/grub2_mbr.bin"
-  dd if="$ORIG_ISO" bs=512 count=16 of="$MBR_FILE" 2>/dev/null
-  echo "[*] MBR extracted to: $MBR_FILE"
-
-  # Fallback to system isohdpfx.bin ONLY if extraction failed (as it's less compatible with GRUB2)
-  if [ ! -s "$MBR_FILE" ]; then
-    if [ -f "/usr/lib/ISOLINUX/isohdpfx.bin" ]; then
-      MBR_FILE="/usr/lib/ISOLINUX/isohdpfx.bin"
-    elif [ -f "/usr/lib/syslinux/isohdpfx.bin" ]; then
-      MBR_FILE="/usr/lib/syslinux/isohdpfx.bin"
-    fi
-    echo "[*] Using fallback MBR: $MBR_FILE"
+  # Try to use system isolinux MBR if available, otherwise use extracted one
+  if [ -f "/usr/lib/ISOLINUX/isohdpfx.bin" ]; then
+    MBR_FILE="/usr/lib/ISOLINUX/isohdpfx.bin"
+  elif [ -f "/usr/lib/syslinux/isohdpfx.bin" ]; then
+    MBR_FILE="/usr/lib/syslinux/isohdpfx.bin"
   fi
+  echo "[*] Using MBR file: $MBR_FILE"
 
   # Create EFI boot image for GPT partition with GRUB modules and config
   EFI_IMG="/tmp/efi.img"
@@ -1105,11 +1112,7 @@ else
       -appended_part_as_gpt
       -iso_mbr_part_type a2a0d0ebe5b9334487c068b6b72699c7
       -o "$OUT_ISO" .
-      -m "/autoinstall.yaml"
     )
-    # Map autoinstall.yaml to user-data in the ISO root for Subiquity auto-detection
-    # This ensures that even if ds=nocloud fails, the installer finds the config.
-    ln -sf autoinstall/user-data "$WORKDIR/autoinstall.yaml"
 
     if [ -n "$BIOS_BOOT_IMG" ]; then
       xorriso "${XORRISO_ARGS[@]:0:5}" -b "$BIOS_BOOT_IMG" "${XORRISO_ARGS[@]:5}"

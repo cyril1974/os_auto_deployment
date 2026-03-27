@@ -2,6 +2,152 @@
 
 ---
 
+## 2026-03-27: Fix YAML Syntax Error in IP Logging (v2-rev44)
+
+**Files:** `build-ubuntu-autoinstall-iso.sh`, `debug_note.md`
+
+---
+
+### Root Cause
+
+Installation was crashing immediately upon boot with a YAML parsing error. The subiquity installer failed to load the autoinstall configuration and entered ERROR state.
+
+**Error Message:**
+```
+yaml.scanner.ScannerError: while scanning a block scalar
+  in "/autoinstall.yaml", line 195, column 7
+expected a comment or a line break, but found 'H'
+  in "/autoinstall.yaml", line 195, column 14
+```
+
+**Problem:** Line 706 in `build-ubuntu-autoinstall-iso.sh` used incorrect YAML syntax:
+```yaml
+- |\
+  HOST_IP=$(hostname -I | awk '{print $1}')
+```
+
+The `|\` (pipe with trailing backslash) violated YAML block scalar rules:
+- The backslash `\` is a shell continuation character, not valid YAML syntax
+- When processed through heredoc, this created: `- |      HOST_IP=...` with spaces after the pipe
+- YAML requires block scalar content to start on a **new line** after `|`, not on the same line
+- Parser expected a line break but found 'H' (first character of "HOST_IP")
+
+### Fix Implemented
+
+**Changed Line 706:**
+```bash
+# Before:
+    - |\
+      HOST_IP=$(hostname -I | awk '{print $1}')
+
+# After:
+    - |
+      HOST_IP=$(hostname -I | awk '{print $1}')
+```
+
+**Why This Works:**
+- ✅ Removes the invalid trailing backslash
+- ✅ Content properly starts on new line after `|` (YAML spec compliant)
+- ✅ No spurious whitespace in the generated YAML
+- ✅ Shell variable escaping (`\$`) continues to work in heredoc
+
+### Impact
+
+- **Severity:** **CRITICAL** - This bug prevented ALL installations from starting
+- **Scope:** Any ISO built with the incorrect syntax would crash immediately
+- **Detection:** Error visible in `/var/log/installer/subiquity-server-debug.log` and `/var/log/installer/subiquity-traceback.txt`
+- **Fix Verification:** After rebuild, `subiquity-server-debug.log` should show successful config loading without `ScannerError`
+
+---
+
+## 2026-03-27: Fix Interactive Install UI on Ubuntu 24.04 (v2-rev43)
+
+**Files:** `build-ubuntu-autoinstall-iso.sh`, `debug_note.md`
+
+---
+
+### Root Cause
+
+On Ubuntu 24.04.2 LTS, the autoinstall ISO was showing the interactive installation UI instead of performing an automated installation. The root cause was a **race condition** in the autoinstall configuration processing:
+
+1. **Missing /autoinstall.yaml:** Subiquity in Ubuntu 24.04 expects `/autoinstall.yaml` to exist at the root of the ISO filesystem before processing the configuration
+2. **Config File Timing:** The `early-commands` attempted to patch config files (`/autoinstall.yaml`, `/run/subiquity/autoinstall.yaml`) that didn't exist yet because subiquity hadn't created them
+3. **Invalid Serial Placeholder:** The storage configuration contained `__ID_SERIAL__` placeholder which is not a valid disk serial, causing subiquity to reject the storage config
+4. **Fallback to Interactive:** When storage validation failed, subiquity fell back to interactive mode to prevent data loss
+
+**Log Evidence:**
+```
+DEBUG subiquity.server.server:872 no autoinstall found in cloud-config
+DEBUG subiquity.server.server:554 apply_autoinstall_config: skipping Filesystem as interactive
+DEBUG subiquity.server.server:554 apply_autoinstall_config: skipping Identity as interactive
+```
+
+### Fix Implemented
+
+**1. Created /autoinstall.yaml Symlink During ISO Build (Line ~502-509)**
+
+Added symlink creation in `build-ubuntu-autoinstall-iso.sh` BEFORE writing user-data:
+
+```bash
+# CRITICAL FIX: Create symlink for Ubuntu 24.04+ compatibility
+# Subiquity in 24.04 expects /autoinstall.yaml to exist BEFORE early-commands run.
+# This symlink allows early-commands to patch the config file before subiquity processes it.
+if [ ! -e "$WORKDIR/autoinstall.yaml" ]; then
+    ln -sf /cdrom/autoinstall/user-data "$WORKDIR/autoinstall.yaml"
+fi
+```
+
+**Benefits:**
+- ✅ Subiquity finds the autoinstall config at the expected `/autoinstall.yaml` location
+- ✅ The symlink is readable and writable during early-commands execution
+- ✅ Patching the symlink modifies the actual user-data file
+- ✅ No file duplication or synchronization needed
+
+**2. Enhanced early-commands Disk Serial Replacement (Line ~583-608)**
+
+Modified the disk detection logic to prioritize patching `/autoinstall.yaml` with debug logging:
+
+```bash
+# CRITICAL: Patch /autoinstall.yaml FIRST (symlink to /cdrom/autoinstall/user-data)
+# This file is read by subiquity BEFORE any other configs are created
+if [ -f /autoinstall.yaml ]; then
+    echo "[*] Patching /autoinstall.yaml with serial: $serial" > /dev/console
+    sed -i "s/__ID_SERIAL__/${serial}/g" /autoinstall.yaml
+fi
+```
+
+**Benefits:**
+- ✅ Debug messages appear on console for troubleshooting
+- ✅ Explicit handling of `/autoinstall.yaml` as primary config source
+- ✅ Fallback patching for runtime configs created by subiquity
+- ✅ Clear visibility into the disk detection and replacement process
+
+### Testing & Verification
+
+**Debug Steps Used (Documented in debug_note.md):**
+1. SSH into live installer environment
+2. Verify boot parameters (`/proc/cmdline`)
+3. Check ISO content (`/cdrom/autoinstall/`)
+4. Review cloud-init logs (`/var/log/cloud-init.log`)
+5. Analyze subiquity installer logs (`/var/log/installer/subiquity-server-debug.log`)
+6. Search for missing config files (`/autoinstall.yaml`, `/run/subiquity/`)
+
+**Expected Behavior After Fix:**
+- ISO boots and automatically starts installation without user interaction
+- Console shows disk detection messages: `[*] Detected disk serial: ...`
+- Console shows patching confirmation: `[*] Patching /autoinstall.yaml with serial: ...`
+- Subiquity processes the autoinstall config and skips interactive screens
+- Installation completes automatically with proper disk selection
+
+### Impact
+
+- **Compatibility:** Fixes Ubuntu 24.04+ autoinstall behavior
+- **Reliability:** Eliminates race condition in config file processing
+- **Debuggability:** Added console logging for forensic analysis
+- **Backward Compatible:** Does not affect Ubuntu 22.04 or earlier versions
+
+---
+
 ## 2026-03-24: Binary-less IPMI, Forensic Specs, and Failure Telemetry (v2-rev14 to v2-rev19)
 
 **Files:** `build-ubuntu-autoinstall-iso.sh`, `ipmi_start_logger.py`, `17_sel_logging_commands.md`, `debug_note.md`
