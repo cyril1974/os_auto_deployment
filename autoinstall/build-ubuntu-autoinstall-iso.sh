@@ -560,6 +560,7 @@ autoinstall:
   updates: security
   refresh-installer:
     update: no
+  interactive-sections: []
   apt:
     fallback: offline-install
     geoip: false
@@ -839,7 +840,8 @@ if [ "$IS_1804" = true ]; then
   # For 18.04 Legacy ISO, use standard preseed parameters
   BOOT_PARAMS='file=/cdrom/preseed.cfg auto=true priority=critical console=ttyS0,115200n8 console=tty0 ---'
 else
-  BOOT_PARAMS='boot=casper autoinstall ds=nocloud;s=/cdrom/autoinstall/ console=ttyS0,115200n8 console=tty0 ---'
+  # Using nocloud-net for broader compatibility with modern Subiquity (24.04)
+  BOOT_PARAMS='boot=casper autoinstall ds=nocloud-net;s=/cdrom/autoinstall/ console=ttyS0,115200n8 console=tty0 ---'
 fi
 
 python3 - <<PYEOF
@@ -1008,13 +1010,22 @@ else
   MBR_FILE="/tmp/isohdpfx.bin"
   dd if="$ORIG_ISO" bs=1 count=432 of="$MBR_FILE" 2>/dev/null
 
-  # Try to use system isolinux MBR if available, otherwise use extracted one
-  if [ -f "/usr/lib/ISOLINUX/isohdpfx.bin" ]; then
-    MBR_FILE="/usr/lib/ISOLINUX/isohdpfx.bin"
-  elif [ -f "/usr/lib/syslinux/isohdpfx.bin" ]; then
-    MBR_FILE="/usr/lib/syslinux/isohdpfx.bin"
+  # Extract the GRUB2 MBR (first 16 sectors) from the original ISO
+  # This is critical for hybrid ISOs (MBR/GPT) to preserve the correct drive capacity/partitions.
+  echo "[*] Extracting GRUB2 MBR (16 sectors) from original ISO..."
+  MBR_FILE="/tmp/grub2_mbr.bin"
+  dd if="$ORIG_ISO" bs=512 count=16 of="$MBR_FILE" 2>/dev/null
+  echo "[*] MBR extracted to: $MBR_FILE"
+
+  # Fallback to system isohdpfx.bin ONLY if extraction failed (as it's less compatible with GRUB2)
+  if [ ! -s "$MBR_FILE" ]; then
+    if [ -f "/usr/lib/ISOLINUX/isohdpfx.bin" ]; then
+      MBR_FILE="/usr/lib/ISOLINUX/isohdpfx.bin"
+    elif [ -f "/usr/lib/syslinux/isohdpfx.bin" ]; then
+      MBR_FILE="/usr/lib/syslinux/isohdpfx.bin"
+    fi
+    echo "[*] Using fallback MBR: $MBR_FILE"
   fi
-  echo "[*] Using MBR file: $MBR_FILE"
 
   # Create EFI boot image for GPT partition with GRUB modules and config
   EFI_IMG="/tmp/efi.img"
@@ -1094,7 +1105,11 @@ else
       -appended_part_as_gpt
       -iso_mbr_part_type a2a0d0ebe5b9334487c068b6b72699c7
       -o "$OUT_ISO" .
+      -m "/autoinstall.yaml"
     )
+    # Map autoinstall.yaml to user-data in the ISO root for Subiquity auto-detection
+    # This ensures that even if ds=nocloud fails, the installer finds the config.
+    ln -sf autoinstall/user-data "$WORKDIR/autoinstall.yaml"
 
     if [ -n "$BIOS_BOOT_IMG" ]; then
       xorriso "${XORRISO_ARGS[@]:0:5}" -b "$BIOS_BOOT_IMG" "${XORRISO_ARGS[@]:5}"
