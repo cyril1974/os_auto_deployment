@@ -684,27 +684,28 @@ autoinstall:
           fi
       fi
     # Log IP Address to SEL (Two-part entry for Mitac/Intel BMC compatibility)
-    - |
-      curtin in-target --target=/target -- sh -c '
-        IP=\$(hostname -I | awk "{print \$1}")
-        if [ -n "\$IP" ]; then
-            # Split IP into 4 octets robustly
-            eval \$(echo "\$IP" | awk -F. "{printf \"o1=%s; o2=%s; o3=%s; o4=%s\", \$1, \$2, \$3, \$4}")
-            
-            # Convert to hex bytes
-            h1=\$(printf "0x%02x" "\$o1" 2>/dev/null || echo "0x00")
-            h2=\$(printf "0x%02x" "\$o2" 2>/dev/null || echo "0x00")
-            h3=\$(printf "0x%02x" "\$o3" 2>/dev/null || echo "0x00")
-            h4=\$(printf "0x%02x" "\$o4" 2>/dev/null || echo "0x00")
-            
-            # Part 1: IP Octets 1.2 (192.168)
-            python3 /cdrom/pool/extra/ipmi_start_logger.py 0x03 "\$h1" "\$h2" 2>/dev/null || true
-            sleep 2
-            # Part 2: IP Octets 3.4 (236.120)
-            python3 /cdrom/pool/extra/ipmi_start_logger.py 0x13 "\$h3" "\$h4" 2>/dev/null || true
-            echo "[+] IP \$IP logged to SEL (Parts 0x03/0x13)."
-        fi
-      '
+    # IMPORTANT: IP must be captured on the HOST installer (not inside chroot) where NICs are live
+    - |\
+      HOST_IP=\$(hostname -I | awk '{print \$1}')
+      if [ -n "\$HOST_IP" ]; then
+          eval \$(echo "\$HOST_IP" | awk -F. '{printf "o1=%s; o2=%s; o3=%s; o4=%s", \$1, \$2, \$3, \$4}')
+          h1=\$(printf "0x%02x" "\$o1" 2>/dev/null || echo "0x00")
+          h2=\$(printf "0x%02x" "\$o2" 2>/dev/null || echo "0x00")
+          h3=\$(printf "0x%02x" "\$o3" 2>/dev/null || echo "0x00")
+          h4=\$(printf "0x%02x" "\$o4" 2>/dev/null || echo "0x00")
+          echo "[*] IP Address: \$HOST_IP -> \$h1.\$h2.\$h3.\$h4"
+          # Part 1: IP Octets 1.2 (e.g. 10.99)
+          python3 /cdrom/pool/extra/ipmi_start_logger.py 0x03 "\$h1" "\$h2" 2>/dev/null || true
+          sleep 2
+          # Part 2: IP Octets 3.4 (e.g. 236.92)
+          python3 /cdrom/pool/extra/ipmi_start_logger.py 0x13 "\$h3" "\$h4" 2>/dev/null || true
+          echo "[+] IP \$HOST_IP logged to SEL (Parts 0x03/0x13)."
+      else
+          echo "[!] WARNING: Could not determine host IP. Logging zeros."
+          python3 /cdrom/pool/extra/ipmi_start_logger.py 0x03 0x00 0x00 2>/dev/null || true
+          sleep 2
+          python3 /cdrom/pool/extra/ipmi_start_logger.py 0x13 0x00 0x00 2>/dev/null || true
+      fi
     # Write SEL entry - OS Installation Completed
     # Uses binary-less python logger.
     - sleep 1
