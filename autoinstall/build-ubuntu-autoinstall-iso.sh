@@ -649,6 +649,9 @@ autoinstall:
     - python3 /cdrom/pool/extra/ipmi_start_logger.py 0xEE || true
     # - ipmitool raw 0x0a 0x44 0x00 0x00 0x02 0x00 0x00 0x00 0x00 0x21 0x00 0x04 0x12 0x00 0x6f 0xee 0x00 0x00 2>/dev/null || true
   late-commands:
+    # Log Post-Install Start (Marker: 0x06)
+    - python3 /cdrom/pool/extra/ipmi_start_logger.py 0x06 2>/dev/null || true
+    - sleep 1
     - echo 'root:${PASSWORD}' | chroot /target chpasswd
     - curtin in-target --target=/target -- sed -i 's/^#\\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
     - curtin in-target --target=/target -- sed -i 's/^#\\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
@@ -701,6 +704,10 @@ autoinstall:
               rm -rf /target/tmp/extra_pkg
           fi
       fi
+    # Log Post-Install Complete (Marker: 0x16)
+    - sleep 1
+    - python3 /cdrom/pool/extra/ipmi_start_logger.py 0x16 2>/dev/null || true
+    - sleep 1
     # Log IP Address to SEL (Two-part entry for Mitac/Intel BMC compatibility)
     # IMPORTANT: IP must be captured on the HOST installer (not inside chroot) where NICs are live
     - |

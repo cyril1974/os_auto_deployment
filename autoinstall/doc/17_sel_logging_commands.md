@@ -48,7 +48,14 @@ Triggered by the `error-commands` block if Subiquity encounters a fatal error.
 - **Data 1**: `0xee` (Event Marker: Aborted/Failed)
 - **Data 2/3**: `0x00 0x00` (Standardized Padding)
 
-### 2.6 Installation Audit: Storage Verification
+### 2.6 Post-Install Phase (Package Installation)
+Used to track the package installation phase in `late-commands`, which is one of the longest-running operations.
+- **Post-Install Start**: `0x0a 0x44 0x00 0x00 0x02 0x00 0x00 0x00 0x00 0x21 0x00 0x04 0x12 0x00 0x6f 0x06 0x00 0x00` (Marker: `0x06`)
+- **Post-Install Complete**: `0x0a 0x44 0x00 0x00 0x02 0x00 0x00 0x00 0x00 0x21 0x00 0x04 0x12 0x00 0x6f 0x16 0x00 0x00` (Marker: `0x16`)
+- **Data 1**: `0x06` (Start), `0x16` (Complete)
+- **Data 2/3**: `0x00 0x00` (Standardized Padding)
+
+### 2.7 Installation Audit: Storage Verification
 Used to log the outcome of the root disk serial number check.
 - **Success**: `0x0a 0x44 0x00 0x00 0x02 ... 0x6f 0x05 0x4f 0x4b` (ASCII 'OK')
 - **Failure**: `0x0a 0x44 0x00 0x00 0x02 ... 0x6f 0x05 0x45 0x52` (ASCII 'ER')
@@ -70,7 +77,7 @@ Used to log the outcome of the root disk serial number check.
 | 12 | Sensor Type | `0x12` | OS Boot / System Event |
 | 13 | Sensor Num | `0x00` | Generic Placeholder |
 | 14 | Event Type | `0x6f` | Sensor-specific Discrete |
-| 15 | Event Data 1 | Var | **Marker:** (0x01=Start, 0x0F=PreStart, 0x1F=PreDone, 0xAA=Finish, 0x03=IP1, 0x04=IP2, 0x05=Audit, 0xEE=Abort) |
+| 15 | Event Data 1 | Var | **Marker:** (0x01=Start, 0x0F=PreStart, 0x1F=PreDone, 0x06=PostStart, 0x16=PostDone, 0xAA=Finish, 0x03=IP1, 0x13=IP2, 0x05=Audit, 0xEE=Abort) |
 | 16 | Event Data 2 | Var | Primary payload byte |
 | 17 | Event Data 3 | Var | Secondary payload byte |
 

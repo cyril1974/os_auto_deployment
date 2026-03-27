@@ -82,6 +82,8 @@ EventLogMessage = {
     "01": "[Info] OS Installation Start",
     "0F": "[Info] Package Pre-install Start",
     "1F": "[Info] Package Pre-install Complete",
+    "06": "[Info] Post-Install Start",
+    "16": "[Info] Post-Install Complete",
     "AA": "[Info] OS Installation Completed",
     "03": "[Info] IP Address Logging (Part 1)",
     "04": "[Info] IP Address Logging (Part 2, legacy)",
