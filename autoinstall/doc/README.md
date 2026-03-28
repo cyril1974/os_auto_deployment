@@ -21,6 +21,8 @@ This directory contains comprehensive documentation for the Ubuntu Autoinstall I
 13. **[Preseed Support (18.04)](13_preseed_support_18_04.md)** - Legacy automation details
 14. **[Legacy 18.04 Boot Fixes](14_legacy_18_04_boot_fixes.md)** - Debugging and resolving boot failures with 18.04 unattended installations
 15. **[ISO Comparison & EFI Boot Fix](15_iso_comparison_and_efi_boot_fix.md)** - Deep ISO comparison, UEFI boot chain analysis, and three rounds of boot failure resolution
+16. **[Beginner Architecture & Workflow](16_beginner_architecture_and_workflow.md)** - Beginner-friendly explanation of structure, data flow, and end-to-end process
+17. **[Day-1 Operator Cheat Sheet](17_day1_operator_cheat_sheet.md)** - Practical runbook, commands, and troubleshooting for first-time operators
 
 ### Change Log
 
@@ -29,6 +31,8 @@ This directory contains comprehensive documentation for the Ubuntu Autoinstall I
 ## Quick Links
 
 ### For Users
+- **Beginner Overview**: [Beginner Architecture & Workflow](16_beginner_architecture_and_workflow.md)
+- **Operator Runbook**: [Day-1 Operator Cheat Sheet](17_day1_operator_cheat_sheet.md)
 - **Getting Started**: See main [README.md](../README.md) (if exists) or run `./build-ubuntu-autoinstall-iso.sh --help`
 - **Common Issues**: [Debugging Guide - Common Issues](04_debugging_guide.md#common-issues--solutions)
 - **Installation Logs**: [Debugging Guide - Log Files](04_debugging_guide.md#log-file-reference)
