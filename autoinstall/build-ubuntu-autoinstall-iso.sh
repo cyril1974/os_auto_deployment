@@ -631,10 +631,10 @@ autoinstall:
     - sleep 1
     # Log IP Address if available before ABORT (Binary-less)
     - |
-      IP=\$(hostname -I | awk "{print \$1}")
+      IP=\$(hostname -I | awk '{print \$1}')
       if [ -n "\$IP" ]; then
-          # Split IP into 4 octets robustly
-          eval \$(echo "\$IP" | awk -F. "{printf \"o1=%s; o2=%s; o3=%s; o4=%s\", \$1, \$2, \$3, \$4}")
+          # Split IP into 4 octets robustly using single quotes for awk to prevent shell expansion
+          eval \$(echo "\$IP" | awk -F. '{printf "o1=%s; o2=%s; o3=%s; o4=%s", \$1, \$2, \$3, \$4}')
           
           h1=\$(printf "0x%02x" "\$o1" 2>/dev/null || echo "0x00")
           h2=\$(printf "0x%02x" "\$o2" 2>/dev/null || echo "0x00")
