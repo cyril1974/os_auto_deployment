@@ -755,36 +755,49 @@ graph LR
 
 ```mermaid
 graph TB
-    subgraph "Generation Detection"
-        Detect[get_generation_redfish]
-        Detect --> Check{Redfish Version}
-        Check -->|< 1.17.0| Gen6[Generation 6<br/>EGS Platform]
-        Check -->|>= 1.17.0| Gen7[Generation 7<br/>BHS Platform]
+    Detect[get_generation_redfish]
+    Check{Redfish Version}
+    Gen6[Generation 6<br/>EGS Platform]
+    Gen7[Generation 7<br/>BHS Platform]
+
+    Detect --> Check
+    Check -->|"< 1.17.0"| Gen6
+    Check -->|">= 1.17.0"| Gen7
+
+    subgraph Gen6Config["Gen-6 Configuration"]
+        API6[API Endpoints]
+        VM6[/redfish/v1/Managers/bmc/<br/>VirtualMedia/Internal/]
+        LOG6[/redfish/v1/Systems/system/<br/>LogServices/EventLog/Entries]
+        PREFIX6[EventLogPrefix:<br/>0000020000000021000412006F]
+
+        API6 --> VM6
+        API6 --> LOG6
+        API6 --> PREFIX6
     end
 
-    subgraph "Gen-6 Configuration"
-        Gen6 --> API6[API Endpoints]
-        API6 --> VM6[/redfish/v1/Managers/bmc/VirtualMedia/Internal/]
-        API6 --> LOG6[/redfish/v1/Systems/system/LogServices/EventLog/Entries]
-        API6 --> PREFIX6[EventLogPrefix:<br/>0000020000000021000412006F]
+    subgraph Gen7Config["Gen-7 Configuration"]
+        API7[API Endpoints]
+        VM7[/redfish/v1/Managers/bmc/<br/>VirtualMedia/Inband/]
+        LOG7[/redfish/v1/Managers/bmc/<br/>LogServices/SEL/Entries]
+        PREFIX7[EventLogPrefix:<br/>210012006F]
+        ADDITIONAL[AdditionalDataURI<br/>External forensic data]
+
+        API7 --> VM7
+        API7 --> LOG7
+        API7 --> PREFIX7
+        API7 --> ADDITIONAL
     end
 
-    subgraph "Gen-7 Configuration"
-        Gen7 --> API7[API Endpoints]
-        API7 --> VM7[/redfish/v1/Managers/bmc/VirtualMedia/Inband/]
-        API7 --> LOG7[/redfish/v1/Managers/bmc/LogServices/SEL/Entries]
-        API7 --> PREFIX7[EventLogPrefix:<br/>210012006F]
-        API7 --> ADDITIONAL[AdditionalDataURI<br/>External forensic data]
+    subgraph CommonOps["Common Operations"]
+        Mount[Mount Virtual Media]
+        Monitor[Monitor Installation]
+        Parse[Parse IPMI Markers]
     end
 
-    subgraph "Common Operations"
-        Gen6 --> Mount[Mount Virtual Media]
-        Gen7 --> Mount
-        Gen6 --> Monitor[Monitor Installation]
-        Gen7 --> Monitor
-        Gen6 --> Parse[Parse IPMI Markers]
-        Gen7 --> Parse
-    end
+    Gen6 --> Gen6Config
+    Gen7 --> Gen7Config
+    Gen6 --> CommonOps
+    Gen7 --> CommonOps
 
     style Gen6 fill:#3498db,color:#fff
     style Gen7 fill:#9b59b6,color:#fff
