@@ -427,7 +427,9 @@ find_empty_disk_serial() {
         [ -b "$device" ] || continue
 
         # 1. Partition Check
-        partition_count=$(lsblk -nk -o TYPE "$device" 2>/dev/null | grep -c "part")
+        # Note: lsblk -n (no header) without -d (no children) lists device + all children;
+        # -k is NOT a valid lsblk flag and causes silent empty output — use -n only.
+        partition_count=$(lsblk -n -o TYPE "$device" 2>/dev/null | grep -c "part")
         if [ "$partition_count" -gt 0 ]; then
             echo "    [-] Skipping $device: Contains $partition_count partition(s)" > /dev/console
             continue
