@@ -141,7 +141,7 @@ sequenceDiagram
     BMC->>UEFI: Mount ISO as virtual CD
     UEFI->>GRUB: Load EFI/BOOT/bootx64.efi → grubx64.efi
     Note over GRUB: Reads patched grub.cfg<br/>menuentry "Auto Install Ubuntu Server"
-    GRUB->>K: "Load /casper/vmlinuz + initrd<br/>params: autoinstall ds=nocloud;s=/cdrom/autoinstall/"
+    GRUB->>K: Load /casper/vmlinuz + initrd<br/>params: autoinstall ds=nocloud;s=/cdrom/autoinstall/
     K->>CI: Boot, hand off to cloud-init/subiquity
 
     Note over CI: Reads /cdrom/autoinstall/user-data<br/>version: 1 autoinstall config
