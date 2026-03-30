@@ -212,35 +212,29 @@ graph LR
 
 ```mermaid
 graph TB
-    subgraph "Custom Autoinstall ISO"
-        MBR[MBR<br/>GRUB2 Bootloader<br/>432 bytes]
-        GPT[GPT Partition Table]
+    MBR[MBR<br/>GRUB2 Bootloader<br/>432 bytes]
+    GPT[GPT Partition Table]
 
-        subgraph "Partition 1: ISO 9660"
-            Casper[/casper/<br/>vmlinuz<br/>initrd]
-            BootGRUB[/boot/grub/<br/>grub.cfg]
-            Autoinstall[/autoinstall/<br/>user-data<br/>meta-data]
-            PoolExtra[/pool/extra/<br/>*.deb packages<br/>Docker, K8s, tools]
-        end
+    subgraph Part1["Partition 1: ISO 9660"]
+        Casper[/casper/<br/>vmlinuz<br/>initrd]
+        BootGRUB[/boot/grub/<br/>grub.cfg]
+        Autoinstall[/autoinstall/<br/>user-data<br/>meta-data]
+        PoolExtra[/pool/extra/<br/>*.deb packages<br/>Docker, K8s, tools]
+    end
 
-        subgraph "Partition 2: EFI System (20MB)"
-            EFIBoot[/EFI/boot/<br/>bootx64.efi<br/>grubx64.efi]
-            EFIModules[/boot/grub/<br/>x86_64-efi/<br/>fonts/]
-        end
+    subgraph Part2["Partition 2: EFI System - 20MB"]
+        EFIBoot[/EFI/boot/<br/>bootx64.efi<br/>grubx64.efi]
+        EFIModules[/boot/grub/<br/>x86_64-efi/<br/>fonts/]
+    end
 
-        subgraph "Partition 3: Boot Catalog"
-            ElTorito[El Torito<br/>Boot Catalog<br/>300KB]
-        end
+    subgraph Part3["Partition 3: Boot Catalog"]
+        ElTorito[El Torito<br/>Boot Catalog<br/>300KB]
     end
 
     MBR --> GPT
-    GPT --> Casper
-    GPT --> BootGRUB
-    GPT --> Autoinstall
-    GPT --> PoolExtra
-    GPT --> EFIBoot
-    GPT --> EFIModules
-    GPT --> ElTorito
+    GPT --> Part1
+    GPT --> Part2
+    GPT --> Part3
 
     style MBR fill:#e74c3c,color:#fff
     style GPT fill:#3498db,color:#fff
