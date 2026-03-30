@@ -141,7 +141,7 @@ sequenceDiagram
     BMC->>UEFI: Mount ISO as virtual CD
     UEFI->>GRUB: Load EFI/BOOT/bootx64.efi → grubx64.efi
     Note over GRUB: Reads patched grub.cfg<br/>menuentry "Auto Install Ubuntu Server"
-    GRUB->>K: Load /casper/vmlinuz + initrd<br/>params: autoinstall ds=nocloud;s=/cdrom/autoinstall/
+    GRUB->>K: Load /casper/vmlinuz + initrd<br/>params: autoinstall ds=nocloud&#59;s=/cdrom/autoinstall/
     K->>CI: Boot, hand off to cloud-init/subiquity
 
     Note over CI: Reads /cdrom/autoinstall/user-data<br/>version: 1 autoinstall config
@@ -150,7 +150,7 @@ sequenceDiagram
 
     EC->>EC: Source find_disk.sh<br/>find_empty_disk_serial()
     Note over EC: Scans all block devices:<br/>1. Partition check<br/>2. Filesystem signature check<br/>3. First 1MB data check<br/>4. Prefer smallest empty disk
-    EC->>EC: "sed -i replace __ID_SERIAL__<br/>in /autoinstall.yaml + runtime configs"
+    EC->>EC: sed -i replace __ID_SERIAL__<br/>in /autoinstall.yaml + runtime configs
 
     EC->>IPMI: modprobe ipmi_devintf/si/msghandler
     EC->>IPMI: 0x0F — Package Pre-install Start
@@ -181,16 +181,16 @@ sequenceDiagram
     end
 
     LC->>IPMI: 0x16 — Post-Install Complete
-    LC->>LC: "hostname -I → parse octets<br/>awk -F. eval o1 o2 o3 o4"
+    LC->>LC: hostname -I → parse octets<br/>awk -F. eval o1 o2 o3 o4
     LC->>IPMI: 0x03 [octet1] [octet2] — IP Part 1
     LC->>IPMI: 0x13 [octet3] [octet4] — IP Part 2
     LC->>IPMI: 0xAA — OS Install Completed
 
     LC->>LC: Disk serial audit:<br/>lsblk → udevadm → compare __ID_SERIAL__
     alt Serial matches
-        LC->>IPMI: "0x05 0x4F 0x4B — Verify OK"
+        LC->>IPMI: 0x05 0x4F 0x4B — Verify OK
     else Serial mismatch
-        LC->>IPMI: "0x05 0x45 0x52 — Verify ER (Error)"
+        LC->>IPMI: 0x05 0x45 0x52 — Verify ER (Error)
     end
 
     LC->>DISK: Copy ipmi_telemetry.log → /target/var/log/
