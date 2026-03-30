@@ -450,3 +450,102 @@ graph TB
     P1 --- ISO9660
     P2 --- EFIFAT
 ```
+
+---
+
+## 8. Installation System Architecture (Component View)
+
+```mermaid
+graph TB
+    subgraph HW["Hardware Layer"]
+        BMC["BMC (Baseboard Management Controller)<br/>• Virtual Media Controller<br/>• IPMI Interface (/dev/ipmi0)<br/>• SEL (System Event Log)<br/>• ipmitool raw 0x0a 0x44"]
+        UEFI["UEFI/BIOS Firmware<br/>• Boot Device Selection<br/>• EFI Boot Services<br/>• Secure Boot (optional)"]
+        STORAGE["Physical Storage<br/>• NVMe / SATA / SAS<br/>• Disk Serial Detection<br/>• GPT Partitioning"]
+    end
+
+    subgraph BOOT["Boot Chain Layer"]
+        VISO["Virtual ISO Mount<br/>Custom Autoinstall ISO<br/>Mounted via BMC"]
+        SHIM["UEFI Bootloader<br/>• /EFI/BOOT/bootx64.efi (shim)<br/>• /EFI/BOOT/grubx64.efi<br/>• Patched grub.cfg"]
+        KERNEL["Linux Kernel + Initrd<br/>• /casper/vmlinuz<br/>• /casper/initrd<br/>• Boot params: autoinstall<br/>  ds=nocloud;s=/cdrom/autoinstall/"]
+    end
+
+    subgraph INSTALL["Installation Framework"]
+        CLOUDINIT["Cloud-Init<br/>• Config Parser<br/>• /cdrom/autoinstall/user-data<br/>• /autoinstall.yaml (symlink)<br/>• Autoinstall v1 Schema"]
+        SUBIQUITY["Subiquity Server<br/>• Installation Orchestrator<br/>• early-commands<br/>• late-commands<br/>• error-commands"]
+        CURTIN["Curtin Backend<br/>• Disk Partitioning<br/>• Filesystem Creation<br/>• Debootstrap<br/>• in-target command executor"]
+    end
+
+    subgraph SCRIPTS["Custom Scripts Layer"]
+        EARLY["early-commands Phase<br/>━━━━━━━━━━━━━━━━<br/>1. find_disk.sh execution<br/>2. Disk detection algorithm<br/>3. __ID_SERIAL__ substitution<br/>4. Pre-install package installation<br/>5. IPMI marker logging (0x0F, 0x1F, 0x01)"]
+        LATE["late-commands Phase<br/>━━━━━━━━━━━━━━━━<br/>1. Post-install package installation<br/>2. User/root configuration<br/>3. Network setup<br/>4. Package installation (offline/hybrid)<br/>5. IPMI markers (0x06, 0x16, 0x03, 0x13, 0xAA)<br/>6. Disk serial audit (0x05)"]
+    end
+
+    subgraph RESOURCES["ISO Resources"]
+        AUTOINSTALL_CFG["Autoinstall Config<br/>• user-data (cloud-config)<br/>• meta-data<br/>• scripts/find_disk.sh"]
+        PACKAGES["Bundled Packages<br/>• pool/extra/*.deb<br/>• ipmi_start_logger.py<br/>• docker.asc / kubernetes.gpg"]
+    end
+
+    subgraph TARGET["Target System"]
+        ROOT_FS["Root Filesystem<br/>• /target mount point<br/>• GPT: 512MB EFI + ext4<br/>• Serial-matched disk"]
+        SYSTEM_CFG["System Configuration<br/>• /etc/ssh/sshd_config<br/>• /etc/sudoers.d/<br/>• /etc/resolv.conf<br/>• Installed packages"]
+        LOGS["Forensic Logs<br/>• /var/log/ipmi_telemetry.log<br/>• /var/log/install_disk_audit.log"]
+    end
+
+    %% Hardware connections
+    BMC -->|Mounts ISO| VISO
+    UEFI -->|Reads| VISO
+    BMC <-->|IPMI Commands| EARLY
+    BMC <-->|IPMI Commands| LATE
+
+    %% Boot chain
+    UEFI -->|Executes| SHIM
+    SHIM -->|Loads| KERNEL
+    VISO -.->|Provides| SHIM
+    VISO -.->|Provides| KERNEL
+
+    %% Installation framework
+    KERNEL -->|Starts| CLOUDINIT
+    CLOUDINIT -->|Triggers| SUBIQUITY
+    SUBIQUITY -->|Executes| CURTIN
+    SUBIQUITY -->|Calls| EARLY
+    SUBIQUITY -->|Calls| LATE
+
+    %% Resource usage
+    VISO -.->|Provides| AUTOINSTALL_CFG
+    VISO -.->|Provides| PACKAGES
+    CLOUDINIT -->|Reads| AUTOINSTALL_CFG
+    EARLY -->|Uses| AUTOINSTALL_CFG
+    EARLY -->|Installs| PACKAGES
+    LATE -->|Installs| PACKAGES
+
+    %% Script interactions
+    EARLY -->|Detects & Selects| STORAGE
+    EARLY -->|Substitutes Serial| AUTOINSTALL_CFG
+    CURTIN -->|Partitions| STORAGE
+    CURTIN -->|Formats| ROOT_FS
+
+    %% Late-commands operations
+    LATE -->|Configures| SYSTEM_CFG
+    LATE -->|Writes| LOGS
+    LATE -->|Installs to| ROOT_FS
+
+    %% Target system
+    STORAGE -.->|Contains| ROOT_FS
+    ROOT_FS -.->|Contains| SYSTEM_CFG
+    ROOT_FS -.->|Contains| LOGS
+
+    %% Styling
+    classDef hwClass fill:#f9d5e5,stroke:#c94c4c,stroke-width:2px
+    classDef bootClass fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    classDef installClass fill:#fff9c4,stroke:#f57f17,stroke-width:2px
+    classDef scriptClass fill:#c8e6c9,stroke:#388e3c,stroke-width:2px
+    classDef resourceClass fill:#d1c4e9,stroke:#512da8,stroke-width:2px
+    classDef targetClass fill:#ffccbc,stroke:#d84315,stroke-width:2px
+
+    class BMC,UEFI,STORAGE hwClass
+    class VISO,SHIM,KERNEL bootClass
+    class CLOUDINIT,SUBIQUITY,CURTIN installClass
+    class EARLY,LATE scriptClass
+    class AUTOINSTALL_CFG,PACKAGES resourceClass
+    class ROOT_FS,SYSTEM_CFG,LOGS targetClass
+```
