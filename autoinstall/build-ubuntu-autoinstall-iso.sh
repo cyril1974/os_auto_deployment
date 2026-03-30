@@ -619,6 +619,12 @@ autoinstall:
           echo "[!] WARNING: find_disk.sh not found. Proceeding with default config." > /dev/console
       fi
 
+    # Disable multipathd before curtin runs.
+    # multipath-tools and libdevmapper can have an ABI mismatch on Ubuntu 25.04+
+    # where 'multipath -r' exits with code 1 and causes curtin clear-holders to abort.
+    # Masking the service prevents curtin from detecting multipath support entirely.
+    - systemctl stop multipathd 2>/dev/null || true
+    - systemctl mask multipathd 2>/dev/null || true
     # Load IPMI kernel modules for BMC communication
     - modprobe ipmi_devintf 2>/dev/null || true
     - modprobe ipmi_si 2>/dev/null || true
