@@ -153,7 +153,9 @@ check_and_install_packages() {
 # Maps version numbers to their Ubuntu codenames (archive repository names)
 get_ubuntu_codename() {
     local os_name="$1"
-    if [[ "$os_name" == *"25.04"* ]]; then
+    if [[ "$os_name" == *"25.10"* ]]; then    
+        echo "questing"
+    elif [[ "$os_name" == *"25.04"* ]]; then
         echo "plucky"
     elif [[ "$os_name" == *"24.10"* ]]; then
         echo "oracular"

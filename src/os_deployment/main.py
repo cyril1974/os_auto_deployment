@@ -389,6 +389,8 @@ def main():
             # print(f"{export}")
             # check_power_restore = utils.filter_message_event(result,constants.POWER_RESTORE_EVENT)
             currentID =last_log_id 
+            # event_debug_message = f"(Event : {eventMessage})"
+            event_debug_message = ""
             for item in export:
                 # if int(item["Id"]) >last_log_id:
                 if item["Id"] >last_log_id:
@@ -416,7 +418,7 @@ def main():
                         IP[2] = str(int(eventMessage[-4:-2], 16))
                         IP[3] = str(int(eventMessage[-2:], 16))
                    
-                    print(f"[{eventTime}] {eventString} (Event : {eventMessage}) (Code : {StatusCode})")
+                    print(f"[{eventTime}] {eventString} {event_debug_message} (Code : {StatusCode})")
                     if eventMessage[-6:-4] in ["13"] and all(x != "NA" for x in IP):
                         print(f"IP Address : {IP[0]}.{IP[1]}.{IP[2]}.{IP[3]}")
                     if eventMessage[-6:-4] == "05":
