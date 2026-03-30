@@ -8,33 +8,33 @@
 graph TB
     subgraph BUILD["Build Host"]
         PL[package_list]
-        ISO_SRC[Original Ubuntu ISO\nfrom iso_repository/]
+        ISO_SRC["Original Ubuntu ISO<br/>from iso_repository/"]
         SCRIPT[build-ubuntu-autoinstall-iso.sh]
-        APT_CACHE[apt_cache/\npersistent .deb cache]
+        APT_CACHE["apt_cache/<br/>persistent .deb cache"]
     end
 
     subgraph ISO_CONTENTS["Custom ISO Contents"]
-        GRUB_CFG[boot/grub/grub.cfg\npatched for autoinstall]
-        USER_DATA[autoinstall/user-data\ncloud-init config]
-        META_DATA[autoinstall/meta-data]
-        FIND_DISK[autoinstall/scripts/find_disk.sh]
-        POOL[pool/extra/*.deb\npre-bundled packages]
-        LOGGER[pool/extra/ipmi_start_logger.py]
-        EFI_IMG[EFI System Partition\n64MB FAT32]
-        DOCKER_ASC[autoinstall/docker.asc]
-        K8S_GPG[autoinstall/kubernetes.gpg]
+        GRUB_CFG["boot/grub/grub.cfg<br/>patched for autoinstall"]
+        USER_DATA["autoinstall/user-data<br/>cloud-init config"]
+        META_DATA["autoinstall/meta-data"]
+        FIND_DISK["autoinstall/scripts/find_disk.sh"]
+        POOL["pool/extra/*.deb<br/>pre-bundled packages"]
+        LOGGER["pool/extra/ipmi_start_logger.py"]
+        EFI_IMG["EFI System Partition<br/>64MB FAT32"]
+        DOCKER_ASC["autoinstall/docker.asc"]
+        K8S_GPG["autoinstall/kubernetes.gpg"]
     end
 
     subgraph TARGET["Target Server"]
-        BMC[BMC\nVirtual Media]
+        BMC["BMC<br/>Virtual Media"]
         UEFI_FW[UEFI Firmware]
         GRUB2[GRUB2 Bootloader]
-        KERNEL[Linux Kernel +\nInitrd / Casper]
+        KERNEL["Linux Kernel +<br/>Initrd / Casper"]
         SUBIQUITY[Subiquity Installer]
         CURTIN[Curtin Backend]
-        DISK[Target Disk\nserial-matched]
-        IPMI_DEV[/dev/ipmi0\nBMC Interface]
-        SEL[BMC SEL\nSystem Event Log]
+        DISK["Target Disk<br/>serial-matched"]
+        IPMI_DEV["/dev/ipmi0<br/>BMC Interface"]
+        SEL["BMC SEL<br/>System Event Log"]
     end
 
     PL --> SCRIPT
@@ -56,66 +56,66 @@ graph TB
 
 ```mermaid
 flowchart TD
-    START([Start: build-ubuntu-autoinstall-iso.sh\nOS_NAME  USERNAME  PASSWORD]) --> CHK_PKGS
+    START(["Start: build-ubuntu-autoinstall-iso.sh<br/>OS_NAME  USERNAME  PASSWORD"]) --> CHK_PKGS
 
-    CHK_PKGS{Running as root?} -->|Yes| INST_PKGS[apt install:\nwhois xorriso genisoimage\nisolinux mtools jq]
+    CHK_PKGS{Running as root?} -->|Yes| INST_PKGS["apt install:<br/>whois xorriso genisoimage<br/>isolinux mtools jq"]
     CHK_PKGS -->|No / --skip-install| SKIP_INST[Skip tool installation]
     INST_PKGS --> LOOKUP
     SKIP_INST --> LOOKUP
 
-    LOOKUP[jq: lookup ISO path\nfrom iso_repository/file_list.json] --> VER_CHK
+    LOOKUP["jq: lookup ISO path<br/>from iso_repository/file_list.json"] --> VER_CHK
 
-    VER_CHK{Ubuntu 18.04?} -->|Yes| SET_1804[IS_1804=true\nUse preseed automation]
-    VER_CHK -->|No| SET_MODERN[IS_1804=false\nUse cloud-init autoinstall]
+    VER_CHK{Ubuntu 18.04?} -->|Yes| SET_1804["IS_1804=true<br/>Use preseed automation"]
+    VER_CHK -->|No| SET_MODERN["IS_1804=false<br/>Use cloud-init autoinstall"]
 
     SET_1804 --> BUILD_ID
     SET_MODERN --> BUILD_ID
 
-    BUILD_ID[Generate unique BUILD_ID\nWORKDIR + OUT_ISO_DIR] --> MOUNT_ISO
+    BUILD_ID["Generate unique BUILD_ID<br/>WORKDIR + OUT_ISO_DIR"] --> MOUNT_ISO
 
-    MOUNT_ISO[Mount original ISO\n→ loop mount /mnt/ubuntuiso] --> RSYNC
-    RSYNC[rsync ISO contents\nto WORKDIR/] --> UMOUNT
-    UMOUNT[umount /mnt/ubuntuiso] --> PKG_DL_CHK
+    MOUNT_ISO["Mount original ISO<br/>→ loop mount /mnt/ubuntuiso"] --> RSYNC
+    RSYNC["rsync ISO contents<br/>to WORKDIR/"] --> UMOUNT
+    UMOUNT["umount /mnt/ubuntuiso"] --> PKG_DL_CHK
 
     PKG_DL_CHK{IS_1804?} -->|Yes| GEN_KEYS
     PKG_DL_CHK -->|No| CODENAME
 
-    CODENAME[Detect Ubuntu codename\njammy / noble / oracular...] --> DL_PKGS
+    CODENAME["Detect Ubuntu codename<br/>jammy / noble / oracular..."] --> DL_PKGS
 
-    DL_PKGS[download_extra_packages:\n• Isolated apt environment\n• Resolve full dep closure\n• Delta download vs cache\n• Copy .debs → pool/extra/] --> DL_DOCKER
+    DL_PKGS["download_extra_packages:<br/>• Isolated apt environment<br/>• Resolve full dep closure<br/>• Delta download vs cache<br/>• Copy .debs → pool/extra/"] --> DL_DOCKER
 
-    DL_DOCKER{docker in\npackage_list?} -->|Yes| ADD_DOCKER[Add Docker repo\nBundle docker.asc GPG key]
+    DL_DOCKER{docker in<br/>package_list?} -->|Yes| ADD_DOCKER["Add Docker repo<br/>Bundle docker.asc GPG key"]
     DL_DOCKER -->|No| DL_K8S
     ADD_DOCKER --> DL_K8S
 
-    DL_K8S{kube in\npackage_list?} -->|Yes| ADD_K8S[Add k8s repo\nBundle kubernetes.gpg]
+    DL_K8S{kube in<br/>package_list?} -->|Yes| ADD_K8S["Add k8s repo<br/>Bundle kubernetes.gpg"]
     DL_K8S -->|No| COPY_LOGGER
     ADD_K8S --> COPY_LOGGER
 
-    COPY_LOGGER[Copy ipmi_start_logger.py\n→ pool/extra/] --> GEN_KEYS
+    COPY_LOGGER["Copy ipmi_start_logger.py<br/>→ pool/extra/"] --> GEN_KEYS
 
-    GEN_KEYS[ssh-keygen -t ed25519\nGenerate unique key pair] --> HASH_PW
-    HASH_PW[mkpasswd -m sha-512\nHash PASSWORD] --> GEN_CONFIG
+    GEN_KEYS["ssh-keygen -t ed25519<br/>Generate unique key pair"] --> HASH_PW
+    HASH_PW["mkpasswd -m sha-512<br/>Hash PASSWORD"] --> GEN_CONFIG
 
-    GEN_CONFIG[Write autoinstall/meta-data] --> GEN_USERDATA
-    GEN_CONFIG --> WRITE_FIND_DISK[Write autoinstall/scripts/find_disk.sh]
+    GEN_CONFIG["Write autoinstall/meta-data"] --> GEN_USERDATA
+    GEN_CONFIG --> WRITE_FIND_DISK["Write autoinstall/scripts/find_disk.sh"]
 
-    GEN_USERDATA[Write autoinstall/user-data\n#cloud-config\nautoinstall v1] --> SYMLINK
-    SYMLINK[Create /autoinstall.yaml symlink\n→ /cdrom/autoinstall/user-data\n24.04+ compatibility] --> 1804_PRESEED
+    GEN_USERDATA["Write autoinstall/user-data<br/>#cloud-config<br/>autoinstall v1"] --> SYMLINK
+    SYMLINK["Create /autoinstall.yaml symlink<br/>→ /cdrom/autoinstall/user-data<br/>24.04+ compatibility"] --> 1804_PRESEED
 
-    1804_PRESEED{IS_1804?} -->|Yes| PRESEED[Write preseed.cfg\nd-i debian-installer config] --> PATCH_GRUB
+    1804_PRESEED{IS_1804?} -->|Yes| PRESEED["Write preseed.cfg<br/>d-i debian-installer config"] --> PATCH_GRUB
     1804_PRESEED -->|No| PATCH_GRUB
 
-    PATCH_GRUB[Patch boot/grub/grub.cfg\nvia Python regex:\n• Set timeout=5\n• Replace menuentry with autoinstall params\n• ds=nocloud;s=/cdrom/autoinstall/] --> PATCH_ISOLINUX
+    PATCH_GRUB["Patch boot/grub/grub.cfg<br/>via Python regex:<br/>• Set timeout=5<br/>• Replace menuentry with autoinstall params<br/>• ds=nocloud;s=/cdrom/autoinstall/"] --> PATCH_ISOLINUX
 
-    PATCH_ISOLINUX[Patch isolinux/txt.cfg\nisolinux/adtxt.cfg\nfor BIOS boot] --> REPACK
+    PATCH_ISOLINUX["Patch isolinux/txt.cfg<br/>isolinux/adtxt.cfg<br/>for BIOS boot"] --> REPACK
 
-    REPACK{IS_1804?} -->|Yes| XORRISO_1804[xorriso 18.04 legacy:\n• isohybrid-mbr\n• BIOS + efi.img\n• No EFI partition mod]
+    REPACK{IS_1804?} -->|Yes| XORRISO_1804["xorriso 18.04 legacy:<br/>• isohybrid-mbr<br/>• BIOS + efi.img<br/>• No EFI partition mod"]
     REPACK -->|No| BUILD_EFI
 
-    BUILD_EFI[Create 64MB EFI FAT image:\n• mmd EFI/BOOT boot/grub\n• mcopy bootx64.efi grubx64.efi\n• mcopy grub.cfg + modules] --> XORRISO_MODERN
+    BUILD_EFI["Create 64MB EFI FAT image:<br/>• mmd EFI/BOOT boot/grub<br/>• mcopy bootx64.efi grubx64.efi<br/>• mcopy grub.cfg + modules"] --> XORRISO_MODERN
 
-    XORRISO_MODERN[xorriso 20.04+:\n• GPT + MBR hybrid\n• append_partition 2 EFI\n• BIOS eltorito\n• UEFI EFI partition] --> DONE
+    XORRISO_MODERN["xorriso 20.04+:<br/>• GPT + MBR hybrid<br/>• append_partition 2 EFI<br/>• BIOS eltorito<br/>• UEFI EFI partition"] --> DONE
 
     XORRISO_1804 --> DONE
     DONE([Output: output_custom_iso/BUILD_ID/*.iso])
@@ -141,7 +141,7 @@ sequenceDiagram
     BMC->>UEFI: Mount ISO as virtual CD
     UEFI->>GRUB: Load EFI/BOOT/bootx64.efi → grubx64.efi
     Note over GRUB: Reads patched grub.cfg<br/>menuentry "Auto Install Ubuntu Server"
-    GRUB->>K: Load /casper/vmlinuz + initrd<br/>params: autoinstall ds=nocloud;s=/cdrom/autoinstall/
+    GRUB->>K: "Load /casper/vmlinuz + initrd<br/>params: autoinstall ds=nocloud;s=/cdrom/autoinstall/"
     K->>CI: Boot, hand off to cloud-init/subiquity
 
     Note over CI: Reads /cdrom/autoinstall/user-data<br/>version: 1 autoinstall config
@@ -150,7 +150,7 @@ sequenceDiagram
 
     EC->>EC: Source find_disk.sh<br/>find_empty_disk_serial()
     Note over EC: Scans all block devices:<br/>1. Partition check<br/>2. Filesystem signature check<br/>3. First 1MB data check<br/>4. Prefer smallest empty disk
-    EC->>EC: sed -i replace __ID_SERIAL__<br/>in /autoinstall.yaml + runtime configs
+    EC->>EC: "sed -i replace __ID_SERIAL__<br/>in /autoinstall.yaml + runtime configs"
 
     EC->>IPMI: modprobe ipmi_devintf/si/msghandler
     EC->>IPMI: 0x0F — Package Pre-install Start
@@ -181,16 +181,16 @@ sequenceDiagram
     end
 
     LC->>IPMI: 0x16 — Post-Install Complete
-    LC->>LC: hostname -I → parse octets<br/>awk -F. eval o1 o2 o3 o4
+    LC->>LC: "hostname -I → parse octets<br/>awk -F. eval o1 o2 o3 o4"
     LC->>IPMI: 0x03 [octet1] [octet2] — IP Part 1
     LC->>IPMI: 0x13 [octet3] [octet4] — IP Part 2
     LC->>IPMI: 0xAA — OS Install Completed
 
     LC->>LC: Disk serial audit:<br/>lsblk → udevadm → compare __ID_SERIAL__
     alt Serial matches
-        LC->>IPMI: 0x05 0x4F 0x4B — Verify OK
+        LC->>IPMI: "0x05 0x4F 0x4B — Verify OK"
     else Serial mismatch
-        LC->>IPMI: 0x05 0x45 0x52 — Verify ER (Error)
+        LC->>IPMI: "0x05 0x45 0x52 — Verify ER (Error)"
     end
 
     LC->>DISK: Copy ipmi_telemetry.log → /target/var/log/
@@ -298,36 +298,36 @@ stateDiagram-v2
 
 ```mermaid
 flowchart TD
-    START([find_empty_disk_serial]) --> LSBLK
-    LSBLK[lsblk -nd --exclude 1,2,11\nList all non-loop block devices] --> LOOP_DISK
+    START(["find_empty_disk_serial"]) --> LSBLK
+    LSBLK["lsblk -nd --exclude 1,2,11<br/>List all non-loop block devices"] --> LOOP_DISK
 
-    LOOP_DISK{For each disk\ndevice in list} --> CHK_BLOCK
+    LOOP_DISK{For each disk<br/>device in list} --> CHK_BLOCK
 
-    CHK_BLOCK{Is block\ndevice?} -->|No| NEXT_DISK[Skip]
+    CHK_BLOCK{Is block<br/>device?} -->|No| NEXT_DISK[Skip]
     CHK_BLOCK -->|Yes| CHK_PARTS
 
-    CHK_PARTS[lsblk -o TYPE: count 'part'] --> HAS_PARTS{Has\npartitions?}
-    HAS_PARTS -->|Yes| SKIP_PARTS[Skip: has partitions]
+    CHK_PARTS["lsblk -o TYPE: count 'part'"] --> HAS_PARTS{Has<br/>partitions?}
+    HAS_PARTS -->|Yes| SKIP_PARTS["Skip: has partitions"]
     HAS_PARTS -->|No| CHK_FS
 
-    CHK_FS[wipefs: check filesystem signatures] --> HAS_FS{Has FS\nsignatures?}
-    HAS_FS -->|Yes| SKIP_FS[Skip: has filesystem]
+    CHK_FS["wipefs: check filesystem signatures"] --> HAS_FS{Has FS<br/>signatures?}
+    HAS_FS -->|Yes| SKIP_FS["Skip: has filesystem"]
     HAS_FS -->|No| CHK_DATA
 
-    CHK_DATA[dd if=device bs=1M count=1\ntr -d '\0' | wc -c] --> HAS_DATA{Non-zero\nbytes in\nfirst 1MB?}
-    HAS_DATA -->|Yes| SKIP_DATA[Skip: has data]
+    CHK_DATA["dd if=device bs=1M count=1<br/>tr -d '\0' | wc -c"] --> HAS_DATA{Non-zero<br/>bytes in<br/>first 1MB?}
+    HAS_DATA -->|Yes| SKIP_DATA["Skip: has data"]
     HAS_DATA -->|No| GET_SERIAL
 
-    GET_SERIAL[udevadm info: get ID_SERIAL] --> HAS_SERIAL{Serial\nfound?}
-    HAS_SERIAL -->|No| TRY_NVME[Try DEVPATH fallback:\n/sys/.../serial]
-    TRY_NVME --> HAS_SERIAL2{Serial\nfound?}
-    HAS_SERIAL2 -->|No| SKIP_NOSER[Skip: no serial]
+    GET_SERIAL["udevadm info: get ID_SERIAL"] --> HAS_SERIAL{Serial<br/>found?}
+    HAS_SERIAL -->|No| TRY_NVME["Try DEVPATH fallback:<br/>/sys/.../serial"]
+    TRY_NVME --> HAS_SERIAL2{Serial<br/>found?}
+    HAS_SERIAL2 -->|No| SKIP_NOSER["Skip: no serial"]
     HAS_SERIAL -->|Yes| CANDIDATE
     HAS_SERIAL2 -->|Yes| CANDIDATE
 
-    CANDIDATE[Valid candidate:\nlog size + serial] --> SMALLEST{Smaller than\ncurrent best?}
-    SMALLEST -->|Yes| UPDATE[Update: min_size, target_serial,\ntarget_disk]
-    SMALLEST -->|No| NEXT_DISK2[Keep current best]
+    CANDIDATE["Valid candidate:<br/>log size + serial"] --> SMALLEST{Smaller than<br/>current best?}
+    SMALLEST -->|Yes| UPDATE["Update: min_size, target_serial,<br/>target_disk"]
+    SMALLEST -->|No| NEXT_DISK2["Keep current best"]
 
     UPDATE --> NEXT_DISK
     NEXT_DISK --> LOOP_DISK
@@ -339,8 +339,8 @@ flowchart TD
 
     LOOP_DISK -->|All disks checked| RESULT
 
-    RESULT{target_serial\nfound?} -->|Yes| RETURN_SERIAL[Return serial string\nExit 0]
-    RESULT -->|No| RETURN_ERR[Log ERROR to /dev/console\nExit 1]
+    RESULT{target_serial<br/>found?} -->|Yes| RETURN_SERIAL["Return serial string<br/>Exit 0"]
+    RESULT -->|No| RETURN_ERR["Log ERROR to /dev/console<br/>Exit 1"]
 ```
 
 ---
@@ -350,50 +350,50 @@ flowchart TD
 ```mermaid
 flowchart TD
     subgraph BUILD_TIME["Build Time (build host)"]
-        PL_CHK{package_list\nexists?} -->|Yes| READ_PL[Read package_list\nfilter comments/blanks]
-        PL_CHK -->|No| DEFAULT_PKGS[Default packages:\nipmitool grub-efi shim efibootmgr]
+        PL_CHK{package_list<br/>exists?} -->|Yes| READ_PL["Read package_list<br/>filter comments/blanks"]
+        PL_CHK -->|No| DEFAULT_PKGS["Default packages:<br/>ipmitool grub-efi shim efibootmgr"]
 
-        READ_PL --> DOCKER_CHK{docker\nin list?}
+        READ_PL --> DOCKER_CHK{docker<br/>in list?}
         DEFAULT_PKGS --> DOCKER_CHK
 
-        DOCKER_CHK -->|Yes| ADD_DOCKER_REPO[Add Docker repo to apt sources\nExpand 'docker' → full package set\nDownload docker.asc GPG key]
+        DOCKER_CHK -->|Yes| ADD_DOCKER_REPO["Add Docker repo to apt sources<br/>Expand 'docker' → full package set<br/>Download docker.asc GPG key"]
         DOCKER_CHK -->|No| K8S_CHK
         ADD_DOCKER_REPO --> K8S_CHK
 
-        K8S_CHK{kube\nin list?} -->|Yes| ADD_K8S_REPO[Add k8s stable/v1.35 repo\nDownload kubernetes.gpg]
+        K8S_CHK{kube<br/>in list?} -->|Yes| ADD_K8S_REPO["Add k8s stable/v1.35 repo<br/>Download kubernetes.gpg"]
         K8S_CHK -->|No| ISOLATED_APT
         ADD_K8S_REPO --> ISOLATED_APT
 
-        ISOLATED_APT[Create isolated apt environment:\n• Empty dpkg status file\n• Target codename sources.list\n• Separate cache/state dirs\n• Copy host GPG keys]
+        ISOLATED_APT["Create isolated apt environment:<br/>• Empty dpkg status file<br/>• Target codename sources.list<br/>• Separate cache/state dirs<br/>• Copy host GPG keys"]
 
-        ISOLATED_APT --> APT_UPDATE[apt update\nTarget codename packages]
-        APT_UPDATE --> DEP_CLOSURE[apt install -s --reinstall\nResolve full dependency closure]
+        ISOLATED_APT --> APT_UPDATE["apt update<br/>Target codename packages"]
+        APT_UPDATE --> DEP_CLOSURE["apt install -s --reinstall<br/>Resolve full dependency closure"]
         DEP_CLOSURE --> DELTA_LOOP
 
-        DELTA_LOOP{For each\ndep package} --> SKIP_BASE{Base system\npackage?}
+        DELTA_LOOP{For each<br/>dep package} --> SKIP_BASE{Base system<br/>package?}
         SKIP_BASE -->|Yes| NEXT_PKG[Skip]
-        SKIP_BASE -->|No| CHK_CACHE{In persistent\napt_cache/?}
+        SKIP_BASE -->|No| CHK_CACHE{In persistent<br/>apt_cache/?}
         CHK_CACHE -->|Yes| CACHE_HIT[Use cached .deb]
-        CHK_CACHE -->|No| DOWNLOAD[apt-get download\nMove to cache]
-        CACHE_HIT --> COPY_POOL[cp → WORKDIR/pool/extra/]
+        CHK_CACHE -->|No| DOWNLOAD["apt-get download<br/>Move to cache"]
+        CACHE_HIT --> COPY_POOL["cp → WORKDIR/pool/extra/"]
         DOWNLOAD --> COPY_POOL
         COPY_POOL --> NEXT_PKG --> DELTA_LOOP
 
-        COPY_LOGGER_BLD[Copy ipmi_start_logger.py\n→ pool/extra/] --> ISO_READY
+        COPY_LOGGER_BLD["Copy ipmi_start_logger.py<br/>→ pool/extra/"] --> ISO_READY
         DELTA_LOOP -->|Done| COPY_LOGGER_BLD
     end
 
-    ISO_READY[ISO packed with .debs in pool/extra/] --> INSTALL_PHASE
+    ISO_READY["ISO packed with .debs in pool/extra/"] --> INSTALL_PHASE
 
     subgraph INSTALL_TIME["Install Time (target server — late-commands)"]
-        INSTALL_PHASE{package_list\nwas non-empty?}
+        INSTALL_PHASE{package_list<br/>was non-empty?}
 
-        INSTALL_PHASE -->|Yes - Offline| OFFLINE[Copy .debs → /target/tmp/extra_pkg/\nSetup Docker/k8s keyrings\ncurtin in-target: apt install .deb files]
+        INSTALL_PHASE -->|Yes - Offline| OFFLINE["Copy .debs → /target/tmp/extra_pkg/<br/>Setup Docker/k8s keyrings<br/>curtin in-target: apt install .deb files"]
 
-        INSTALL_PHASE -->|No - Hybrid| ONLINE_TRY[Try apt-get install\nfrom Ubuntu mirrors]
+        INSTALL_PHASE -->|No - Hybrid| ONLINE_TRY["Try apt-get install<br/>from Ubuntu mirrors"]
         ONLINE_TRY --> ONLINE_OK{Success?}
         ONLINE_OK -->|Yes| ONLINE_DONE[Packages installed online]
-        ONLINE_OK -->|No| FALLBACK[Fallback: copy .debs from /cdrom/pool/extra/\ncurtin in-target: dpkg -i]
+        ONLINE_OK -->|No| FALLBACK["Fallback: copy .debs from /cdrom/pool/extra/<br/>curtin in-target: dpkg -i"]
     end
 ```
 
@@ -402,46 +402,46 @@ flowchart TD
 ## 7. ISO Structure (20.04+ GPT Layout)
 
 ```mermaid
-block-beta
+block
     columns 1
     block:DISK["Custom ISO File (xorriso output)"]:1
         block:GPT["GPT Partition Table"]:1
-            P1["Partition 1: ISO 9660 filesystem\n(Main content — variable size)"]
-            P2["Partition 2: EFI System Partition\n(64MB FAT32 — appended)"]
-            P3["Boot Catalog\n(El Torito)"]
+            P1["Partition 1: ISO 9660 filesystem<br/>(Main content — variable size)"]
+            P2["Partition 2: EFI System Partition<br/>(64MB FAT32 — appended)"]
+            P3["Boot Catalog<br/>(El Torito)"]
         end
     end
 
     block:ISO9660["ISO 9660 Filesystem Contents"]:1
         block:BOOT["Boot"]:1
-            MBR2["MBR bootstrap (432 bytes)\nisohdpfx.bin → GRUB2"]
-            GRUB_DIR["/boot/grub/grub.cfg\n(patched: autoinstall params)"]
-            GRUB_I386["/boot/grub/i386-pc/eltorito.img\n(BIOS El Torito boot)"]
+            MBR2["MBR bootstrap (432 bytes)<br/>isohdpfx.bin → GRUB2"]
+            GRUB_DIR["/boot/grub/grub.cfg<br/>(patched: autoinstall params)"]
+            GRUB_I386["/boot/grub/i386-pc/eltorito.img<br/>(BIOS El Torito boot)"]
         end
         block:CASPER["Casper (Live Environment)"]:1
-            VMLINUZ["/casper/vmlinuz\n(kernel)"]
-            INITRD["/casper/initrd\n(initial ramdisk)"]
+            VMLINUZ["/casper/vmlinuz<br/>(kernel)"]
+            INITRD["/casper/initrd<br/>(initial ramdisk)"]
         end
         block:AI["Autoinstall Config"]:1
-            UD["/autoinstall/user-data\n(cloud-init #cloud-config)"]
+            UD["/autoinstall/user-data<br/>(cloud-init #cloud-config)"]
             MD["/autoinstall/meta-data"]
             FD["/autoinstall/scripts/find_disk.sh"]
-            YAML_LINK["/autoinstall.yaml → symlink\n(24.04+ compat)"]
+            YAML_LINK["/autoinstall.yaml → symlink<br/>(24.04+ compat)"]
         end
         block:EXTRA["Extra Packages"]:1
-            DEBS["/pool/extra/*.deb\n(pre-bundled packages + deps)"]
+            DEBS["/pool/extra/*.deb<br/>(pre-bundled packages + deps)"]
             PYLOG["/pool/extra/ipmi_start_logger.py"]
-            DKGPG["/autoinstall/docker.asc\n(optional)"]
-            K8SGPG["/autoinstall/kubernetes.gpg\n(optional)"]
+            DKGPG["/autoinstall/docker.asc<br/>(optional)"]
+            K8SGPG["/autoinstall/kubernetes.gpg<br/>(optional)"]
         end
     end
 
     block:EFIFAT["EFI FAT32 Partition Contents"]:1
-        BOOTX64["/EFI/BOOT/bootx64.efi\n(UEFI shim)"]
-        GRUBX64["/EFI/BOOT/grubx64.efi\n(GRUB UEFI)"]
-        MMX64["/EFI/BOOT/mmx64.efi\n(MOK Manager)"]
-        EFI_GRUB["/EFI/BOOT/grub.cfg\n(copy of main grub.cfg)"]
-        GRUB_MODS["/boot/grub/x86_64-efi/\n(GRUB modules)"]
+        BOOTX64["/EFI/BOOT/bootx64.efi<br/>(UEFI shim)"]
+        GRUBX64["/EFI/BOOT/grubx64.efi<br/>(GRUB UEFI)"]
+        MMX64["/EFI/BOOT/mmx64.efi<br/>(MOK Manager)"]
+        EFI_GRUB["/EFI/BOOT/grub.cfg<br/>(copy of main grub.cfg)"]
+        GRUB_MODS["/boot/grub/x86_64-efi/<br/>(GRUB modules)"]
         FONTS["/boot/grub/fonts/"]
     end
 ```
