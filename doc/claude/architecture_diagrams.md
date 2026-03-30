@@ -216,15 +216,15 @@ graph TB
     GPT[GPT Partition Table]
 
     subgraph Part1["Partition 1: ISO 9660"]
-        Casper[/casper/<br/>vmlinuz<br/>initrd]
-        BootGRUB[/boot/grub/<br/>grub.cfg]
-        Autoinstall[/autoinstall/<br/>user-data<br/>meta-data]
-        PoolExtra[/pool/extra/<br/>*.deb packages<br/>Docker, K8s, tools]
+        Casper["/casper/<br/>vmlinuz<br/>initrd"]
+        BootGRUB["/boot/grub/<br/>grub.cfg"]
+        Autoinstall["/autoinstall/<br/>user-data<br/>meta-data"]
+        PoolExtra["/pool/extra/<br/>*.deb packages<br/>Docker, K8s, tools"]
     end
 
     subgraph Part2["Partition 2: EFI System - 20MB"]
-        EFIBoot[/EFI/boot/<br/>bootx64.efi<br/>grubx64.efi]
-        EFIModules[/boot/grub/<br/>x86_64-efi/<br/>fonts/]
+        EFIBoot["/EFI/boot/<br/>bootx64.efi<br/>grubx64.efi"]
+        EFIModules["/boot/grub/<br/>x86_64-efi/<br/>fonts/"]
     end
 
     subgraph Part3["Partition 3: Boot Catalog"]
@@ -766,9 +766,9 @@ graph TB
 
     subgraph Gen6Config["Gen-6 Configuration"]
         API6[API Endpoints]
-        VM6[/redfish/v1/Managers/bmc/<br/>VirtualMedia/Internal/]
-        LOG6[/redfish/v1/Systems/system/<br/>LogServices/EventLog/Entries]
-        PREFIX6[EventLogPrefix:<br/>0000020000000021000412006F]
+        VM6["/redfish/v1/Managers/bmc/<br/>VirtualMedia/Internal/"]
+        LOG6["/redfish/v1/Systems/system/<br/>LogServices/EventLog/Entries"]
+        PREFIX6["EventLogPrefix:<br/>0000020000000021000412006F"]
 
         API6 --> VM6
         API6 --> LOG6
@@ -777,10 +777,10 @@ graph TB
 
     subgraph Gen7Config["Gen-7 Configuration"]
         API7[API Endpoints]
-        VM7[/redfish/v1/Managers/bmc/<br/>VirtualMedia/Inband/]
-        LOG7[/redfish/v1/Managers/bmc/<br/>LogServices/SEL/Entries]
-        PREFIX7[EventLogPrefix:<br/>210012006F]
-        ADDITIONAL[AdditionalDataURI<br/>External forensic data]
+        VM7["/redfish/v1/Managers/bmc/<br/>VirtualMedia/Inband/"]
+        LOG7["/redfish/v1/Managers/bmc/<br/>LogServices/SEL/Entries"]
+        PREFIX7["EventLogPrefix:<br/>210012006F"]
+        ADDITIONAL["AdditionalDataURI<br/>External forensic data"]
 
         API7 --> VM7
         API7 --> LOG7
