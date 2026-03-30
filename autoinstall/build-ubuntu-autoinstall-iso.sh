@@ -373,6 +373,16 @@ echo "[*] Initializing unique build environment: ${BUILD_ID}"
 mkdir -p "$WORKDIR"
 mkdir -p "$OUT_ISO_DIR"
 
+# Remove WORKDIR on exit (success, error, or signal).
+# OUT_ISO_DIR is kept — it holds the finished ISO.
+cleanup() {
+    if [ -d "$WORKDIR" ]; then
+        echo "[*] Cleaning up work directory: $WORKDIR"
+        rm -rf "$WORKDIR"
+    fi
+}
+trap cleanup EXIT
+
 # Extract base filename and create autoinstall version
 ISO_BASENAME=$(basename "$ORIG_ISO" .iso)
 TIMESTAMP=$(date +%Y%m%d%H%M)
@@ -1133,3 +1143,4 @@ else
 fi
 
 echo "[*] Done. Autoinstall ISO created at: $OUT_ISO"
+echo "[*] Work directory will be removed on exit."
