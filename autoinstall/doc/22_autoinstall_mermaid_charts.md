@@ -402,46 +402,51 @@ flowchart TD
 ## 7. ISO Structure (20.04+ GPT Layout)
 
 ```mermaid
-block
-    columns 1
-    block:DISK["Custom ISO File (xorriso output)"]:1
-        block:GPT["GPT Partition Table"]:1
-            P1["Partition 1: ISO 9660 filesystem<br/>(Main content — variable size)"]
-            P2["Partition 2: EFI System Partition<br/>(64MB FAT32 — appended)"]
-            P3["Boot Catalog<br/>(El Torito)"]
+graph TB
+    subgraph ISO["Custom ISO File — xorriso output"]
+        subgraph GPT["GPT Partition Table"]
+            P1["Partition 1: ISO 9660 filesystem<br/>Main content — variable size"]
+            P2["Partition 2: EFI System Partition<br/>64MB FAT32 — appended"]
+            P3["Boot Catalog — El Torito"]
+        end
+
+        subgraph ISO9660["ISO 9660 Filesystem"]
+            subgraph BOOT_SEC["Boot"]
+                MBR2["MBR bootstrap 432 bytes<br/>isohdpfx.bin — GRUB2"]
+                GRUB_CFG_F["/boot/grub/grub.cfg<br/>patched: autoinstall params"]
+                ELTORITO["/boot/grub/i386-pc/eltorito.img<br/>BIOS El Torito boot"]
+            end
+
+            subgraph CASPER["Casper — Live Environment"]
+                VMLINUZ["/casper/vmlinuz — kernel"]
+                INITRD["/casper/initrd — initial ramdisk"]
+            end
+
+            subgraph AI["Autoinstall Config"]
+                UD["/autoinstall/user-data<br/>cloud-init autoinstall v1"]
+                MD["/autoinstall/meta-data"]
+                FD["/autoinstall/scripts/find_disk.sh"]
+                YAML_LINK["/autoinstall.yaml — symlink<br/>24.04+ compatibility"]
+            end
+
+            subgraph EXTRA["Extra Packages"]
+                DEBS["/pool/extra/*.deb<br/>pre-bundled packages + deps"]
+                PYLOG["/pool/extra/ipmi_start_logger.py"]
+                DKGPG["/autoinstall/docker.asc — optional"]
+                K8SGPG["/autoinstall/kubernetes.gpg — optional"]
+            end
+        end
+
+        subgraph EFIFAT["EFI FAT32 Partition — 64MB"]
+            BOOTX64["/EFI/BOOT/bootx64.efi — UEFI shim"]
+            GRUBX64["/EFI/BOOT/grubx64.efi — GRUB UEFI"]
+            MMX64["/EFI/BOOT/mmx64.efi — MOK Manager"]
+            EFI_GRUB["/EFI/BOOT/grub.cfg — copy of main grub.cfg"]
+            GRUB_MODS["/boot/grub/x86_64-efi/ — GRUB modules"]
+            FONTS["/boot/grub/fonts/"]
         end
     end
 
-    block:ISO9660["ISO 9660 Filesystem Contents"]:1
-        block:BOOT["Boot"]:1
-            MBR2["MBR bootstrap (432 bytes)<br/>isohdpfx.bin → GRUB2"]
-            GRUB_DIR["/boot/grub/grub.cfg<br/>(patched: autoinstall params)"]
-            GRUB_I386["/boot/grub/i386-pc/eltorito.img<br/>(BIOS El Torito boot)"]
-        end
-        block:CASPER["Casper (Live Environment)"]:1
-            VMLINUZ["/casper/vmlinuz<br/>(kernel)"]
-            INITRD["/casper/initrd<br/>(initial ramdisk)"]
-        end
-        block:AI["Autoinstall Config"]:1
-            UD["/autoinstall/user-data<br/>(cloud-init #cloud-config)"]
-            MD["/autoinstall/meta-data"]
-            FD["/autoinstall/scripts/find_disk.sh"]
-            YAML_LINK["/autoinstall.yaml → symlink<br/>(24.04+ compat)"]
-        end
-        block:EXTRA["Extra Packages"]:1
-            DEBS["/pool/extra/*.deb<br/>(pre-bundled packages + deps)"]
-            PYLOG["/pool/extra/ipmi_start_logger.py"]
-            DKGPG["/autoinstall/docker.asc<br/>(optional)"]
-            K8SGPG["/autoinstall/kubernetes.gpg<br/>(optional)"]
-        end
-    end
-
-    block:EFIFAT["EFI FAT32 Partition Contents"]:1
-        BOOTX64["/EFI/BOOT/bootx64.efi<br/>(UEFI shim)"]
-        GRUBX64["/EFI/BOOT/grubx64.efi<br/>(GRUB UEFI)"]
-        MMX64["/EFI/BOOT/mmx64.efi<br/>(MOK Manager)"]
-        EFI_GRUB["/EFI/BOOT/grub.cfg<br/>(copy of main grub.cfg)"]
-        GRUB_MODS["/boot/grub/x86_64-efi/<br/>(GRUB modules)"]
-        FONTS["/boot/grub/fonts/"]
-    end
+    P1 --- ISO9660
+    P2 --- EFIFAT
 ```
