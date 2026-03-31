@@ -149,11 +149,45 @@ check_and_install_packages() {
     fi
 }
 
-# Detect Ubuntu codename from OS_NAME for downloading correct packages
-# Maps version numbers to their Ubuntu codenames (archive repository names)
+# Detect Ubuntu codename from ISO content for downloading correct packages
+# Tries multiple detection methods in order of reliability:
+#   1. Read from /.disk/info file in ISO
+#   2. Detect from /dists directory (single subdirectory name)
+#   3. Fall back to version-based mapping from OS_NAME
 get_ubuntu_codename() {
-    local os_name="$1"
-    if [[ "$os_name" == *"25.10"* ]]; then    
+    local workdir="$1"
+    local os_name="$2"
+    local codename=""
+
+    # Method 1: Try to read from /.disk/info file
+    if [ -f "$workdir/.disk/info" ]; then
+        # .disk/info format: "Ubuntu-Server 22.04.2 LTS \"Jammy Jellyfish\" - Release amd64 (20230217)"
+        # Extract the codename (word before the closing quote)
+        codename=$(grep -oP '"\K[^"]+' "$workdir/.disk/info" | awk '{print tolower($1)}')
+        if [ -n "$codename" ]; then
+            echo "[*] Detected codename from .disk/info: $codename" >&2
+            echo "$codename"
+            return 0
+        fi
+    fi
+
+    # Method 2: Try to detect from /dists directory
+    if [ -d "$workdir/dists" ]; then
+        # Count subdirectories in /dists (should be exactly one: the codename)
+        local dists_count=$(find "$workdir/dists" -mindepth 1 -maxdepth 1 -type d | wc -l)
+        if [ "$dists_count" -eq 1 ]; then
+            codename=$(basename "$(find "$workdir/dists" -mindepth 1 -maxdepth 1 -type d)")
+            if [ -n "$codename" ]; then
+                echo "[*] Detected codename from /dists directory: $codename" >&2
+                echo "$codename"
+                return 0
+            fi
+        fi
+    fi
+
+    # Method 3: Fall back to version-based mapping from OS_NAME
+    echo "[*] Using fallback version-based codename detection from OS_NAME" >&2
+    if [[ "$os_name" == *"25.10"* ]]; then
         echo "questing"
     elif [[ "$os_name" == *"25.04"* ]]; then
         echo "plucky"
@@ -175,6 +209,7 @@ get_ubuntu_codename() {
         echo "bionic"
     else
         # Default to jammy if version cannot be determined
+        echo "[*] WARNING: Could not determine Ubuntu version, defaulting to jammy" >&2
         echo "jammy"
     fi
 }
@@ -411,7 +446,7 @@ umount /mnt/ubuntuiso
 # Download and bundle ipmitool packages for the target Ubuntu version (20.04+ only)
 # Ubuntu 18.04 uses preseed which installs packages during normal apt phase
 if [ "$IS_1804" != true ]; then
-    UBUNTU_CODENAME=$(get_ubuntu_codename "$OS_NAME")
+    UBUNTU_CODENAME=$(get_ubuntu_codename "$WORKDIR" "$OS_NAME")
     echo "[*] Target Ubuntu codename: $UBUNTU_CODENAME"
     download_extra_packages "$WORKDIR" "$UBUNTU_CODENAME"
 fi
