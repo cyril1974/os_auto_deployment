@@ -300,10 +300,13 @@ APTEOF
     # Add Kubernetes repository if any k8s pkg is requested
     if echo "$pkgs_to_download" | grep -q "kube"; then
         echo "[*] Adding Kubernetes repository for bundling (stable v1.35)..."
-        echo "deb [arch=amd64 trusted=yes] https://pkgs.k8s.io/core:/stable:/v1.35/deb/ /" >> "$apt_sources"
-        # Bundle Kubernetes GPG key into the ISO autoinstall folder for late-command availability
+        # Download and install GPG key first
         echo "[*] Bundling Kubernetes GPG key into ISO..."
         curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.35/deb/Release.key | gpg --dearmor -o "$workdir/autoinstall/kubernetes.gpg" || true
+        # Copy to apt trusted directory for package download
+        cp "$workdir/autoinstall/kubernetes.gpg" "$apt_etc/trusted.gpg.d/" 2>/dev/null || true
+        # Note: Kubernetes repos use flat repository structure - the trailing "/" is the distribution, no component needed
+        echo "deb [arch=amd64 trusted=yes] https://pkgs.k8s.io/core:/stable:/v1.35/deb/ /" >> "$apt_sources"
     fi
 
     echo "[*] Fetching package index for ${codename}..."
