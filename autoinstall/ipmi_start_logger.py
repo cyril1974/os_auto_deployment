@@ -123,6 +123,13 @@ if __name__ == "__main__":
     netfn = 0x0a
     cmd = 0x44
     
+    # 0. Prevent duplicate logging of the same marker in environments where 
+    # early-commands/late-commands are executed multiple times (Subiquity bug)
+    marker_lock = f"/tmp/ipmi_marker_{marker:02x}.lock"
+    if os.path.exists(marker_lock):
+        # Already logged this marker in this OS session
+        sys.exit(0)
+
     # SEL Record Structure (Marker/Payload)
     data = [
         0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x21, 
@@ -130,6 +137,15 @@ if __name__ == "__main__":
     ]
     
     success = send_ipmi_raw(netfn, cmd, data)
+    
+    if success:
+        # Create lock file after successful transmission
+        try:
+            with open(marker_lock, 'w') as f:
+                f.write(f"{datetime.now().isoformat()}")
+        except Exception:
+            pass
+
     log_command_execution(marker, byte1, byte2, success)
     
     sys.exit(0 if success else 1)

@@ -430,7 +430,7 @@ def main():
                     if eventMessage[-6:-4] in ["AA","EE"]:
                         is_complete = True
                         # execute umount_media of utils
-                        utils.umount_media(bmcip, auth_string, use_endpoint)
+                        # utils.umount_media(bmcip, auth_string, use_endpoint)
                         
                     if eventMessage[-6:-4] == "03":        
                         IP[0] = str(int(eventMessage[-4:-2], 16))

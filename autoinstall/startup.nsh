@@ -8,12 +8,17 @@ cls
 for %x run (0 40)
     if exist fs%x:\startup.nsh then
         fs%x:
-        ls
-        goto END
+        # ls
+        if exist fs%x:\EFI\BOOT\grub.cfg then
+            cd EFI\BOOT
+            bootx64.efi
+            goto END
+        endif
+        echo "Unable to find OS boot file (grub.cfg) on fs%x:"
     endif
 endfor
 
-echo "Unable to find startup.nsh"
+echo "Unable to find startup.nsh on any filesystem"
 
 # Send to client that server is boot and startup is activate
 # if %PLATFORM% == "EGS" then

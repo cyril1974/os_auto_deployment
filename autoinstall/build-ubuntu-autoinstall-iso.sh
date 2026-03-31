@@ -836,9 +836,9 @@ grep -q 'set default=' "$GRUB_CFG" || echo 'set default="0"' >> "$GRUB_CFG"
 # Parameters for the linux line
 if [ "$IS_1804" = true ]; then
   # For 18.04 Legacy ISO, use standard preseed parameters
-  BOOT_PARAMS='file=/cdrom/preseed.cfg auto=true priority=critical console=ttyS0,115200n8 console=tty0 ---'
+  BOOT_PARAMS='file=/cdrom/preseed.cfg auto=true priority=critical video=1024x768 console=ttyS0,115200n8 console=tty0 ---'
 else
-  BOOT_PARAMS='boot=casper autoinstall ds=nocloud;s=/cdrom/autoinstall/ console=ttyS0,115200n8 console=tty0 ---'
+  BOOT_PARAMS='boot=casper autoinstall ds=nocloud;s=/cdrom/autoinstall/ video=1024x768 console=ttyS0,115200n8 console=tty0 ---'
 fi
 
 python3 - <<PYEOF
@@ -897,10 +897,10 @@ for cfg in "${ISOLINUX_CFG_FILES[@]}"; do
         echo "[*] Patching ISOLINUX configuration in $cfg..."
 if [ "$IS_1804" = true ]; then
   # Legacy parameters for 18.04 BIOS boot
-  BOOT_PARAMS='file=/cdrom/preseed.cfg auto=true priority=critical initrd=/install/initrd.gz console=ttyS0,115200n8 console=tty0'
+  BOOT_PARAMS='file=/cdrom/preseed.cfg auto=true priority=critical initrd=/install/initrd.gz video=1024x768 console=ttyS0,115200n8 console=tty0'
 else
   # For 20.04+ Autoinstall
-  BOOT_PARAMS='boot=casper autoinstall ds=nocloud;s=/cdrom/autoinstall/ initrd=/casper/initrd console=ttyS0,115200n8 console=tty0'
+  BOOT_PARAMS='boot=casper autoinstall ds=nocloud;s=/cdrom/autoinstall/ initrd=/casper/initrd video=1024x768 console=ttyS0,115200n8 console=tty0'
 fi
 
 python3 - <<PYEOF
@@ -1112,5 +1112,5 @@ else
 
 fi
 
-echo "[*] Done. Autoinstall ISO created at: $OUT_ISO"
+echo "[*] Done. Autoinstall ISO created "
 echo "[*] Work directory will be removed on exit."

@@ -2,6 +2,68 @@
 
 ---
 
+## 2026-04-01: UefiShell Boot, IPMI Dedup Lock, Non-Redfish Auth, video= Param (v2-rev49)
+
+**Files:** `autoinstall/build-ubuntu-autoinstall-iso.sh`, `autoinstall/startup.nsh`, `autoinstall/ipmi_start_logger.py`, `src/os_deployment/lib/reboot.py`, `src/os_deployment/lib/auth.py`, `src/os_deployment/lib/utils.py`, `src/os_deployment/main.py`
+
+### Summary of Changes
+
+This update shifts the boot flow to UEFI Shell, adds idempotent IPMI marker logging to fix duplicate SEL entries caused by Subiquity re-triggering, extends auth support to non-Redfish BMC management APIs, and adds `video=1024x768` to all boot parameter lines.
+
+---
+
+### Implementation Details
+
+#### 1. Fix: Boot Override Target — `"Cd"` → `"UefiShell"`
+- **Change:** `reboot.py` `_set_boot_cdrom()` now sets `BootSourceOverrideTarget` to `"UefiShell"` instead of `"Cd"`.
+- **Reason:** Targets boot into the UEFI Shell environment, where `startup.nsh` can locate and launch `bootx64.efi` from the correct filesystem.
+
+#### 2. Fix: Idempotent IPMI Marker Logging (Duplicate `0x0F` in SEL)
+- **Problem:** The `0x0F` (Package Pre-install Start) marker appeared three times in the BMC SEL on some hardware (e.g., Mitac G7 node), because Subiquity re-triggers `early-commands` multiple times during initialization.
+- **Solution:** Added a lock-file mechanism to `ipmi_start_logger.py`. Before sending a marker, the script checks for `/tmp/ipmi_marker_XX.lock`. If present, it exits silently. On successful transmission, it creates the lock file.
+- **Result:** Each deployment marker now appears exactly once per OS session in the SEL.
+- **Reference:** `autoinstall/doc/26_debug_duplicate_preinstall_markers.md`
+
+#### 3. Feature: Non-Redfish BMC Auth Support
+- **`auth.py`:** Added `get_auth_form(target, config)` — returns credentials as a URL-encoded form string (`username=...&password=...`) for BMCs that do not expose a Redfish interface.
+- **`utils.py`:** Extended `check_auth_valid(target, auth, redfish_supported=True)` to support non-Redfish endpoints (defaults to `/api/session` with query-string auth when `redfish_supported=False`). Also returns `"content"` field in the success response.
+
+#### 4. Fix: `video=1024x768` Boot Parameter
+- **Change:** Added `video=1024x768` to all boot parameter lines in the build script (GRUB and ISOLINUX configs, for both 18.04 preseed and 20.04+ autoinstall paths).
+- **Reason:** Ensures a consistent framebuffer resolution on server hardware during unattended installation.
+
+#### 5. Fix: `startup.nsh` — Proper EFI Boot Detection
+- **Change:** Enhanced the UEFI shell scan loop to check for `EFI\BOOT\grub.cfg` on each filesystem before calling `bootx64.efi`. Previously the loop ran `ls` and jumped to end without actually booting.
+- **Typo fix:** Corrected garbled error message `"Unable to find filesystem includestartup.nsh"` → `"Unable to find startup.nsh on any filesystem"`.
+
+#### 6. Revert: `umount_media` Auto-Call Disabled
+- **Change:** Commented out the `utils.umount_media()` call in `main.py` that was introduced in v2-rev48.
+- **Reason:** Premature unmount caused issues on some targets; manual unmount is preferred until a reliable completion-detection strategy is confirmed.
+
+#### 7. Docs: Codename Multi-line Bug Forensic Analysis
+- **Deleted:** `autoinstall/doc/24_codename_multiline_bug_fix.md` (misnamed file from prior session).
+- **Added:** `autoinstall/doc/26_codename_multiline_bug_fix.md` — full forensic analysis of the multi-line codename extraction bug that caused malformed `sources.list` entries.
+- **Added:** `autoinstall/doc/26_debug_duplicate_preinstall_markers.md` — root-cause analysis and resolution of the duplicate `0x0F` SEL marker issue.
+
+---
+
+### Summary of File Changes
+
+| File | Change Type | Description |
+|---|---|---|
+| `src/os_deployment/lib/reboot.py` | Modified | `BootSourceOverrideTarget`: `"Cd"` → `"UefiShell"` |
+| `autoinstall/ipmi_start_logger.py` | Modified | Lock-file dedup: skip if `/tmp/ipmi_marker_XX.lock` exists; create on success |
+| `src/os_deployment/lib/auth.py` | Added | `get_auth_form()` for non-Redfish form-based auth |
+| `src/os_deployment/lib/utils.py` | Modified | `check_auth_valid()`: optional `redfish_supported` param + `/api/session` fallback |
+| `autoinstall/build-ubuntu-autoinstall-iso.sh` | Modified | `video=1024x768` added to all GRUB and ISOLINUX boot param lines |
+| `autoinstall/startup.nsh` | Modified | Detect `grub.cfg`, call `bootx64.efi`; fix garbled error message |
+| `src/os_deployment/main.py` | Modified | Commented out `umount_media()` auto-call |
+| `autoinstall/doc/24_codename_multiline_bug_fix.md` | Deleted | Misnamed file removed |
+| `autoinstall/doc/26_codename_multiline_bug_fix.md` | Added | Forensic analysis of multi-line codename extraction bug |
+| `autoinstall/doc/26_debug_duplicate_preinstall_markers.md` | Added | Root-cause analysis of duplicate `0x0F` SEL markers |
+
+---
+
 ## 2026-03-31: External Disk Script, IP Logging Fix, and ISO Unmount (v2-rev48)
 
 **Files:** `autoinstall/build-ubuntu-autoinstall-iso.sh`, `autoinstall/scripts/find_disk.sh`, `src/os_deployment/main.py`, `autoinstall/doc/22_autoinstall_mermaid_charts.md`

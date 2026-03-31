@@ -38,7 +38,7 @@ def _set_boot_cdrom(target: str , auth_header: str):
     }
     data = json.dumps({
             "Boot": {
-                "BootSourceOverrideTarget": "Cd",
+                "BootSourceOverrideTarget": "UefiShell",
                 "BootSourceOverrideEnabled": "Once"
             }
     })

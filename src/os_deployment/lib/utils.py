@@ -72,7 +72,7 @@ def check_redfish_api(target,auth):
     except Exception:
         return False
 
-def check_auth_valid(target, auth):
+def check_auth_valid(target, auth, redfish_supported=True):
     """Check if the provided authentication credentials are valid.
 
     Uses the Redfish SessionService endpoint (/redfish/v1/SessionService)
@@ -92,9 +92,13 @@ def check_auth_valid(target, auth):
             - {"status": "error", "message": "..."}
               for any other failure (BMC unreachable, timeout, etc.).
     """
-    SESSION_SERVICE_API = "/redfish/v1/SessionService"
+    
+    query_string = "" if redfish_supported else f"?{auth}"
+    SESSION_SERVICE_API = "/redfish/v1/SessionService" if redfish_supported else "/api/session"
+    request_url = f"https://{target}{SESSION_SERVICE_API}{query_string}"
+    auth = None if not redfish_supported else auth
     try:
-        response = redfish_get_request(SESSION_SERVICE_API, bmc_ip=target, auth=auth)
+        response = redfish_get_request(request_url, bmc_ip=target, auth=auth)
         if response is None:
             return {
                 "status": "error",
@@ -103,7 +107,8 @@ def check_auth_valid(target, auth):
         if response.status_code == 200:
             return {
                 "status": "ok",
-                "message": "Authentication is valid"
+                "message": "Authentication is valid",
+                "content": response.json()
             }
         elif response.status_code == 401:
             return {
