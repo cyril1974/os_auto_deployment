@@ -156,16 +156,34 @@ def main():
     # 
     # sys.exit("DEBUG!!!")
     
-    # Validate BMC Authentication
-    auth_string = auth.get_auth_header(bmcip, config_json)
-    print(f"[{utils.formatted_time()}] Validating BMC authentication ({bmcip}) ....", end="")
-    auth_result = utils.check_auth_valid(bmcip, auth_string)
-    if auth_result["status"] == "ok":
-        print("OK")
+    # Validate Redfish API
+    print(f"[{utils.formatted_time()}] Validating Redfish API ({bmcip}) ....", end="")
+    redfish_supported = False
+    redfish_result = utils.check_redfish_api(bmcip, "")
+    if redfish_result==False:
+        print("Redfish API Not Supported ... (Old Platform)")
     else:
-        print("FAIL")
-        sys.exit(f"BMC Auth Validation Failed: {auth_result['message']} (Please check your parameter or config.json)")
-
+        print("Redfish API Supported")
+        redfish_supported = True
+    # Validate BMC Authentication
+    print(f"[{utils.formatted_time()}] Validating BMC authentication ({bmcip}) ....", end="")
+    if redfish_supported:
+        auth_string = auth.get_auth_header(bmcip, config_json)
+        auth_result = utils.check_auth_valid(bmcip, auth_string, redfish_supported)
+        if auth_result["status"] == "ok":
+            print("OK")
+        else:
+            print("FAIL")
+            sys.exit(f"BMC Auth Validation Failed: {auth_result['message']} (Please check your parameter or config.json)")
+    else:
+        auth_query = auth.get_auth_form(bmcip, config_json)
+        auth_result = utils.check_auth_valid(bmcip, auth_query, redfish_supported)
+        if auth_result["status"] == "ok":
+            print("OK")
+            sys.exit(f"Redfish UnSupported , Login Response {auth_result['content']}")
+        else:
+            print("FAIL")
+            sys.exit(f"BMC Auth Validation Failed: {auth_result['message']} (Please check your parameter or config.json)")
     # Generate Custom ISO or use pre-built ISO
     if pre_built_iso:
         # --iso option provided: validate and use the pre-built ISO
@@ -411,6 +429,9 @@ def main():
                     StatusCode = eventMessage[-6:-4]
                     if eventMessage[-6:-4] in ["AA","EE"]:
                         is_complete = True
+                        # execute umount_media of utils
+                        utils.umount_media(bmcip, auth_string, use_endpoint)
+                        
                     if eventMessage[-6:-4] == "03":        
                         IP[0] = str(int(eventMessage[-4:-2], 16))
                         IP[1] = str(int(eventMessage[-2:], 16))

@@ -2,6 +2,51 @@
 
 ---
 
+## 2026-03-31: External Disk Script, IP Logging Fix, and ISO Unmount (v2-rev48)
+
+**Files:** `autoinstall/build-ubuntu-autoinstall-iso.sh`, `autoinstall/scripts/find_disk.sh`, `src/os_deployment/main.py`, `autoinstall/doc/22_autoinstall_mermaid_charts.md`
+
+### Summary of Changes
+
+This update refactors the disk detection logic for better maintainability, fixes a critical diagnostic logging bug, automates resource cleanup, and standardizes documentation diagrams.
+
+---
+
+### Implementation Details
+
+#### 1. Refactor: Externalized Disk Detection Script
+- **Change:** Moved the `find_empty_disk_serial` function and configuration patching logic from an inline heredoc in the build script to a standalone file: `autoinstall/scripts/find_disk.sh`.
+- **Integration:** The build script now copies this local file into the ISO work directory at `/autoinstall/scripts/find_disk.sh`.
+- **Optimization:** Simplified `early-commands` in `user-data` to a single execution call: `sh /cdrom/autoinstall/scripts/find_disk.sh`.
+- **Error Handling:** Enhanced the script to explicitly `exit 1` if no disk is found, ensuring the installer aborts instead of proceeding with invalid storage settings.
+
+#### 2. Fix: IP Logging Escaping (0.0.0.0 Issue)
+- **Problem:** The `error-commands` block was logging `0.0.0.0` during installation aborts because `awk` variables (`$1`, `$2`, etc.) were being expanded by the runtime shell instead of being treated as literals.
+- **Resolution:** Updated `awk` commands to use single quotes (`'...'`) and ensured proper backslash escaping (`\$`) within the `user-data` heredoc.
+- **Result:** Diagnostic IP octets are now correctly captured and logged to the BMC SEL even in the event of an automated install failure.
+
+#### 3. Feature: Automatic ISO Unmount
+- **Change:** Updated `src/os_deployment/main.py` to automatically call `utils.umount_media` when the installation finishes.
+- **Logic:** Triggered by detecting markers `0xAA` (Complete) or `0xEE` (Abort) in the BMC System Event Log.
+- **Benefit:** Releases the virtual media resource on the BMC immediately after use, preventing resource lock-up for subsequent deployments.
+
+#### 4. Documentation: Mermaid Syntax Standardization
+- **Bug:** Several architectural diagrams failed to render due to special characters in node labels and improper line break syntax.
+- **Fix:** Standardized all Mermaid diagrams across documentation by:
+    - Wrapping node labels containing paths or symbols in double quotes (`"..."`).
+    - Replacing problematic `\n` line breaks with compliant `<br/>` tags.
+    - Updating block diagram syntax to the current standard.
+
+---
+
+### Benefits
+- ✅ **Maintainability:** Peripheral logic (disk detection) is decoupled from the main build script.
+- ✅ **Reliability:** Automated cleanup prevents "Virtual Media device busy" errors on next use.
+- ✅ **Observability:** Corrected IP logging provides immediate diagnostic data for troubleshooting and forensic analysis.
+- ✅ **Readability:** Professional-looking, rendering documentation diagrams.
+
+---
+
 ## 2026-03-31: Add startup.nsh to EFI Boot Image (v2-rev47)
 
 **Files:** `autoinstall/build-ubuntu-autoinstall-iso.sh`, `autoinstall/startup.nsh` (new)

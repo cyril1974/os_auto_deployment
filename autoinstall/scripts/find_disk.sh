@@ -69,3 +69,27 @@ find_empty_disk_serial() {
     echo "[!] ERROR: No empty storage devices detected." > /dev/console
     return 1
 }
+
+# Main Execution Logic
+echo "[*] Starting disk detection and config patching..." > /dev/console
+serial=$(find_empty_disk_serial)
+if [ $? -eq 0 ]; then
+    echo "[*] Detected disk serial: $serial" > /dev/console
+    # CRITICAL: Patch /autoinstall.yaml FIRST (symlink to /cdrom/autoinstall/user-data)
+    # This file is read by subiquity BEFORE any other configs are created
+    if [ -f /autoinstall.yaml ]; then
+        echo "[*] Patching /autoinstall.yaml with serial: $serial" > /dev/console
+        sed -i "s/__ID_SERIAL__/${serial}/g" /autoinstall.yaml
+    fi
+    # Also patch any runtime configs that subiquity may have already created
+    for cfg in /run/subiquity/autoinstall.yaml /run/subiquity/cloud.autoinstall.yaml /tmp/autoinstall.yaml; do
+        if [ -f "$cfg" ]; then
+            echo "[*] Patching $cfg with serial: $serial" > /dev/console
+            sed -i "s/__ID_SERIAL__/${serial}/g" "$cfg"
+        fi
+    done
+    echo "[+] Disk serial replacement completed" > /dev/console
+else
+    echo "[!] WARNING: No empty storage device found. Abort installation." > /dev/console
+    exit 1
+fi

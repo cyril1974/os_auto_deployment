@@ -568,36 +568,6 @@ autoinstall:
       - arches: [default]
         uri: http://archive.ubuntu.com/ubuntu
   early-commands:
-    # 1. Source and execute find_disk logic safely (if it exists)
-    - |
-      #!/bin/sh
-      echo "[*] Starting disk detection and config patching..." > /dev/console
-      if [ -f /cdrom/autoinstall/scripts/find_disk.sh ]; then
-          . /cdrom/autoinstall/scripts/find_disk.sh
-          serial=\$(find_empty_disk_serial)
-          if [ \$? -eq 0 ]; then
-              echo "[*] Detected disk serial: \$serial" > /dev/console
-              # CRITICAL: Patch /autoinstall.yaml FIRST (symlink to /cdrom/autoinstall/user-data)
-              # This file is read by subiquity BEFORE any other configs are created
-              if [ -f /autoinstall.yaml ]; then
-                  echo "[*] Patching /autoinstall.yaml with serial: \$serial" > /dev/console
-                  sed -i "s/__ID_SERIAL__/\${serial}/g" /autoinstall.yaml
-              fi
-              # Also patch any runtime configs that subiquity may have already created
-              for cfg in /run/subiquity/autoinstall.yaml /run/subiquity/cloud.autoinstall.yaml /tmp/autoinstall.yaml; do
-                  if [ -f "\$cfg" ]; then
-                      echo "[*] Patching \$cfg with serial: \$serial" > /dev/console
-                      sed -i "s/__ID_SERIAL__/\${serial}/g" "\$cfg"
-                  fi
-              done
-              echo "[+] Disk serial replacement completed" > /dev/console
-          else
-              echo "[!] WARNING: No empty storage device found. Bypassing detection." > /dev/console
-          fi
-      else
-          echo "[!] WARNING: find_disk.sh not found. Proceeding with default config." > /dev/console
-      fi
-
     # Disable multipathd before curtin runs.
     # multipath-tools and libdevmapper can have an ABI mismatch on Ubuntu 25.04+
     # where 'multipath -r' exits with code 1 and causes curtin clear-holders to abort.
@@ -613,6 +583,13 @@ autoinstall:
     # This ensures OOB telemetry works BEFORE ipmitool is even installed.
     # Log Package Pre-install Start (Marker: 0x0F)
     - python3 /cdrom/pool/extra/ipmi_start_logger.py 0x0F || true
+    # Detect and patch disk configuration (find_disk.sh)
+    - |
+      if [ -f /cdrom/autoinstall/scripts/find_disk.sh ]; then
+          sh /cdrom/autoinstall/scripts/find_disk.sh
+      else
+          echo "[!] WARNING: find_disk.sh not found. Proceeding with default config." > /dev/console
+      fi
     # Install ipmitool from pre-bundled .deb files on ISO (no network needed)
     # Packages are version-matched for the target Ubuntu release during ISO build.
     - dpkg -i /cdrom/pool/extra/*.deb 2>/dev/null || true
