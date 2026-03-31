@@ -2,6 +2,92 @@
 
 ---
 
+## 2026-03-31: Ubuntu 25.10 Support and Event Logging Cleanup (v2-rev45)
+
+**Files:** `autoinstall/build-ubuntu-autoinstall-iso.sh`, `src/os_deployment/main.py`
+
+---
+
+### Summary of Changes
+
+This commit includes two improvements for better compatibility and cleaner monitoring output:
+
+#### 1. Ubuntu 25.10 (Questing Quetzal) Support
+
+**Change:** Added codename mapping for the upcoming Ubuntu 25.10 release in the `get_ubuntu_codename()` function.
+
+**Implementation:**
+```bash
+if [[ "$os_name" == *"25.10"* ]]; then
+    echo "questing"
+elif [[ "$os_name" == *"25.04"* ]]; then
+    echo "plucky"
+```
+
+**Benefits:**
+- ✅ Forward compatibility with Ubuntu 25.10 release
+- ✅ Ensures package downloads work correctly for the new version
+- ✅ Maintains proper version check precedence (25.10 checked before 25.04)
+- ✅ Enables ISO building for "Questing Quetzal" codename repositories
+
+**Location:** `autoinstall/build-ubuntu-autoinstall-iso.sh` lines 156-157
+
+---
+
+#### 2. Event Logging Output Cleanup
+
+**Change:** Removed raw event message hex bytes from standard monitoring output to improve log readability.
+
+**Before:**
+```
+[2026-03-31 10:23:45] OS Installation Start (Event : 0x0F210412006F01FFFF) (Code : 0x00)
+```
+
+**After:**
+```
+[2026-03-31 10:23:45] OS Installation Start (Code : 0x00)
+```
+
+**Implementation:**
+```python
+# Lines 392-393: Define empty debug message
+# event_debug_message = f"(Event : {eventMessage})"
+event_debug_message = ""
+
+# Line 421: Use cleaned format
+print(f"[{eventTime}] {eventString} {event_debug_message} (Code : {StatusCode})")
+```
+
+**Benefits:**
+- ✅ Cleaner, more professional log output
+- ✅ Easier to read deployment status messages at a glance
+- ✅ Reduced visual clutter in monitoring dashboards
+- ✅ Debug hex data still available in code (commented) if needed for troubleshooting
+- ✅ Improves user experience for operators monitoring multiple deployments
+
+**Location:** `src/os_deployment/main.py` lines 392-393, 421
+
+---
+
+### Files Modified
+
+| File | Lines | Description |
+|------|-------|-------------|
+| `autoinstall/build-ubuntu-autoinstall-iso.sh` | 156-157 | Add Ubuntu 25.10 "questing" codename mapping |
+| `src/os_deployment/main.py` | 392-393 | Comment out event debug message variable |
+| `src/os_deployment/main.py` | 421 | Remove event hex display from print statement |
+
+---
+
+### Impact
+
+- **Compatibility:** Ready for Ubuntu 25.10 release cycle
+- **User Experience:** Significantly improved log readability for deployment monitoring
+- **Maintainability:** All functionality preserved while improving presentation
+- **Testing:** No breaking changes; backward compatible with existing deployments
+
+---
+
 ## 2026-03-27: Fix YAML Syntax Error in IP Logging (v2-rev44)
 
 **Files:** `build-ubuntu-autoinstall-iso.sh`, `debug_note.md`
