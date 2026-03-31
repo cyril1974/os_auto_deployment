@@ -1144,6 +1144,14 @@ else
       echo "[*] Copying GRUB fonts directory..."
       mcopy -s -i "$EFI_IMG" boot/grub/fonts ::/boot/grub/
     fi
+
+    # Copy startup.nsh to root of EFI image for UEFI Shell auto-execution
+    if [ -f "${SCRIPT_DIR}/startup.nsh" ]; then
+      echo "[*] Copying startup.nsh to EFI image root..."
+      mcopy -i "$EFI_IMG" "${SCRIPT_DIR}/startup.nsh" ::/startup.nsh
+    else
+      echo "[!] Warning: startup.nsh not found at ${SCRIPT_DIR}/startup.nsh"
+    fi
   )
   echo "[*] EFI boot image created: $EFI_IMG"
 
