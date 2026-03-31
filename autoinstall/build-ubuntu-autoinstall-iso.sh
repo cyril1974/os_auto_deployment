@@ -305,11 +305,14 @@ APTEOF
         curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.35/deb/Release.key | gpg --dearmor -o "$workdir/autoinstall/kubernetes.gpg" || true
         # Copy to apt trusted directory for package download
         cp "$workdir/autoinstall/kubernetes.gpg" "$apt_etc/trusted.gpg.d/" 2>/dev/null || true
-        # Note: Kubernetes repos use flat repository structure - the trailing "/" is the distribution, no component needed
+        # Note: Kubernetes repos use flat repository structure - the trailing "/" is the distribution, "/" is the component
         echo "deb [arch=amd64 trusted=yes] https://pkgs.k8s.io/core:/stable:/v1.35/deb/ /" >> "$apt_sources"
     fi
 
     echo "[*] Fetching package index for ${codename}..."
+    echo "[DEBUG] Contents of sources.list:" >&2
+    cat "$apt_sources" >&2
+    echo "[DEBUG] End of sources.list" >&2
     if apt-get "${APT_OPTS[@]}" update 2>&1 | tail -3; then
 
         echo "[*] Delta Download: Checking cache for requested packages in ${codename}..."
