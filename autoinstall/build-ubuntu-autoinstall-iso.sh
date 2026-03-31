@@ -162,8 +162,8 @@ get_ubuntu_codename() {
     # Method 1: Try to read from /.disk/info file
     if [ -f "$workdir/.disk/info" ]; then
         # .disk/info format: "Ubuntu-Server 22.04.2 LTS \"Jammy Jellyfish\" - Release amd64 (20230217)"
-        # Extract the codename (word before the closing quote)
-        codename=$(grep -oP '"\K[^"]+' "$workdir/.disk/info" | awk '{print tolower($1)}')
+        # Extract the codename (first word from first quoted string)
+        codename=$(grep -oP '"\K[^"]+' "$workdir/.disk/info" | head -1 | awk '{print tolower($1)}')
         if [ -n "$codename" ]; then
             echo "[*] Detected codename from .disk/info: $codename" >&2
             echo "$codename"
