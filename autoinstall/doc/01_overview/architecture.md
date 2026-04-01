@@ -444,3 +444,26 @@ debugging a version-specific failure.
 | 2026-03-17 | Hybrid online/offline package installation |
 | 2026-03-16 | HWE kernel support, DNS propagation to chroot |
 | 2026-02-10 | Initial architecture documentation |
+
+---
+
+## 2026-04-01 Update Summary
+
+What changed in this document compared to the previous version:
+
+| Section | Before (original) | After (this revision) |
+|---|---|---|
+| **CLI arguments** | Not documented | Full argument table with `OS_NAME`, `USERNAME`, `PASSWORD`, `--skip-install` and their defaults |
+| **Ubuntu version support** | Stated "22.04+ Server ISOs" only | 18.04 through 25.10+ with three-method codename detection and per-version behaviour table |
+| **Build phases** | Single vague mermaid graph | 7 numbered phases (dependency check → cleanup) each with clear inputs and outputs |
+| **ISO structure** | Partial directory tree (missing `autoinstall/`, `scripts/`, `pool/extra/`, EFI image contents) | Complete tree for both ISO9660 layer and EFI FAT32 image |
+| **Boot chain** | One combined sequence diagram | Three separate paths: UEFI 20.04+, UEFI 18.04 (unmodified efi.img), BIOS/Legacy |
+| **user-data structure** | Not covered | Full YAML outline including `storage` config, `early-commands`, `late-commands`, `error-commands`, and placeholder `__ID_SERIAL__` |
+| **Package bundling** | One strategy described | Three distinct strategies: Offline (`package_list`), Hybrid (online with fallback), Mandatory (ipmitool always) |
+| **apt_cache** | Not covered | Directory structure per codename, deduplication logic, isolated dpkg status environment |
+| **IPMI SEL markers** | Not covered | Full marker table with hex values, phase, byte1/byte2 payloads, and meaning for all 11 markers |
+| **find_disk.sh** | Not covered | 5-step algorithm: enumerate → filter empty → select smallest → extract serial → patch config |
+| **startup.nsh** | Not covered | Purpose, execution context, and fs0:–fs39: search logic explained |
+| **Build isolation** | Not covered | BUILD_ID format, workdir vs output dir separation, `trap cleanup EXIT` behaviour |
+| **Security** | 5-point bullet list | Table with concrete implementation detail per feature |
+| **Version comparison summary** | Not present | Full cross-version table (18 aspects across 18.04 / 20.04–23.10 / 24.04+) |
