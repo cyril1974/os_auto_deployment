@@ -403,6 +403,38 @@ All internal paths use absolute references so `xorriso` subshell `cd` does not b
 
 ---
 
+## Version Comparison Summary
+
+The table below consolidates every behaviour difference across the three supported Ubuntu
+generation paths. Use it as a quick reference when adding support for a new release or
+debugging a version-specific failure.
+
+| Aspect | 18.04 (bionic) | 20.04 – 23.10 (focal … mantic) | 24.04+ (noble …) |
+|---|---|---|---|
+| **Installer engine** | Preseed / Debian Installer (d-i) | Autoinstall (Subiquity) | Autoinstall (Subiquity v4) |
+| **Autoinstall config** | `preseed.cfg` in ISO root | `autoinstall/user-data` | `autoinstall/user-data` + `/autoinstall.yaml` symlink |
+| **Why symlink needed (24.04+)** | — | — | Subiquity v4 reads `/autoinstall.yaml` before processing other configs; symlink must exist before early-commands run |
+| **Boot path — UEFI** | Alt-boot via original unmodified `efi.img`; grub reads `/boot/grub/grub.cfg` from ISO9660 | GPT partition 2 (generated 64 MB FAT32); `startup.nsh` → `bootx64.efi` → patched `grub.cfg` | Same as 20.04–23.10 |
+| **Boot path — BIOS** | ISOLINUX → patched `txt.cfg` / `adtxt.cfg` | Same | Same |
+| **EFI image** | Original `efi.img` retained unmodified | New 64 MB FAT32 image generated | New 64 MB FAT32 image generated |
+| **grub.cfg patched** | Yes (ISO9660 layer only) | Yes (ISO9660 + inside EFI image) | Yes (ISO9660 + inside EFI image) |
+| **isolinux patched** | Yes (`txt.cfg`, `adtxt.cfg`) | Yes | Yes |
+| **Kernel/initrd path** | `install/vmlinuz` + `install/initrd.gz` | `casper/vmlinuz` + `casper/initrd` | `casper/vmlinuz` + `casper/initrd` |
+| **`multipathd` stopped** | Not applicable | Not applicable | Yes — `systemctl stop multipathd` in early-commands (curtin ABI mismatch on 25.04+) |
+| **Disk detection** | Not implemented (manual input) | `find_disk.sh` patches `__ID_SERIAL__` before Subiquity reads config | `find_disk.sh` patches `__ID_SERIAL__` before Subiquity reads config |
+| **Package bundling** | Preseed `d-i` downloads (not pool/extra) | `pool/extra/*.deb` (offline or hybrid) | `pool/extra/*.deb` (offline or hybrid) |
+| **apt_cache used** | No | Yes — per-codename persistent cache | Yes — per-codename persistent cache |
+| **IPMI SEL logging** | Not implemented | Binary-less Python (`ipmi_start_logger.py`) via `/dev/ipmi0` ioctl | Binary-less Python (`ipmi_start_logger.py`) via `/dev/ipmi0` ioctl |
+| **IPMI dedup lock** | Not applicable | `/tmp/ipmi_marker_0xXX.lock` per marker | `/tmp/ipmi_marker_0xXX.lock` per marker |
+| **`startup.nsh`** | Not included | Included in EFI image root | Included in EFI image root |
+| **xorriso MBR mode** | `isohybrid-mbr` + BIOS/EFI alternate-boot | `--grub2-mbr` + appended GPT EFI partition | `--grub2-mbr` + appended GPT EFI partition |
+| **`autoinstall ds=` parameter** | `preseed/url` (d-i syntax) | `ds=nocloud;s=/cdrom/autoinstall/` | `ds=nocloud;s=/cdrom/autoinstall/` |
+| **SSH key injection** | Via preseed `d-i passwd` | `authorized-keys` in user-data | `authorized-keys` in user-data |
+| **Root password set** | Via preseed | `chpasswd` in late-command | `chpasswd` in late-command |
+| **Docker / Kubernetes repo** | Not supported | GPG key bundled; repo added in late-command | GPG key bundled; repo added in late-command |
+
+---
+
 ## Change History
 
 | Date | Changes |
