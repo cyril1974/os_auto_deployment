@@ -1112,5 +1112,5 @@ else
 
 fi
 
-echo "[*] Done. Autoinstall ISO created "
+echo "[*] Done. Autoinstall ISO created at: ${OUT_ISO}"
 echo "[*] Work directory will be removed on exit."
