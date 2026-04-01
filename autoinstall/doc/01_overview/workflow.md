@@ -5,20 +5,20 @@
 ```mermaid
 flowchart TD
     Start([Start Script]) --> CheckArgs{Arguments valid?}
-    CheckArgs -->|No| ShowHelp[Show help & exit]
+    CheckArgs -->|No| ShowHelp[Show help and exit]
     CheckArgs -->|Yes| InstallDeps[Phase 0: Install host dependencies]
 
     InstallDeps --> LookupISO[Phase 1: Lookup ISO path from file_list.json]
     LookupISO --> MountISO[Mount original ISO read-only]
     MountISO --> CopyISO[rsync ISO contents to workdir BUILD_ID]
-    CopyISO --> DetectVer[Detect Ubuntu codename\n.disk/info → /dists/ → version pattern]
+    CopyISO --> DetectVer["Detect Ubuntu codename<br/>.disk/info -> /dists/ -> version pattern"]
 
     DetectVer --> Ver18{18.04?}
     Ver18 -->|Yes| Skip18[Skip package bundling]
     Ver18 -->|No| Phase2[Phase 2: Package bundling]
 
-    Phase2 --> PkgList{package_list\nexists?}
-    PkgList -->|Yes| OfflinePkg[Resolve full dep closure\ndownload to apt_cache/codename/]
+    Phase2 --> PkgList{package_list exists?}
+    PkgList -->|Yes| OfflinePkg["Resolve full dep closure<br/>download to apt_cache/codename/"]
     PkgList -->|No| DefaultPkg[Download ipmitool defaults]
     OfflinePkg --> BundlePkg[Copy .debs to pool/extra/]
     DefaultPkg --> BundlePkg
@@ -39,23 +39,23 @@ flowchart TD
     WritePreseed --> Phase4[Phase 4: Boot config patching]
     WriteSymlink --> Phase4
 
-    Phase4 --> PatchGRUB[Patch boot/grub/grub.cfg\nautoinstall args, timeout=5s]
-    PatchGRUB --> PatchISO[Patch isolinux txt.cfg / adtxt.cfg\nautoinstall args, prompt=0]
+    Phase4 --> PatchGRUB["Patch boot/grub/grub.cfg<br/>autoinstall args, timeout=5s"]
+    PatchGRUB --> PatchISO["Patch isolinux txt.cfg and adtxt.cfg<br/>autoinstall args, prompt=0"]
     PatchISO --> Ver18c{18.04?}
     Ver18c -->|Yes| SkipEFI[Skip EFI image generation]
     Ver18c -->|No| Phase5[Phase 5: Build 64MB FAT32 EFI image]
 
-    Phase5 --> PopEFI[Populate EFI/BOOT/ bootloaders\nGRUB modules, fonts, grub.cfg]
+    Phase5 --> PopEFI["Populate EFI/BOOT/ bootloaders<br/>GRUB modules, fonts, grub.cfg"]
     PopEFI --> CopyNSH[Copy startup.nsh to EFI root]
 
     SkipEFI --> Phase6[Phase 6: Rebuild ISO with xorriso]
     CopyNSH --> Phase6
 
     Phase6 --> Ver18d{18.04?}
-    Ver18d -->|Yes| Xorr18[xorriso: isohybrid-mbr\nBIOS + EFI alt-boot]
-    Ver18d -->|No| Xorr20[xorriso: grub2-mbr\nappended GPT EFI partition]
+    Ver18d -->|Yes| Xorr18["xorriso: isohybrid-mbr<br/>BIOS + EFI alt-boot"]
+    Ver18d -->|No| Xorr20["xorriso: grub2-mbr<br/>appended GPT EFI partition"]
 
-    Xorr18 --> Cleanup[Phase 7: Remove workdir\nkeep output_custom_iso/BUILD_ID/]
+    Xorr18 --> Cleanup["Phase 7: Remove workdir<br/>keep output_custom_iso/BUILD_ID/"]
     Xorr20 --> Cleanup
     Cleanup --> Done([ISO created successfully])
 ```
@@ -150,58 +150,58 @@ flowchart TD
     Boot([Boot from ISO via BMC virtual media]) --> UEFIorBIOS{UEFI or BIOS?}
 
     UEFIorBIOS -->|UEFI| UEFI20{Version?}
-    UEFI20 -->|18.04| UEFI18[efi.img grub reads\n/boot/grub/grub.cfg from ISO9660]
-    UEFI20 -->|20.04+| UEFI20p[startup.nsh searches fs0-fs39\nbootx64.efi → patched grub.cfg]
+    UEFI20 -->|18.04| UEFI18["efi.img grub reads<br/>/boot/grub/grub.cfg from ISO9660"]
+    UEFI20 -->|20.04+| UEFI20p["startup.nsh searches fs0-fs39<br/>bootx64.efi -> patched grub.cfg"]
 
-    UEFIorBIOS -->|BIOS| BIOS[isolinux → patched txt.cfg]
+    UEFIorBIOS -->|BIOS| BIOS[isolinux -> patched txt.cfg]
 
     UEFI18 --> KernelBoot
     UEFI20p --> KernelBoot
     BIOS --> KernelBoot
 
-    KernelBoot[Kernel boots\nds=nocloud;s=/cdrom/autoinstall/] --> EarlyCmd[early-commands]
+    KernelBoot["Kernel boots<br/>ds=nocloud;s=/cdrom/autoinstall/"] --> EarlyCmd[early-commands]
 
-    EarlyCmd --> StopMpath[Stop multipathd\n25.04+ ABI fix]
-    StopMpath --> ModprobeIPMI[modprobe ipmi_devintf\nipmi_si ipmi_msghandler]
-    ModprobeIPMI --> SEL0F[IPMI SEL 0x0F\nPackage Pre-install Start]
-    SEL0F --> FindDisk[find_disk.sh\nDetect smallest empty disk\nPatch __ID_SERIAL__]
-    FindDisk --> DpkgIPMI[dpkg -i pool/extra/*.deb\nInstall ipmitool offline]
-    DpkgIPMI --> SEL1F[IPMI SEL 0x1F\nPackage Pre-install Complete]
-    SEL1F --> SEL01[IPMI SEL 0x01\nOS Installation Start]
+    EarlyCmd --> StopMpath["Stop multipathd<br/>25.04+ ABI fix"]
+    StopMpath --> ModprobeIPMI["modprobe ipmi_devintf<br/>ipmi_si ipmi_msghandler"]
+    ModprobeIPMI --> SEL0F["IPMI SEL 0x0F<br/>Package Pre-install Start"]
+    SEL0F --> FindDisk["find_disk.sh<br/>Detect smallest empty disk<br/>Patch __ID_SERIAL__"]
+    FindDisk --> DpkgIPMI["dpkg -i pool/extra/*.deb<br/>Install ipmitool offline"]
+    DpkgIPMI --> SEL1F["IPMI SEL 0x1F<br/>Package Pre-install Complete"]
+    SEL1F --> SEL01["IPMI SEL 0x01<br/>OS Installation Start"]
 
-    SEL01 --> Subiquity[Subiquity reads user-data\nPartition disk by serial\nInstall base system]
+    SEL01 --> Subiquity["Subiquity reads user-data<br/>Partition disk by serial<br/>Install base system"]
 
     Subiquity -->|Success| LateCmd[late-commands]
     Subiquity -->|Failure| ErrCmd[error-commands]
 
-    LateCmd --> SEL06[IPMI SEL 0x06\nPost-Install Start]
-    SEL06 --> SetRoot[Set root password\nchpasswd]
-    SetRoot --> PatchSSH[Patch sshd_config\nPermitRootLogin + PasswordAuthentication]
-    PatchSSH --> Sudoers[Write sudoers.d/USERNAME\nNOPASSWD:ALL]
-    Sudoers --> PkgMode{package_list\nprovided?}
+    LateCmd --> SEL06["IPMI SEL 0x06<br/>Post-Install Start"]
+    SEL06 --> SetRoot["Set root password<br/>chpasswd"]
+    SetRoot --> PatchSSH["Patch sshd_config<br/>PermitRootLogin + PasswordAuthentication"]
+    PatchSSH --> Sudoers["Write sudoers.d/USERNAME<br/>NOPASSWD:ALL"]
+    Sudoers --> PkgMode{package_list provided?}
 
-    PkgMode -->|Yes - Offline| CopyDebs[Copy pool/extra/*.deb to target\ndpkg -i]
-    PkgMode -->|No - Hybrid| TryOnline[apt-get update && install]
+    PkgMode -->|Yes - Offline| CopyDebs["Copy pool/extra/*.deb to target<br/>dpkg -i"]
+    PkgMode -->|No - Hybrid| TryOnline[apt-get update and install]
     TryOnline -->|Success| AfterPkg
     TryOnline -->|Fail| CopyDebs
     CopyDebs --> AfterPkg
 
-    AfterPkg --> DockerKube{Docker/Kube\nin package_list?}
-    DockerKube -->|Yes| RepoSetup[Add Docker/Kubernetes repos\nApply GPG keys\nInstall packages]
+    AfterPkg --> DockerKube{Docker/Kube in package_list?}
+    DockerKube -->|Yes| RepoSetup["Add Docker/Kubernetes repos<br/>Apply GPG keys<br/>Install packages"]
     DockerKube -->|No| SEL16
 
-    RepoSetup --> SEL16[IPMI SEL 0x16\nPost-Install Complete]
-    SEL16 --> LogIP[Log IP to SEL\n0x03 octet1+2\n0x13 octet3+4]
-    LogIP --> DiskAudit{Disk serial\nmatches?}
-    DiskAudit -->|Yes| SEL05OK[IPMI SEL 0x05 0x4f 0x4b\nDisk Verify OK]
-    DiskAudit -->|No| SEL05ER[IPMI SEL 0x05 0x45 0x52\nDisk Verify FAIL]
-    SEL05OK --> SELAA[IPMI SEL 0xAA\nOS Installation Completed]
+    RepoSetup --> SEL16["IPMI SEL 0x16<br/>Post-Install Complete"]
+    SEL16 --> LogIP["Log IP to SEL<br/>0x03 octet1+2<br/>0x13 octet3+4"]
+    LogIP --> DiskAudit{Disk serial matches?}
+    DiskAudit -->|Yes| SEL05OK["IPMI SEL 0x05 0x4f 0x4b<br/>Disk Verify OK"]
+    DiskAudit -->|No| SEL05ER["IPMI SEL 0x05 0x45 0x52<br/>Disk Verify FAIL"]
+    SEL05OK --> SELAA["IPMI SEL 0xAA<br/>OS Installation Completed"]
     SEL05ER --> SELAA
     SELAA --> CopyLog[Copy ipmi_telemetry.log to target]
-    CopyLog --> Done([Installation complete / reboot])
+    CopyLog --> Done([Installation complete - reboot])
 
-    ErrCmd --> ErrIP[Log IP to SEL\n0x03 + 0x13]
-    ErrIP --> SELEE[IPMI SEL 0xEE\nABORTED / FAILED]
+    ErrCmd --> ErrIP["Log IP to SEL<br/>0x03 + 0x13"]
+    ErrIP --> SELEE["IPMI SEL 0xEE<br/>ABORTED / FAILED"]
     SELEE --> Halt([Installer halted])
 ```
 
