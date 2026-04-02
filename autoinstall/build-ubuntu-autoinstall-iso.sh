@@ -315,7 +315,7 @@ APTEOF
     echo "[DEBUG] End of sources.list" >&2
     if apt-get "${APT_OPTS[@]}" update 2>&1 | tail -3; then
 
-        echo "[*] Delta Download: Checking cache for requested packages in ${codename}..."
+        echo "[*] Resolving package dependency closure for ${codename}..."
         cd "$tmp_download"
 
         # Determine the full dependency closure (recursive)
@@ -326,25 +326,53 @@ APTEOF
             echo "[!] WARNING: No packages identified for download."
         fi
 
+        # Build filtered list (exclude base packages already present on the ISO)
+        local pkgs_filtered=""
         for pkg in $all_needed; do
-            # Skip common base packages and core libraries already present on the ISO.
             case "$pkg" in
                 libc6|libgcc*|debconf*|dpkg|bash|coreutils|install-info|libstdc++*|init-system-helpers|base-files|netbase|libsystemd*|systemd*|libudev*|udev*|libpam*|libnss*|libdbus*|dbus*|libk5*|libssl*|libcrypt*|libzstd*|libuuid*|libblkid*|libmount*|libselinux*|util-linux|mount|login|passwd) continue ;;
             esac
-            
-            # Check if this package (matching the name) is already in the persistent cache.
-            # We look for the ${pkg}_ prefix to be specific.
+            pkgs_filtered="$pkgs_filtered $pkg"
+        done
+        pkgs_filtered=$(echo "$pkgs_filtered" | xargs)
+
+        local total_pkgs current_pkg=0
+        total_pkgs=$(echo "$pkgs_filtered" | wc -w)
+        echo "[*] Downloading $total_pkgs package(s) for ${codename}..."
+
+        _draw_progress() {
+            local cur=$1 tot=$2 label=$3
+            [ "$tot" -eq 0 ] && return
+            local pct=$(( cur * 100 / tot ))
+            local filled=$(( pct * 40 / 100 ))
+            local empty=$(( 40 - filled ))
+            local full_bar="########################################"
+            local dash_bar="----------------------------------------"
+            local bar="${full_bar:0:$filled}${dash_bar:0:$empty}"
+            # From the second update onward: move up one line and erase it so the
+            # bar stays on a single line rather than scrolling a new line each time.
+            [ "$cur" -gt 1 ] && printf "\033[1A\033[2K"
+            printf "    [%s] %3d%% (%d/%d) %-40.40s\n" "$bar" "$pct" "$cur" "$tot" "$label"
+        }
+
+        for pkg in $pkgs_filtered; do
+            current_pkg=$(( current_pkg + 1 ))
             if ls "$persistent_cache/archives/${pkg}"_*.deb >/dev/null 2>&1; then
-                echo "    + Found $pkg in cache, skipping download."
+                _draw_progress "$current_pkg" "$total_pkgs" "$pkg [cached]"
                 continue
             fi
-
+            _draw_progress "$current_pkg" "$total_pkgs" "$pkg [downloading]"
             # apt-get download puts files in CWD ($tmp_download), not in Dir::Cache.
             # We must explicitly move them to the persistent cache archives.
-            if apt-get "${APT_OPTS[@]}" -t "${codename}" download "$pkg" 2>/dev/null; then
+            # Redirect both stdout and stderr to suppress "Get:1" and "Fetched" messages.
+            if apt-get "${APT_OPTS[@]}" -t "${codename}" download "$pkg" >/dev/null 2>&1; then
                 mv ./*.deb "$persistent_cache/archives/" 2>/dev/null || true
             fi
         done
+        if [ "$total_pkgs" -gt 0 ]; then
+            printf "\033[1A\033[2K"
+            printf "    [########################################] 100%% (%d/%d) Complete\n" "$total_pkgs" "$total_pkgs"
+        fi
         cd - > /dev/null
 
         # Move files from cache archives to the ISO extra pool
@@ -449,13 +477,11 @@ echo "[*] Copying ISO contents..."
 rsync -a /mnt/ubuntuiso/ "$WORKDIR/"
 umount /mnt/ubuntuiso
 
-# Download and bundle ipmitool packages for the target Ubuntu version (20.04+ only)
-# Ubuntu 18.04 uses preseed which installs packages during normal apt phase
-if [ "$IS_1804" != true ]; then
-    UBUNTU_CODENAME=$(get_ubuntu_codename "$WORKDIR" "$OS_NAME")
-    echo "[*] Target Ubuntu codename: $UBUNTU_CODENAME"
-    download_extra_packages "$WORKDIR" "$UBUNTU_CODENAME"
-fi
+# Download and bundle extra packages for all Ubuntu versions.
+# 20.04+ installs them via early-commands; 18.04 installs them via preseed late_command.
+UBUNTU_CODENAME=$(get_ubuntu_codename "$WORKDIR" "$OS_NAME")
+echo "[*] Target Ubuntu codename: $UBUNTU_CODENAME"
+download_extra_packages "$WORKDIR" "$UBUNTU_CODENAME"
 
 # Hash password for user-data
 HASH_PASSWORD=$(mkpasswd -m sha-512 ${PASSWORD})
@@ -471,9 +497,26 @@ if [ -f "${SCRIPT_DIR}/scripts/find_disk.sh" ]; then
   cp "${SCRIPT_DIR}/scripts/find_disk.sh" "$WORKDIR/autoinstall/scripts/find_disk.sh"
   chmod +x "$WORKDIR/autoinstall/scripts/find_disk.sh"
 else
-  echo "[!] ERROR: find_disk.sh not found at ${SCRIPT_DIR}/scripts/find_disk.sh"
-  echo "[!] This file is required for automated disk detection during installation."
-  exit 1
+  if [ "$IS_1804" = true ]; then
+    echo "[*] find_disk.sh not found, but not required for Ubuntu 18.04 preseed installation."
+  else
+    echo "[!] ERROR: find_disk.sh not found at ${SCRIPT_DIR}/scripts/find_disk.sh"
+    echo "[!] This file is required for automated disk detection during installation."
+    exit 1
+  fi
+fi
+
+# Copy find_disk_1804.sh for Ubuntu 18.04 preseed disk detection
+if [ "$IS_1804" = true ]; then
+  if [ -f "${SCRIPT_DIR}/scripts/find_disk_1804.sh" ]; then
+    echo "[*] Copying find_disk_1804.sh to ISO..."
+    cp "${SCRIPT_DIR}/scripts/find_disk_1804.sh" "$WORKDIR/find_disk_1804.sh"
+    chmod +x "$WORKDIR/find_disk_1804.sh"
+  else
+    echo "[!] ERROR: find_disk_1804.sh not found at ${SCRIPT_DIR}/scripts/find_disk_1804.sh"
+    echo "[!] This file is required for automated disk detection during 18.04 preseed installation."
+    exit 1
+  fi
 fi
 
 # Generate SSH KEY
@@ -757,9 +800,53 @@ d-i netcfg/choose_interface select auto
 d-i netcfg/get_hostname string ubuntu-auto
 d-i netcfg/get_domain string unassigned-domain
 
+# Network console: start SSH server in installer for remote debugging
+# Connect with: ssh installer@<IP>  password: ${PASSWORD}
+d-i anna/choose_modules string network-console
+d-i network-console/password password ${PASSWORD}
+d-i network-console/password-again password ${PASSWORD}
+d-i network-console/start boolean false
+
 # Clock
 d-i clock-setup/utc boolean true
 d-i time/zone string UTC
+
+# partman-auto/disk is intentionally NOT preseeded here.
+# It is set dynamically by partman/early_command via debconf-communicate
+# after hw-detect has loaded storage drivers.
+
+# Early command: load IPMI modules and log install start only.
+# Disk detection is deferred to partman/early_command which runs AFTER
+# hw-detect has loaded storage drivers and disks are visible in /sys/block/.
+d-i preseed/early_command string \
+    modprobe ipmi_devintf 2>/dev/null || true; \
+    modprobe ipmi_si 2>/dev/null || true; \
+    modprobe ipmi_msghandler 2>/dev/null || true; \
+    sleep 2; \
+    python3 /cdrom/pool/extra/ipmi_start_logger.py 0x0F 2>/dev/null || true; \
+    dpkg -i /cdrom/pool/extra/*.deb 2>/dev/null || true; \
+    python3 /cdrom/pool/extra/ipmi_start_logger.py 0x1F 2>/dev/null || true; \
+    sleep 2; \
+    python3 /cdrom/pool/extra/ipmi_start_logger.py 0x01 2>/dev/null || true
+
+# Partman early command: runs after hw-detect — storage drivers are loaded here.
+# Detects the smallest empty disk and sets partman-auto/disk via debconf.
+d-i partman/early_command string \
+    sh /cdrom/find_disk_1804.sh; \
+    disk=\$(cat /tmp/find_disk_1804.result 2>/dev/null); \
+    if [ -n "\$disk" ]; then \
+        echo "[*] Setting install target disk to: \$disk" > /dev/console; \
+        echo "\$disk" > /tmp/install_target_disk; \
+        . /usr/share/debconf/confmodule; \
+        db_set partman-auto/disk "\$disk"; \
+        db_set grub-installer/bootdev "\$disk"; \
+        echo "[*] debconf partman-auto/disk set to: \$(db_get partman-auto/disk && echo \$RET)" > /dev/console; \
+    else \
+        echo "[!] ERROR: No disk found. Debug log:" > /dev/console; \
+        cat /tmp/find_disk_1804.log > /dev/console 2>/dev/null || true; \
+        python3 /cdrom/pool/extra/ipmi_start_logger.py 0xEE 2>/dev/null || true; \
+        exit 1; \
+    fi
 
 # Partitioning (Atomic)
 d-i partman-auto/method string regular
@@ -776,14 +863,14 @@ d-i partman/confirm_nooverwrite boolean true
 # User/Root Setup
 d-i passwd/user-fullname string ${USERNAME}
 d-i passwd/username string ${USERNAME}
-d-i passwd/user-password-password password ${PASSWORD}
+d-i passwd/user-password password ${PASSWORD}
 d-i passwd/user-password-again password ${PASSWORD}
 d-i user-setup/allow-password-weak boolean true
 d-i user-setup/encrypt-home boolean false
 
 # Repository
 d-i apt-setup/use_mirror boolean false
-d-i apt-setup/cdrom/set-first boolean false
+d-i apt-setup/cdrom/set-first boolean true
 d-i apt-setup/cdrom/set-next boolean false
 d-i apt-setup/cdrom/set-failed boolean false
 d-i apt-setup/restricted boolean true
@@ -791,7 +878,11 @@ d-i apt-setup/universe boolean true
 
 # Packages
 tasksel tasksel/first multiselect standard, server
-d-i pkgsel/include string ssh openssh-server vim curl net-tools ipmitool htop
+$(if [ -n "${OFFLINE_PACKAGES}" ]; then
+    echo "d-i pkgsel/include string openssh-server"
+else
+    echo "d-i pkgsel/include string ssh openssh-server vim curl net-tools ipmitool htop"
+fi)
 d-i pkgsel/upgrade select none
 d-i pkgsel/update-policy select none
 
@@ -799,13 +890,56 @@ d-i pkgsel/update-policy select none
 d-i grub-installer/only_debian boolean true
 d-i grub-installer/with_other_os boolean true
 
-# Late commands (SSH config and Sudoers)
+# Late commands (SSH config, Sudoers, offline packages, IPMI SEL logging)
 d-i preseed/late_command string \\
+    python3 /cdrom/pool/extra/ipmi_start_logger.py 0x06 2>/dev/null || true; \\
+    sleep 1; \\
     in-target sed -i 's/^#\\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config; \\
     in-target sed -i 's/^#\\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config; \\
     echo '${USERNAME} ALL=(ALL) NOPASSWD:ALL' > /target/etc/sudoers.d/${USERNAME}; \\
     chmod 440 /target/etc/sudoers.d/${USERNAME}; \\
-    echo "root:${PASSWORD}" | in-target chpasswd
+    echo "root:${PASSWORD}" | in-target chpasswd; \\
+    if ls /cdrom/pool/extra/*.deb >/dev/null 2>&1; then \\
+        echo "[*] Installing bundled offline packages..." > /dev/console; \\
+        mkdir -p /target/tmp/extra_pkg; \\
+        cp /cdrom/pool/extra/*.deb /target/tmp/extra_pkg/; \\
+        in-target sh -c 'dpkg -i /tmp/extra_pkg/*.deb || apt-get install -y -f'; \\
+        rm -rf /target/tmp/extra_pkg; \\
+    fi; \\
+    sleep 1; \\
+    python3 /cdrom/pool/extra/ipmi_start_logger.py 0x16 2>/dev/null || true; \\
+    sleep 1; \\
+    HOST_IP=\$(hostname -I | awk '{print \$1}'); \\
+    if [ -n "\$HOST_IP" ]; then \\
+        eval \$(echo "\$HOST_IP" | awk -F. '{printf "o1=%s; o2=%s; o3=%s; o4=%s", \$1, \$2, \$3, \$4}'); \\
+        h1=\$(printf "0x%02x" "\$o1" 2>/dev/null || echo "0x00"); \\
+        h2=\$(printf "0x%02x" "\$o2" 2>/dev/null || echo "0x00"); \\
+        h3=\$(printf "0x%02x" "\$o3" 2>/dev/null || echo "0x00"); \\
+        h4=\$(printf "0x%02x" "\$o4" 2>/dev/null || echo "0x00"); \\
+        python3 /cdrom/pool/extra/ipmi_start_logger.py 0x03 "\$h1" "\$h2" 2>/dev/null || true; \\
+        sleep 2; \\
+        python3 /cdrom/pool/extra/ipmi_start_logger.py 0x13 "\$h3" "\$h4" 2>/dev/null || true; \\
+    else \\
+        python3 /cdrom/pool/extra/ipmi_start_logger.py 0x03 0x00 0x00 2>/dev/null || true; \\
+        sleep 2; \\
+        python3 /cdrom/pool/extra/ipmi_start_logger.py 0x13 0x00 0x00 2>/dev/null || true; \\
+    fi; \\
+    sleep 1; \\
+    python3 /cdrom/pool/extra/ipmi_start_logger.py 0xaa 2>/dev/null || true; \\
+    sleep 1; \\
+    expected_disk=\$(cat /tmp/install_target_disk 2>/dev/null); \\
+    root_dev=\$(lsblk -no PKNAME \$(findmnt -nvo SOURCE /) 2>/dev/null | head -n 1); \\
+    [ -z "\$root_dev" ] && root_dev=\$(lsblk -no NAME \$(findmnt -nvo SOURCE /) 2>/dev/null | head -n 1); \\
+    actual_disk="/dev/\$root_dev"; \\
+    if [ "\$actual_disk" = "\$expected_disk" ]; then \\
+        echo "[+] VERIFICATION SUCCESS: OS installed on correct disk (\$actual_disk)" > /dev/console; \\
+        python3 /cdrom/pool/extra/ipmi_start_logger.py 0x05 0x4f 0x4b 2>/dev/null || true; \\
+    else \\
+        echo "[!] VERIFICATION FAILED: Expected \$expected_disk, got \$actual_disk" > /dev/console; \\
+        python3 /cdrom/pool/extra/ipmi_start_logger.py 0x05 0x45 0x52 2>/dev/null || true; \\
+    fi; \\
+    cp /var/log/ipmi_telemetry.log /target/var/log/ipmi_telemetry.log 2>/dev/null || true; \\
+    cp /tmp/ipmi_telemetry.log /target/var/log/ipmi_telemetry.log 2>/dev/null || true
 
 # Finish
 d-i finish-install/reboot_in_progress note
@@ -891,7 +1025,7 @@ path.write_text(new_txt)
 PYEOF
 
 # Patch ISOLINUX configuration for BIOS autoinstall
-ISOLINUX_CFG_FILES=("./workdir_custom_iso/isolinux/txt.cfg" "./workdir_custom_iso/isolinux/adtxt.cfg")
+ISOLINUX_CFG_FILES=("$WORKDIR/isolinux/txt.cfg" "$WORKDIR/isolinux/adtxt.cfg")
 for cfg in "${ISOLINUX_CFG_FILES[@]}"; do
     if [ -f "$cfg" ]; then
         echo "[*] Patching ISOLINUX configuration in $cfg..."
@@ -995,7 +1129,7 @@ if [ "$IS_1804" = true ]; then
       -boot-load-size 4800 \
       -isohybrid-gpt-basdat \
       -isohybrid-apm-hfsplus \
-      -o "../$OUT_ISO" .
+      -o "$OUT_ISO" .
   )
 
 else

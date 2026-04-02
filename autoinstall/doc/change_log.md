@@ -2,6 +2,36 @@
 
 ---
 
+## 2026-04-02: Ubuntu 18.04 Preseed — Full Disk Detection, IPMI SEL, Offline Packages (v2-rev50)
+
+**Files:** `autoinstall/build-ubuntu-autoinstall-iso.sh`, `autoinstall/scripts/find_disk_1804.sh`
+
+### Summary
+
+Nine bugs discovered and resolved through iterative hardware testing to achieve fully automated non-interactive Ubuntu 18.04 installation. Detailed debug notes: `doc/07_debugging/debug_1804_preseed_disk_detection.md`
+
+### Bug Fixes
+
+1. **Wrong ISO output path** — `-o "../$OUT_ISO"` → `-o "$OUT_ISO"` (absolute path already)
+2. **ISOLINUX patching skipped** — hardcoded path without `${BUILD_ID}` → `"$WORKDIR/isolinux/..."`
+3. **`<<<` not in dash** — `debconf-set-selections <<< "..."` → `echo "..." | debconf-set-selections`
+4. **Storage not visible in `early_command`** — moved disk detection to `partman/early_command` which runs after `hw-detect`
+5. **`lsblk`/`wipefs` not in d-i env** — rewrote `find_disk_1804.sh` using `/sys/block/`, `/proc/mounts`, `blkid`
+6. **`tee` not in d-i env** — replaced with `_con()` helper writing to `/dev/console`
+7. **`exec > "$LOG"` broke command substitution** — script writes result to `/tmp/find_disk_1804.result`; caller reads file instead of capturing stdout
+8. **`debconf-set-selections` didn't update live partman session** — replaced with `db_set` via `. /usr/share/debconf/confmodule`; removed hardcoded `partman-auto/disk string /dev/sda`
+9. **Wrong preseed password key** — `passwd/user-password-password` → `passwd/user-password`
+
+### Features Added
+
+- **Offline packages for 18.04** — `download_extra_packages()` now runs for all versions; `late_command` installs bundled `.deb` files via `dpkg -i`
+- **IPMI SEL logging for 18.04** — full marker sequence (`0x0F`→`0x1F`→`0x01`→`0x06`→`0x16`→`0x03/0x13`→`0xaa`→`0x05`) mirroring 20.04+ behaviour
+- **CDROM as APT source** — `apt-setup/cdrom/set-first true` for offline installs
+- **network-console** — SSH into d-i installer during installation for remote debugging
+- **Download progress bar** — in-place single-line bar with ANSI escape codes replacing per-package echo
+
+---
+
 ## 2026-04-01: UefiShell Boot, IPMI Dedup Lock, Non-Redfish Auth, video= Param (v2-rev49)
 
 **Files:** `autoinstall/build-ubuntu-autoinstall-iso.sh`, `autoinstall/startup.nsh`, `autoinstall/ipmi_start_logger.py`, `src/os_deployment/lib/reboot.py`, `src/os_deployment/lib/auth.py`, `src/os_deployment/lib/utils.py`, `src/os_deployment/main.py`
