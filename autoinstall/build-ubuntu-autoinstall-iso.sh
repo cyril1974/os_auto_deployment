@@ -417,7 +417,7 @@ fi
 OS_NAME="${1:-ubuntu-22.04.5-live-server-amd64}"
 # Default user and password (modified per user request)
 USERNAME="${2:-mitac}"
-PASSWORD="${3:-MiTAC00123}"
+PASSWORD="${3:-ubuntu}"
 
 # Detect if it's Ubuntu 18.04
 IS_1804=false
@@ -865,6 +865,9 @@ d-i passwd/user-fullname string ${USERNAME}
 d-i passwd/username string ${USERNAME}
 d-i passwd/user-password password ${PASSWORD}
 d-i passwd/user-password-again password ${PASSWORD}
+d-i passwd/root-password password ${PASSWORD}
+d-i passwd/root-password-again password ${PASSWORD}
+d-i passwd/root-login boolean true
 d-i user-setup/allow-password-weak boolean true
 d-i user-setup/encrypt-home boolean false
 
