@@ -2,6 +2,181 @@
 
 ---
 
+## 2026-04-09: Shell ISO Builder — Manual Storage Disk Match Parameters (parity with Go version)
+
+**Files:** `autoinstall/build-ubuntu-autoinstall-iso.sh`
+
+### Summary
+
+Ported the `--storage-serial`, `--storage-model`, `--storage-size` flags from the Go ISO builder to the shell script version, bringing both builders to feature parity. Behaviour is identical: when any storage flag is supplied the disk match key/value is embedded directly in `user-data` at build time and `find_disk.sh` auto-detection is disabled entirely.
+
+### Features Added
+
+- **`--storage-serial=VALUE`** — match target disk by `ID_SERIAL`; maps to `match.serial` in `user-data` storage config
+- **`--storage-model=VALUE`** — match target disk by model string; maps to `match.model`
+- **`--storage-size=VALUE`** — match target disk by size value; maps to `match.size`
+
+Only one storage flag is accepted. If multiple are supplied, the first in argument order is used and the rest produce a warning:
+
+```
+[WARN] Ignoring extra storage flag: --storage-model=... (only one storage match allowed)
+```
+
+When no storage flag is supplied, behaviour is unchanged: `__ID_SERIAL__` is used as the placeholder and `find_disk.sh` is copied and executed at early-command time.
+
+### Implementation Details
+
+#### 1. Argument parsing — replaced `--skip-install` simple loop with `case` statement
+
+All four flags (`--skip-install`, `--storage-serial=*`, `--storage-model=*`, `--storage-size=*`) are now parsed in a single `for arg; case` loop. First storage flag wins; extras log a `[WARN]` line.
+
+#### 2. Mode variables set after loop
+
+```bash
+if [ -z "$STORAGE_MATCH_KEY" ]; then
+    STORAGE_MATCH_KEY="serial"
+    STORAGE_MATCH_VALUE="__ID_SERIAL__"
+    FIND_DISK_ENABLED=true
+else
+    FIND_DISK_ENABLED=false
+fi
+```
+
+#### 3. `find_disk.sh` copy wrapped in `FIND_DISK_ENABLED` guard
+
+```bash
+if [ "$FIND_DISK_ENABLED" = "true" ]; then
+    cp find_disk.sh ...
+else
+    echo "[*] Skipping find_disk.sh (storage match set to ...)"
+fi
+```
+
+#### 4. `user-data` storage match uses build-time variables
+
+```yaml
+        match:
+          ${STORAGE_MATCH_KEY}: ${STORAGE_MATCH_VALUE}
+```
+
+#### 5. early-commands `find_disk.sh` block — heredoc split
+
+The main `user-data` heredoc is split at the `0x0F` marker line. The `find_disk.sh` invocation block is appended via a separate `cat >> ... << 'FIND_DISK_EOF'` only when `FIND_DISK_ENABLED=true`.
+
+#### 6. late-commands serial verification — heredoc split, `expected_serial` parameterised
+
+The verification block is conditionally appended only when `STORAGE_MATCH_KEY=serial` (meaningless for model/size matches). `expected_serial` now expands at build time:
+
+```bash
+        expected_serial="${STORAGE_MATCH_VALUE}"
+```
+
+In auto-detect mode this produces `expected_serial="__ID_SERIAL__"` in the YAML, which `find_disk.sh` patches at boot. In manual-serial mode it produces the literal serial number.
+
+### Usage Examples
+
+```bash
+# Auto-detect smallest empty disk (default, unchanged behaviour)
+sudo ./build-ubuntu-autoinstall-iso.sh ubuntu-24.04.2-live-server-amd64
+
+# Match by serial number (skip find_disk.sh)
+sudo ./build-ubuntu-autoinstall-iso.sh ubuntu-24.04.2-live-server-amd64 myuser mypass --storage-serial=S3EVNX0K123456
+
+# Match by model string
+sudo ./build-ubuntu-autoinstall-iso.sh ubuntu-24.04.2-live-server-amd64 myuser mypass --storage-model=SAMSUNG_MZQL2960HCJR
+
+# Match by size
+sudo ./build-ubuntu-autoinstall-iso.sh ubuntu-24.04.2-live-server-amd64 myuser mypass --storage-size=960197124096
+```
+
+---
+
+## 2026-04-07: Go ISO Builder — Manual Storage Disk Match Parameters
+
+**Files:** `autoinstall/build-iso-go/main.go`
+
+### Summary
+
+Added three new CLI flags (`--storage-serial`, `--storage-model`, `--storage-size`) to the Go ISO builder that allow the operator to specify the target disk explicitly at build time. When any of these flags is provided, the disk match is embedded directly in `user-data` and the `find_disk.sh` auto-detection script is disabled entirely, resulting in a faster and more predictable install on machines where the target disk is known in advance.
+
+### Features Added
+
+- **`--storage-serial=<value>`** — match the target disk by its udev `ID_SERIAL` value; maps to `match.serial` in the `storage` section of `user-data`
+- **`--storage-model=<value>`** — match the target disk by its model string; maps to `match.model`
+- **`--storage-size=<value>`** — match the target disk by its size string; maps to `match.size`
+
+Only one of the three flags is accepted per build. If multiple are supplied, the **first one** in argument order is used and the rest produce a warning message:
+
+```
+[WARN] Ignoring extra storage flag: --storage-model=... (only one storage match allowed)
+```
+
+When no storage flag is supplied the behaviour is unchanged: `__ID_SERIAL__` is written as the placeholder and `find_disk.sh` is copied into the ISO and executed at early-command time.
+
+### Implementation Details
+
+#### 1. New `BuildConfig` fields
+
+```go
+StorageMatchKey   string // "serial", "model", or "size"
+StorageMatchValue string // the value provided by the user
+```
+
+#### 2. Argument parsing (`main()`)
+
+Flags are parsed with `strings.HasPrefix` before positional arguments are collected. If more than one storage flag is present, only `storageFlags[0]` is used; the remaining entries are logged as warnings.
+
+#### 3. Default (auto-detect) mode
+
+When no storage flag is supplied, `storageMatchKey` is set to `"serial"` and `storageMatchValue` is set to `"__ID_SERIAL__"` before `BuildConfig` is populated. This preserves full backwards compatibility.
+
+#### 4. `user-data` template
+
+```yaml
+- type: disk
+  id: disk-main
+  match:
+    {{.StorageMatchKey}}: {{.StorageMatchValue}}
+```
+
+#### 5. `FindDiskEnabled` template field
+
+A dedicated `bool` field is used instead of a template `not` expression to avoid ambiguity:
+
+```go
+FindDiskEnabled: cfg.StorageMatchValue == "__ID_SERIAL__",
+```
+
+When `FindDiskEnabled` is `false`, the early-command block that runs `find_disk.sh` is omitted from the generated `user-data`.
+
+#### 6. `find_disk.sh` copy logic
+
+```go
+if cfg.StorageMatchValue == "__ID_SERIAL__" {
+    // Auto-detection mode: copy find_disk.sh into ISO
+} else {
+    logf("Skipping find_disk.sh (storage match set to %s=%s)", cfg.StorageMatchKey, cfg.StorageMatchValue)
+}
+```
+
+### Usage Examples
+
+```bash
+# Auto-detect smallest empty disk (default, unchanged behaviour)
+sudo ./build-iso-go/build-iso ubuntu-24.04.2-live-server-amd64
+
+# Match by serial number (skip find_disk.sh)
+sudo ./build-iso-go/build-iso ubuntu-24.04.2-live-server-amd64 --storage-serial=S3EVNX0K123456
+
+# Match by model string
+sudo ./build-iso-go/build-iso ubuntu-24.04.2-live-server-amd64 --storage-model=SAMSUNG_MZQL2960HCJR
+
+# Match by size
+sudo ./build-iso-go/build-iso ubuntu-24.04.2-live-server-amd64 --storage-size=960197124096
+```
+
+---
+
 ## 2026-04-02: Ubuntu 18.04 Preseed — Full Disk Detection, IPMI SEL, Offline Packages (v2-rev50)
 
 **Files:** `autoinstall/build-ubuntu-autoinstall-iso.sh`, `autoinstall/scripts/find_disk_1804.sh`

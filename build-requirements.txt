@@ -1,0 +1,23 @@
+# build-requirements.txt
+# Python packages required to BUILD the os-deploy binary with Nuitka.
+# These are build-time dependencies only — they are NOT needed on target machines.
+#
+# Install with:
+#   pip install -r build-requirements.txt
+#
+# System packages also required (Ubuntu/Debian):
+#   apt install -y gcc patchelf
+
+# Nuitka compiler
+nuitka>=2.0
+
+# Required by Nuitka's onefile compression
+zstandard>=0.21
+
+# Required by Nuitka's dependency ordering
+ordered-set>=4.1
+
+# Runtime dependencies bundled into the binary
+requests>=2.32
+urllib3>=2.0
+certifi>=2024.0

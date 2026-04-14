@@ -8,13 +8,22 @@ Ubuntu Autoinstall ISO Builder
 ===============================
 
 USAGE:
-    $0 <OS_NAME> [USERNAME] [PASSWORD]
+    $0 <OS_NAME> [USERNAME] [PASSWORD] [OPTIONS]
 
 PARAMETERS:
     OS_NAME     OS name to look up in file_list.json (required)
                 Example: ubuntu-22.04.2-live-server-amd64
     USERNAME    Username for the installed system (default: mitac)
     PASSWORD    Password for both user and root (default: MiTAC00123)
+
+OPTIONS:
+    --skip-install              Skip checking / installing host tool dependencies
+    --storage-serial=VALUE      Match target disk by serial number (disables find_disk.sh)
+    --storage-model=VALUE       Match target disk by model string (disables find_disk.sh)
+    --storage-size=VALUE        Match target disk by size value (disables find_disk.sh)
+
+    Only ONE storage flag may be used. If multiple are given, the first in argument
+    order wins and the rest are ignored with a warning.
 
 DESCRIPTION:
     This script creates a custom Ubuntu autoinstall ISO that will automatically
@@ -61,12 +70,65 @@ EOF
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 
 SKIP_INSTALL=false
+STORAGE_MATCH_KEY=""
+STORAGE_MATCH_VALUE=""
+FIND_DISK_SIZE_HINT=""
+_STORAGE_FLAG_SET=false   # tracks whether any storage flag was already consumed
+
 for arg in "$@"; do
-    if [[ "$arg" == "--skip-install" ]]; then
-        SKIP_INSTALL=true
-        break
-    fi
+    case "$arg" in
+        --skip-install)
+            SKIP_INSTALL=true
+            ;;
+        --storage-serial=*)
+            if [ "$_STORAGE_FLAG_SET" = "false" ]; then
+                STORAGE_MATCH_KEY="serial"
+                STORAGE_MATCH_VALUE="${arg#--storage-serial=}"
+                _STORAGE_FLAG_SET=true
+            else
+                echo "[WARN] Ignoring extra storage flag: $arg (only one storage match allowed)"
+            fi
+            ;;
+        --storage-model=*)
+            if [ "$_STORAGE_FLAG_SET" = "false" ]; then
+                STORAGE_MATCH_KEY="model"
+                STORAGE_MATCH_VALUE="${arg#--storage-model=}"
+                _STORAGE_FLAG_SET=true
+            else
+                echo "[WARN] Ignoring extra storage flag: $arg (only one storage match allowed)"
+            fi
+            ;;
+        --storage-size=*)
+            if [ "$_STORAGE_FLAG_SET" = "false" ]; then
+                FIND_DISK_SIZE_HINT="${arg#--storage-size=}"
+                _STORAGE_FLAG_SET=true
+                echo "[*] Storage size hint: ${FIND_DISK_SIZE_HINT} — find_disk.sh will locate disk by size and resolve serial at boot"
+            else
+                echo "[WARN] Ignoring extra storage flag: $arg (only one storage match allowed)"
+            fi
+            ;;
+    esac
 done
+
+# Set defaults and determine find_disk mode
+# --storage-serial/model: embed key/value directly; find_disk disabled
+# --storage-size:         find_disk runs with --target-size hint; serial resolved at boot
+# (none):                 find_disk picks smallest empty disk
+if [ -n "$STORAGE_MATCH_KEY" ]; then
+    STORAGE_MATCH_KEY="$STORAGE_MATCH_KEY"
+    STORAGE_MATCH_VALUE="$STORAGE_MATCH_VALUE"
+    FIND_DISK_ENABLED=false
+    echo "[*] Storage match: --storage-${STORAGE_MATCH_KEY}=${STORAGE_MATCH_VALUE} (find_disk.sh disabled)"
+else
+    STORAGE_MATCH_KEY="serial"
+    STORAGE_MATCH_VALUE="__ID_SERIAL__"
+    FIND_DISK_ENABLED=true
+    if [ -n "$FIND_DISK_SIZE_HINT" ]; then
+        echo "[*] Storage match: size hint ${FIND_DISK_SIZE_HINT} — find_disk.sh will locate disk by size and patch serial"
+    else
+        echo "[*] Storage match: not specified — using find_disk.sh auto-detection at boot"
+    fi
+fi
 
 if [[ "${1:-}" == "-h" ]] || [[ "${1:-}" == "--help" ]] || [[ $# -eq 0 ]]; then
     show_help
@@ -490,20 +552,23 @@ echo "[*] Hashed Password is ${HASH_PASSWORD}"
 # Create the scripts directory for bundling logic helpers
 mkdir -p "$WORKDIR/autoinstall/scripts"
 
-# Write the find_empty_disk_serial function to a standalone script on the ISO
-# Copy find_disk.sh from local source instead of generating it
-if [ -f "${SCRIPT_DIR}/scripts/find_disk.sh" ]; then
-  echo "[*] Copying find_disk.sh to ISO..."
-  cp "${SCRIPT_DIR}/scripts/find_disk.sh" "$WORKDIR/autoinstall/scripts/find_disk.sh"
-  chmod +x "$WORKDIR/autoinstall/scripts/find_disk.sh"
-else
-  if [ "$IS_1804" = true ]; then
-    echo "[*] find_disk.sh not found, but not required for Ubuntu 18.04 preseed installation."
+# Copy find_disk.sh only in auto-detection mode (skipped when --storage-* flag is set)
+if [ "$FIND_DISK_ENABLED" = "true" ]; then
+  if [ -f "${SCRIPT_DIR}/scripts/find_disk.sh" ]; then
+    echo "[*] Copying find_disk.sh to ISO..."
+    cp "${SCRIPT_DIR}/scripts/find_disk.sh" "$WORKDIR/autoinstall/scripts/find_disk.sh"
+    chmod +x "$WORKDIR/autoinstall/scripts/find_disk.sh"
   else
-    echo "[!] ERROR: find_disk.sh not found at ${SCRIPT_DIR}/scripts/find_disk.sh"
-    echo "[!] This file is required for automated disk detection during installation."
-    exit 1
+    if [ "$IS_1804" = true ]; then
+      echo "[*] find_disk.sh not found, but not required for Ubuntu 18.04 preseed installation."
+    else
+      echo "[!] ERROR: find_disk.sh not found at ${SCRIPT_DIR}/scripts/find_disk.sh"
+      echo "[!] This file is required for automated disk detection during installation."
+      exit 1
+    fi
   fi
+else
+  echo "[*] Skipping find_disk.sh (storage match set to ${STORAGE_MATCH_KEY}=${STORAGE_MATCH_VALUE})"
 fi
 
 # Copy find_disk_1804.sh for Ubuntu 18.04 preseed disk detection
@@ -558,7 +623,7 @@ autoinstall:
       - type: disk
         id: disk-main
         match:
-          serial: __ID_SERIAL__
+          ${STORAGE_MATCH_KEY}: ${STORAGE_MATCH_VALUE}
         ptable: gpt
         wipe: superblock-recursive
         preserve: false
@@ -626,13 +691,25 @@ autoinstall:
     # This ensures OOB telemetry works BEFORE ipmitool is even installed.
     # Log Package Pre-install Start (Marker: 0x0F)
     - python3 /cdrom/pool/extra/ipmi_start_logger.py 0x0F || true
+EOF
+if [ "$FIND_DISK_ENABLED" = "true" ]; then
+    # Build the find_disk.sh invocation line (with optional size hint)
+    if [ -n "$FIND_DISK_SIZE_HINT" ]; then
+        FIND_DISK_CMD="sh /cdrom/autoinstall/scripts/find_disk.sh --target-size=${FIND_DISK_SIZE_HINT}"
+    else
+        FIND_DISK_CMD="sh /cdrom/autoinstall/scripts/find_disk.sh"
+    fi
+    cat >> "$WORKDIR/autoinstall/user-data" << EOF
     # Detect and patch disk configuration (find_disk.sh)
     - |
       if [ -f /cdrom/autoinstall/scripts/find_disk.sh ]; then
-          sh /cdrom/autoinstall/scripts/find_disk.sh
+          ${FIND_DISK_CMD}
       else
           echo "[!] WARNING: find_disk.sh not found. Proceeding with default config." > /dev/console
       fi
+EOF
+fi
+cat >> "$WORKDIR/autoinstall/user-data" << EOF
     # Install ipmitool from pre-bundled .deb files on ISO (no network needed)
     # Packages are version-matched for the target Ubuntu release during ISO build.
     - dpkg -i /cdrom/pool/extra/*.deb 2>/dev/null || true
@@ -753,7 +830,9 @@ autoinstall:
     - sleep 1
     - python3 /cdrom/pool/extra/ipmi_start_logger.py 0xaa 2>/dev/null || true
     - sleep 1
-    
+EOF
+if [ "$STORAGE_MATCH_KEY" = "serial" ]; then
+    cat >> "$WORKDIR/autoinstall/user-data" << EOF
     # Verification: Ensure root is on the correct serial and log outcome to SEL
     - |
       curtin in-target --target=/target -- sh -c '
@@ -761,12 +840,12 @@ autoinstall:
         root_dev=\$(lsblk -no PKNAME \$(findmnt -nvo SOURCE /) | head -n 1)
         [ -z "\$root_dev" ] && root_dev=\$(lsblk -no NAME \$(findmnt -nvo SOURCE /) | head -n 1)
         actual_serial=\$(udevadm info --query=property --name=/dev/\$root_dev 2>/dev/null | grep "^ID_SERIAL=" | cut -d"=" -f2)
-        expected_serial="__ID_SERIAL__"
-        
+        expected_serial="${STORAGE_MATCH_VALUE}"
+
         echo "--- Installation Audit ---" >> /var/log/install_disk_audit.log
         echo "Expected Serial: \$expected_serial" >> /var/log/install_disk_audit.log
         echo "Actual Root Serial: \$actual_serial" >> /var/log/install_disk_audit.log
-        
+
         if [ "\$actual_serial" = "\$expected_serial" ]; then
             echo "[+] VERIFICATION SUCCESS: OS installed on correct disk (\$actual_serial)"
             echo "Result: SUCCESS" >> /var/log/install_disk_audit.log
@@ -780,11 +859,14 @@ autoinstall:
             python3 /cdrom/pool/extra/ipmi_start_logger.py 0x05 0x45 0x52 2>/dev/null || true
         fi
       '
+EOF
+fi
+cat >> "$WORKDIR/autoinstall/user-data" << 'TAIL_EOF'
     # Persistence: Copy forensic logs to the installed system for review
     - cp /var/log/ipmi_telemetry.log /target/var/log/ipmi_telemetry.log 2>/dev/null || true
     - cp /tmp/ipmi_telemetry.log /target/var/log/ipmi_telemetry.log 2>/dev/null || true
     - cp /var/log/install_disk_audit.log /target/var/log/install_disk_audit.log 2>/dev/null || true
-EOF
+TAIL_EOF
 
 if [ "$IS_1804" = true ]; then
   echo "[*] Adding Preseed configuration for Ubuntu 18.04 compatibility..."

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "os_deployment"
-version = "0.0.1"
+version = "1.0.0"
 description = "Automatically Deploy OS  to Server"
 authors = ["Cyril Chang <cyril1974.chang@mic.com.tw>"]
 readme = "README.md"

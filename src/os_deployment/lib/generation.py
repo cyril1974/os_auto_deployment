@@ -7,9 +7,6 @@ from . import redfish
 from . import utils
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-def testFunction():
-    print("Enter Generation TEST")
-    return True
 
 # Functions for get generation
 

@@ -8,6 +8,15 @@ import subprocess
 from datetime import datetime
 from time import sleep
 
+
+class _StorageAction(argparse.Action):
+    """Custom action that records storage flags in argv order (first wins)."""
+    def __call__(self, parser, namespace, values, option_string=None):
+        setattr(namespace, self.dest, values)
+        existing = getattr(namespace, '_storage_flags', [])
+        existing.append((self.dest, values))
+        namespace._storage_flags = existing
+
 import os_deployment.lib.state_manager as state_manager
 from .lib import config
 from .lib import nfs
@@ -91,18 +100,50 @@ def main():
         help="Path to a pre-built ISO file. When provided, the ISO generation "
              "step is skipped and the specified ISO is used directly for deployment."
     )
+    parser.add_argument(
+        "--storage-serial", default=None, dest="storage_serial",
+        metavar="VALUE", action=_StorageAction,
+        help="Match target disk by serial number (passed to ISO builder; disables find_disk.sh auto-detection)"
+    )
+    parser.add_argument(
+        "--storage-model", default=None, dest="storage_model",
+        metavar="VALUE", action=_StorageAction,
+        help="Match target disk by model string (passed to ISO builder; disables find_disk.sh auto-detection)"
+    )
+    parser.add_argument(
+        "--storage-size", default=None, dest="storage_size",
+        metavar="VALUE", action=_StorageAction,
+        help="Match target disk by size value (passed to ISO builder; disables find_disk.sh auto-detection)"
+    )
+    parser.add_argument(
+        "--gen-by-go", action="store_true", dest="gen_by_go",
+        help="Use the Go ISO builder (build-iso-go/build-iso) instead of the shell script"
+    )
     args = parser.parse_args()
-    
+
+    # Resolve storage flag: first in argv order wins; warn about extras
+    storage_flags = getattr(args, '_storage_flags', [])
+    storage_flag_arg = None
+    if storage_flags:
+        key, value = storage_flags[0]
+        flag_name = key.replace("storage_", "")   # e.g. "storage_serial" -> "serial"
+        storage_flag_arg = f"--storage-{flag_name}={value}"
+        for extra_key, extra_value in storage_flags[1:]:
+            extra_name = extra_key.replace("storage_", "")
+            print(f"[WARN] Ignoring extra storage flag: --storage-{extra_name}={extra_value} "
+                  f"(only one storage match allowed)")
+
     bmcip = args.bmcip
     bmcuser = args.bmcuser
     bmcpasswd = args.bmcpasswd
-    nfsip = args.nfsip
+    # nfsip = args.nfsip
     os = args.os
     osuser = args.osuser
     ospasswd = args.ospasswd
     config_path = args.config
     no_reboot = args.no_reboot
     pre_built_iso = args.iso
+    gen_by_go = args.gen_by_go
 
     # Validate: -O is required when --iso is not provided
     if not pre_built_iso and not os:
@@ -200,20 +241,41 @@ def main():
         print(f"[{utils.formatted_time()}] Generating custom autoinstall ISO...")
         print(f"OS: {os}, User: {osuser}")
         
-        # Path to the build script
-        script_dir = pathlib.Path(__file__).parent.parent.parent / "autoinstall"
-        build_script = script_dir / "build-ubuntu-autoinstall-iso.sh"
-        
+        # Resolve autoinstall/ directory.
+        # When running as a Nuitka onefile binary, __file__ is inside the
+        # temp extraction dir (e.g. /tmp/onefile_xxx/os_deployment/main.py)
+        # and bundled data files sit two levels up at /tmp/onefile_xxx/autoinstall/.
+        # When running from source, autoinstall/ is three levels up from main.py.
+        if "__compiled__" in globals():
+            # Nuitka compiled binary — data files extracted alongside package dir
+            script_dir = pathlib.Path(__file__).parent.parent / "autoinstall"
+        else:
+            # Source tree
+            script_dir = pathlib.Path(__file__).parent.parent.parent / "autoinstall"
+        if gen_by_go:
+            build_script = script_dir / "build-iso-go" / "build-iso"
+            generator_label = "Go"
+        else:
+            build_script = script_dir / "build-ubuntu-autoinstall-iso.sh"
+            generator_label = "Shell"
+
         if not build_script.exists():
-            sys.exit(f"Build script not found: {build_script}")
-        
+            sys.exit(f"Build script not found: {build_script}"
+                     + (" (run 'go build -o build-iso .' inside autoinstall/build-iso-go/)"
+                        if gen_by_go else ""))
+
         # Execute the build script with sudo (requires root for apt and ISO operations)
         try:
-            print(f"[{utils.formatted_time()}] Executing: sudo {build_script.name} {os} {osuser} ****")
-            
+            storage_info = f" {storage_flag_arg}" if storage_flag_arg else ""
+            print(f"[{utils.formatted_time()}] Executing [{generator_label}]: sudo {build_script.name} {os} {osuser} ****{storage_info}")
+
+            cmd = ["sudo", str(build_script), os, osuser, ospasswd]
+            if storage_flag_arg:
+                cmd.append(storage_flag_arg)
+
             # Use Popen to stream output in real-time
             process = subprocess.Popen(
-                ["sudo", str(build_script), os, osuser, ospasswd],
+                cmd,
                 cwd=str(script_dir),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
@@ -233,8 +295,8 @@ def main():
             if process.returncode != 0:
                 # Replicate CalledProcessError behavior for consistent error handling
                 raise subprocess.CalledProcessError(
-                    process.returncode, 
-                    ["sudo", str(build_script), os, osuser, ospasswd],
+                    process.returncode,
+                    cmd,
                     output="".join(full_output)
                 )
 
@@ -284,7 +346,7 @@ def main():
             json.dump(config_json, f, indent=4)
         
         # print(f"Start to deploy {iso} to NFS Server ({nfs_ip}) .....")
-        exports_list = nfs.get_nfs_exports(nfs_ip)
+        # exports_list = nfs.get_nfs_exports(nfs_ip)
         mount_path = nfs.drop_file_to_nfs(nfs_ip,nfs_path,pathlib.Path(iso))
         # sys.exit(f"Deploy to NFS success...{mount_path}")   
     else:
@@ -388,7 +450,6 @@ def main():
     current_timestamp = from_timestamp
     # print(f"From TimeStamp : {from_timestamp} , Date Time String {datetime.fromtimestamp(from_timestamp).strftime('%Y-%m-%d %H:%M:%S')}")
     # print(f"Stop TimeStamp : {stop_timestamp} , Date Time String {datetime.fromtimestamp(stop_timestamp).strftime('%Y-%m-%d %H:%M:%S')}")
-    loop = 0
     last_log_id = ""
     # reboot.set_boot_cdrom(bmcip,auth_string)
     # print(f"[{utils.formatted_time()}] Get Event Log From Timestamp {datetime.fromtimestamp(from_timestamp).isoformat()} ({from_timestamp})")
@@ -429,8 +490,9 @@ def main():
                     StatusCode = eventMessage[-6:-4]
                     if eventMessage[-6:-4] in ["AA","EE"]:
                         is_complete = True
-                        # execute umount_media of utils
-                        # utils.umount_media(bmcip, auth_string, use_endpoint)
+                        if eventMessage[-6:-4] == "AA":
+                            # execute umount_media of utils
+                            utils.umount_media(bmcip, auth_string, use_endpoint)
                         
                     if eventMessage[-6:-4] == "03":        
                         IP[0] = str(int(eventMessage[-4:-2], 16))

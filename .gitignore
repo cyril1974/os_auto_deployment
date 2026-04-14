@@ -42,3 +42,15 @@ src/os_deployment/lib/utility_mount.py
 # Local build artifacts
 autoinstall/apt_cache/
 autoinstall/test_log/
+
+# Nuitka / os-deploy binary build outputs
+dist/
+.venv/
+build/
+nuitka-crash-report.xml
+os-deploy-*
+
+# Go ISO builder binaries (produced by build-cli.sh / build.sh, not committed)
+autoinstall/build-iso-go/build-iso
+autoinstall/build-iso-go/build-iso-go
+autoinstall/build-iso-go/apt_cache/

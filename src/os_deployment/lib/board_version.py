@@ -22,9 +22,9 @@ IMAGE_SIZE = 192
 
 
     
-def get_bios_version(target,auth_string):
-def get_cpld_version(target,auth_string):
-def get_rot_version(target,auth_string):    
+# def get_bios_version(target,auth_string):
+# def get_cpld_version(target,auth_string):
+# def get_rot_version(target,auth_string):    
 
 def generate_utility_package():
     # Define paths
