@@ -55,6 +55,10 @@ type BuildConfig struct {
 	// called with --target-size=<val> to locate the disk by size and resolve its serial.
 	// StorageMatchKey remains "serial" and StorageMatchValue "__ID_SERIAL__" in this mode.
 	FindDiskSizeHint string
+	// CacheDir is the persistent apt package cache directory, stored under the
+	// XDG cache home (~/.cache/build-iso/apt_cache/) so it survives binary runs
+	// and is not destroyed when the embedded-assets temp dir is cleaned up.
+	CacheDir string
 }
 
 // ─── Help ─────────────────────────────────────────────────────────────────────
@@ -74,6 +78,11 @@ PARAMETERS:
 
 OPTIONS:
     --skip-install              Skip checking/installing host tool dependencies
+
+    --iso-repo-dir=<path>       Path to the ISO repository directory containing file_list.json
+                                and the ISO files. Overrides the default location:
+                                <script-dir>/iso_repository/
+                                e.g. --iso-repo-dir=/data/iso_repo
 
     --storage-serial=<value>    Match target disk by serial number (embedded directly in user-data)
                                 e.g. --storage-serial=S6CKNT0W700868
@@ -229,8 +238,15 @@ func checkAndInstallPackages(skip bool) {
 
 // ─── ISO path lookup ─────────────────────────────────────────────────────────
 
-func lookupISOPath(osName, scriptDir string) string {
-	jsonFile := filepath.Join(scriptDir, "iso_repository", "file_list.json")
+// lookupISOPath finds the ISO file for osName using file_list.json.
+// isoRepoDir is the directory that contains both file_list.json and the ISO files.
+// When empty, it defaults to <scriptDir>/iso_repository/.
+func lookupISOPath(osName, scriptDir, isoRepoDir string) string {
+	if isoRepoDir == "" {
+		isoRepoDir = filepath.Join(scriptDir, "iso_repository")
+	}
+
+	jsonFile := filepath.Join(isoRepoDir, "file_list.json")
 	data, err := os.ReadFile(jsonFile)
 	if err != nil {
 		fatalf("file_list.json not found at %s", jsonFile)
@@ -243,7 +259,7 @@ func lookupISOPath(osName, scriptDir string) string {
 
 	for _, entry := range fl.Tree.Ubuntu {
 		if entry.OSName == osName {
-			return filepath.Join(scriptDir, "iso_repository", entry.OSPath)
+			return filepath.Join(isoRepoDir, entry.OSPath)
 		}
 	}
 
@@ -363,15 +379,16 @@ func downloadExtraPackages(cfg *BuildConfig) {
 	}
 
 	logf("Downloading packages for Ubuntu %s...", cfg.Codename)
+	logf("Package cache: %s", filepath.Join(cfg.CacheDir, cfg.Codename))
 
 	tmpDir, _ := os.MkdirTemp("", "apt-download-*")
 	aptConfDir, _ := os.MkdirTemp("", "apt-conf-*")
 	defer os.RemoveAll(tmpDir)
 	defer os.RemoveAll(aptConfDir)
 
-	// Anchor cache to scriptDir (autoinstall/) so it is always found regardless
-	// of which directory the binary is invoked from.
-	persistentCache, _ := filepath.Abs(filepath.Join(cfg.ScriptDir, "apt_cache", cfg.Codename))
+	// Use the XDG-based cache dir so packages persist across runs.
+	// cfg.CacheDir is ~/.cache/build-iso/apt_cache/ (or $XDG_CACHE_HOME equivalent).
+	persistentCache, _ := filepath.Abs(filepath.Join(cfg.CacheDir, cfg.Codename))
 	_ = os.MkdirAll(filepath.Join(persistentCache, "archives/partial"), 0755)
 
 	aptState := filepath.Join(aptConfDir, "state")
@@ -538,15 +555,16 @@ func downloadExtraPackages(cfg *BuildConfig) {
 		cmd.Dir = tmpDir
 		_ = cmd.Run()
 
-		// Move downloaded .deb to persistent cache
+		// Move downloaded .deb to persistent cache.
+		// os.Rename fails across filesystem boundaries (e.g. /tmp on tmpfs →
+		// ~/.cache on ext4) with EXDEV. Use copy+remove so it always works.
 		debs, _ := filepath.Glob(filepath.Join(tmpDir, "*.deb"))
 		for _, deb := range debs {
 			dest := filepath.Join(persistentCache, "archives", filepath.Base(deb))
-			_ = os.Rename(deb, dest)
+			if err := copyFile(deb, dest); err == nil {
+				_ = os.Remove(deb)
+			}
 		}
-	}
-	if total > 0 {
-		fmt.Printf("\rProgress: |%s| 100.0%% Complete\n", strings.Repeat("█", 40))
 	}
 
 	// Copy from cache to ISO extra pool
@@ -1299,6 +1317,7 @@ func main() {
 	}
 
 	skipInstall := false
+	isoRepoDir := ""
 	var positional []string
 
 	// Storage match: collect all three flags in argv order, then resolve.
@@ -1309,6 +1328,8 @@ func main() {
 		switch {
 		case arg == "--skip-install":
 			skipInstall = true
+		case strings.HasPrefix(arg, "--iso-repo-dir="):
+			isoRepoDir = strings.TrimPrefix(arg, "--iso-repo-dir=")
 		case strings.HasPrefix(arg, "--storage-serial="):
 			storageFlags = append(storageFlags, storageFlag{"serial", strings.TrimPrefix(arg, "--storage-serial=")})
 		case strings.HasPrefix(arg, "--storage-model="):
@@ -1348,11 +1369,19 @@ func main() {
 		password = positional[2]
 	}
 
-	// The binary lives at autoinstall/build-iso-go/<binary>.
-	// All assets (package_list, scripts/, iso_repository/, startup.nsh, etc.)
-	// live one level up in the autoinstall/ directory.
-	binaryDir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-	scriptDir := filepath.Dir(binaryDir)
+	// Extract embedded assets (scripts/, startup.nsh, ipmi_start_logger.py,
+	// package_list) to a temp directory. This makes the binary self-contained:
+	// it works correctly regardless of the working directory or how it is invoked
+	// (direct execution, Nuitka onefile, CI pipeline, etc.).
+	assetsDir, err := extractEmbeddedAssets()
+	if err != nil {
+		fatalf("failed to extract embedded assets: %v", err)
+	}
+	defer func() {
+		logf("Cleaning up embedded assets: %s", assetsDir)
+		_ = os.RemoveAll(assetsDir)
+	}()
+	scriptDir := assetsDir
 
 	// Read offline packages
 	offlinePkgs := readOfflinePackages(scriptDir)
@@ -1369,19 +1398,36 @@ func main() {
 	}
 
 	// Lookup ISO path
+	if isoRepoDir != "" {
+		logf("ISO repository: %s (--iso-repo-dir)", isoRepoDir)
+	} else {
+		logf("ISO repository: %s/iso_repository/ (default)", scriptDir)
+	}
 	logf("Looking up ISO path for OS: %s", osName)
-	origISO := lookupISOPath(osName, scriptDir)
+	origISO := lookupISOPath(osName, scriptDir, isoRepoDir)
 	logf("Found ISO: %s", origISO)
 	if !fileExists(origISO) {
 		fatalf("Original ISO not found: %s", origISO)
 	}
 
-	// Build ID and directories — all anchored to scriptDir (autoinstall/)
+	// Build ID and directories — anchored to the current working directory, NOT
+	// scriptDir. scriptDir now points to the embedded-assets temp dir which is
+	// deleted on exit; placing workDir/outISODir there would destroy the output
+	// ISO before the caller (main.py / NFS copy) can use it.
 	rand.Seed(time.Now().UnixNano())
 	buildID := fmt.Sprintf("%s_%04d", time.Now().Format("20060102150405"), rand.Intn(9999))
-	workDir, _ := filepath.Abs(filepath.Join(scriptDir, "workdir_custom_iso", buildID))
-	outISODir, _ := filepath.Abs(filepath.Join(scriptDir, "output_custom_iso", buildID))
-	_ = os.MkdirAll(filepath.Join(scriptDir, "apt_cache"), 0755)
+	cwd, _ := os.Getwd()
+	workDir, _ := filepath.Abs(filepath.Join(cwd, "workdir_custom_iso", buildID))
+	outISODir, _ := filepath.Abs(filepath.Join(cwd, "output_custom_iso", buildID))
+
+	// Resolve persistent apt cache under XDG_CACHE_HOME (or ~/.cache/) so it
+	// survives runs even when scriptDir is a temporary embedded-assets directory.
+	cacheHome := os.Getenv("XDG_CACHE_HOME")
+	if cacheHome == "" {
+		cacheHome = filepath.Join(os.Getenv("HOME"), ".cache")
+	}
+	cacheDir := filepath.Join(cacheHome, "build-iso", "apt_cache")
+	_ = os.MkdirAll(cacheDir, 0755)
 
 	isoBasename := strings.TrimSuffix(filepath.Base(origISO), ".iso")
 	ts := time.Now().Format("200601021504")
@@ -1430,6 +1476,7 @@ func main() {
 		StorageMatchKey:   storageMatchKey,
 		StorageMatchValue: storageMatchValue,
 		FindDiskSizeHint:  findDiskSizeHint,
+		CacheDir:          cacheDir,
 	}
 
 	// Mount and copy ISO contents

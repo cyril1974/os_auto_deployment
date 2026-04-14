@@ -1,0 +1,12 @@
+# Build outputs
+build-iso
+build-iso-go
+
+# Staged embed assets (copied from autoinstall/ by build.sh, removed after build)
+startup.nsh
+ipmi_start_logger.py
+package_list
+scripts/
+
+# Apt cache
+apt_cache/

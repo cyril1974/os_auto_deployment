@@ -116,8 +116,14 @@ def main():
         help="Match target disk by size value (passed to ISO builder; disables find_disk.sh auto-detection)"
     )
     parser.add_argument(
-        "--gen-by-go", action="store_true", dest="gen_by_go",
-        help="Use the Go ISO builder (build-iso-go/build-iso) instead of the shell script"
+        "--gen-by-sh", action="store_true", dest="gen_by_sh",
+        help="Use the shell script ISO builder instead of the default Go builder"
+    )
+    parser.add_argument(
+        "--iso-repo-dir", default=None, dest="iso_repo_dir",
+        metavar="PATH",
+        help="Path to the ISO repository directory containing file_list.json and ISO files. "
+             "Required when -O/--os is used."
     )
     args = parser.parse_args()
 
@@ -143,11 +149,16 @@ def main():
     config_path = args.config
     no_reboot = args.no_reboot
     pre_built_iso = args.iso
-    gen_by_go = args.gen_by_go
+    gen_by_sh = args.gen_by_sh
+    iso_repo_dir = args.iso_repo_dir
 
     # Validate: -O is required when --iso is not provided
     if not pre_built_iso and not os:
         parser.error("-O/--os is required when --iso is not provided.")
+
+    # Validate: --iso-repo-dir is required when -O/--os is used
+    if os and not iso_repo_dir:
+        parser.error("--iso-repo-dir is required when -O/--os is specified.")
 
     if no_reboot:
         print("Option no-reboot is set !!")
@@ -252,17 +263,17 @@ def main():
         else:
             # Source tree
             script_dir = pathlib.Path(__file__).parent.parent.parent / "autoinstall"
-        if gen_by_go:
-            build_script = script_dir / "build-iso-go" / "build-iso"
-            generator_label = "Go"
-        else:
+        if gen_by_sh:
             build_script = script_dir / "build-ubuntu-autoinstall-iso.sh"
             generator_label = "Shell"
+        else:
+            build_script = script_dir / "build-iso-go" / "build-iso"
+            generator_label = "Go"
 
         if not build_script.exists():
             sys.exit(f"Build script not found: {build_script}"
-                     + (" (run 'go build -o build-iso .' inside autoinstall/build-iso-go/)"
-                        if gen_by_go else ""))
+                     + (" (run 'bash build.sh' inside autoinstall/build-iso-go/)"
+                        if not gen_by_sh else ""))
 
         # Execute the build script with sudo (requires root for apt and ISO operations)
         try:
@@ -272,6 +283,8 @@ def main():
             cmd = ["sudo", str(build_script), os, osuser, ospasswd]
             if storage_flag_arg:
                 cmd.append(storage_flag_arg)
+            if iso_repo_dir:
+                cmd.append(f"--iso-repo-dir={iso_repo_dir}")
 
             # Use Popen to stream output in real-time
             process = subprocess.Popen(
