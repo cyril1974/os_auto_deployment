@@ -2,7 +2,13 @@
 import argparse
 import pathlib
 import sys
-import tomllib
+try:
+    import tomllib          # Python 3.11+ stdlib
+except ImportError:
+    try:
+        import tomli as tomllib  # backport for Python <= 3.10
+    except ImportError:
+        tomllib = None
 import json
 import subprocess
 from datetime import datetime
@@ -44,7 +50,7 @@ def get_version():
         project_root = pathlib.Path(__file__).parent.parent.parent
         pyproject_path = project_root / "pyproject.toml"
         
-        if pyproject_path.exists():
+        if pyproject_path.exists() and tomllib is not None:
             with open(pyproject_path, "rb") as f:
                 pyproject_data = tomllib.load(f)
                 return pyproject_data.get("tool", {}).get("poetry", {}).get("version", "unknown")

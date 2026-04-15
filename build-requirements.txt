@@ -21,3 +21,7 @@ ordered-set>=4.1
 requests>=2.32
 urllib3>=2.0
 certifi>=2024.0
+
+# tomllib backport for Python <= 3.10 (stdlib in 3.11+)
+# No-op on Python 3.11+ since the stdlib version is used via try/except import.
+tomli>=2.0; python_version < "3.11"

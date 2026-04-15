@@ -208,6 +208,7 @@ info "Output      : ${OUTPUT_BINARY}"
     --include-package=requests \
     --include-package=urllib3 \
     --include-package=certifi \
+    --include-package=tomli \
     \
     --include-data-files="${SCRIPT_DIR}/src/os_deployment/_version.py=os_deployment/_version.py" \
     --include-data-files="${GO_BINARY}=autoinstall/build-iso-go/build-iso" \
