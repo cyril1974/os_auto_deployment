@@ -9,8 +9,15 @@
 # This script automatically creates and uses a local virtualenv (.venv/)
 # so no system Python packages are modified.
 #
+# GLIBC COMPATIBILITY
+#   By default the binary links against the host system's glibc, so it only
+#   runs on systems with glibc >= host version.  Use --docker to build inside
+#   an Ubuntu 22.04 container (glibc 2.35), producing a binary that runs on
+#   any system with glibc >= 2.35 (Ubuntu 22.04+, Debian 12+, RHEL 9+).
+#
 # Usage:
-#   bash build-cli.sh              # build current version
+#   bash build-cli.sh              # build on host (glibc = host version)
+#   bash build-cli.sh --docker     # build in Ubuntu 22.04 container (glibc 2.35)
 #   bash build-cli.sh --clean      # remove dist/, build/, .venv/ before building
 #   bash build-cli.sh --check      # check prerequisites only, no build
 
@@ -21,7 +28,9 @@ SRC_ENTRY="${SCRIPT_DIR}/cli_entry.py"
 PYPROJECT="${SCRIPT_DIR}/pyproject.toml"
 DIST_DIR="${SCRIPT_DIR}/dist"
 BUILD_DIR="${SCRIPT_DIR}/build/nuitka"
-VENV_DIR="${SCRIPT_DIR}/.venv"
+# VENV_DIR can be overridden by the caller (e.g. Docker sets it to /tmp/.venv-docker
+# so the container never touches the host's .venv/ which has wrong interpreter paths).
+VENV_DIR="${VENV_DIR:-${SCRIPT_DIR}/.venv}"
 BINARY_NAME="os-deploy"
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -35,13 +44,55 @@ die()   { echo "[ERROR] $*" >&2; exit 1; }
 
 DO_CLEAN=false
 CHECK_ONLY=false
+USE_DOCKER=false
 for arg in "$@"; do
     case "$arg" in
-        --clean) DO_CLEAN=true ;;
-        --check) CHECK_ONLY=true ;;
-        *) die "Unknown argument: $arg (valid: --clean, --check)" ;;
+        --clean)  DO_CLEAN=true ;;
+        --check)  CHECK_ONLY=true ;;
+        --docker) USE_DOCKER=true ;;
+        *) die "Unknown argument: $arg (valid: --clean, --check, --docker)" ;;
     esac
 done
+
+# ─── Docker build path ────────────────────────────────────────────────────────
+# When --docker is passed, build the image (if needed) then re-invoke this
+# script inside a Ubuntu 22.04 container so the binary links against glibc
+# 2.35 and runs on any system with glibc >= 2.35.
+
+if [ "$USE_DOCKER" = "true" ]; then
+    command -v docker >/dev/null 2>&1 || die "docker is not installed or not in PATH"
+
+    DOCKER_IMAGE="os-deploy-builder"
+    DOCKERFILE="${SCRIPT_DIR}/Dockerfile.build"
+
+    [ -f "${DOCKERFILE}" ] || die "Dockerfile.build not found at ${DOCKERFILE}"
+
+    # Build image only when Dockerfile changed or image doesn't exist
+    if ! docker image inspect "${DOCKER_IMAGE}" >/dev/null 2>&1; then
+        info "Building Docker image ${DOCKER_IMAGE} (Ubuntu 22.04 / glibc 2.35)..."
+        docker build -f "${DOCKERFILE}" -t "${DOCKER_IMAGE}" "${SCRIPT_DIR}"
+        ok "Docker image built: ${DOCKER_IMAGE}"
+    else
+        info "Reusing existing Docker image: ${DOCKER_IMAGE}"
+    fi
+
+    info "Running build inside Docker container..."
+    # Pass through all original flags except --docker to avoid infinite recursion.
+    INNER_ARGS=()
+    for arg in "$@"; do
+        [ "$arg" != "--docker" ] && INNER_ARGS+=("$arg")
+    done
+
+    docker run --rm \
+        -v "${SCRIPT_DIR}:/workspace" \
+        -w /workspace \
+        -e VENV_DIR=/tmp/.venv-docker \
+        "${DOCKER_IMAGE}" \
+        bash build-cli.sh "${INNER_ARGS[@]}"
+
+    ok "Docker build complete — binary is at dist/"
+    exit 0
+fi
 
 # ─── System prerequisite check (before venv) ──────────────────────────────────
 
