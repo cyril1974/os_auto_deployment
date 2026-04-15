@@ -11,6 +11,9 @@ import (
 	"strings"
 	"text/template"
 	"time"
+
+	"github.com/GehirnInc/crypt"
+	_ "github.com/GehirnInc/crypt/sha512_crypt"
 )
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -1495,8 +1498,9 @@ func main() {
 	// Download and bundle extra packages
 	downloadExtraPackages(cfg)
 
-	// Hash password
-	hashOut, err := outputOf("mkpasswd", "-m", "sha-512", password)
+	// Hash password using SHA-512 crypt (same format as mkpasswd -m sha-512).
+	// Implemented natively in Go — no dependency on the external mkpasswd binary.
+	hashOut, err := crypt.New(crypt.SHA512).Generate([]byte(password), nil)
 	if err != nil {
 		fatalf("failed to hash password: %v", err)
 	}
