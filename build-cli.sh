@@ -18,6 +18,7 @@
 # Usage:
 #   bash build-cli.sh              # build on host (glibc = host version)
 #   bash build-cli.sh --docker     # build in Ubuntu 22.04 container (glibc 2.35)
+#   bash build-cli.sh --debug      # fast build: shell wrapper instead of Nuitka (source visible, local use only)
 #   bash build-cli.sh --clean      # remove dist/, build/, .venv/ before building
 #   bash build-cli.sh --check      # check prerequisites only, no build
 
@@ -45,12 +46,14 @@ die()   { echo "[ERROR] $*" >&2; exit 1; }
 DO_CLEAN=false
 CHECK_ONLY=false
 USE_DOCKER=false
+DEBUG_BUILD=false
 for arg in "$@"; do
     case "$arg" in
         --clean)  DO_CLEAN=true ;;
         --check)  CHECK_ONLY=true ;;
         --docker) USE_DOCKER=true ;;
-        *) die "Unknown argument: $arg (valid: --clean, --check, --docker)" ;;
+        --debug)  DEBUG_BUILD=true ;;
+        *) die "Unknown argument: $arg (valid: --clean, --check, --docker, --debug)" ;;
     esac
 done
 
@@ -212,58 +215,84 @@ fi
 
 mkdir -p "${DIST_DIR}" "${BUILD_DIR}"
 
-# Remove any stale Nuitka intermediate build directories from a previous run.
-# These cause an AssertionError if Nuitka tries to write a .c file that already exists.
-rm -rf "${DIST_DIR}"/*.build "${DIST_DIR}"/*.dist "${DIST_DIR}"/*.onefile-build
+if [ "$DEBUG_BUILD" = "true" ]; then
+    # ── Debug mode: emit a shell wrapper instead of running Nuitka ──────────
+    # The wrapper runs the Python source directly via the local venv so the
+    # build completes in seconds.  Source code remains visible — for local
+    # development and testing only.
+    info "Debug mode — skipping Nuitka, generating shell wrapper..."
+    info "Entry point : ${SRC_ENTRY}"
+    info "Output      : ${OUTPUT_BINARY}"
 
-info "Compiling with Nuitka (this takes 2–5 minutes on first build)..."
-info "Entry point : ${SRC_ENTRY}"
-info "Output      : ${OUTPUT_BINARY}"
+    cat > "${OUTPUT_BINARY}" <<WRAPPER
+#!/bin/bash
+# os-deploy debug wrapper — runs Python source directly (NOT for production)
+export PYTHONPATH="${SCRIPT_DIR}/src\${PYTHONPATH:+:\${PYTHONPATH}}"
+exec "${PYTHON}" "${SRC_ENTRY}" "\$@"
+WRAPPER
 
-"${PYTHON}" -m nuitka \
-    --onefile \
-    --output-filename="${BINARY_NAME}" \
-    --output-dir="${DIST_DIR}" \
-    --remove-output \
-    \
-    --include-package=os_deployment \
-    --include-package=requests \
-    --include-package=urllib3 \
-    --include-package=certifi \
-    --include-package=tomli \
-    \
-    --include-data-files="${SCRIPT_DIR}/src/os_deployment/_version.py=os_deployment/_version.py" \
-    --include-data-files="${GO_BINARY}=autoinstall/build-iso-go/build-iso" \
-    \
-    --nofollow-import-to=tkinter \
-    --nofollow-import-to=matplotlib \
-    --nofollow-import-to=numpy \
-    --nofollow-import-to=scipy \
-    --nofollow-import-to=pandas \
-    \
-    --company-name="MiTAC Computing Technology Corporation" \
-    --product-name="os-deploy" \
-    --product-version="${VERSION}" \
-    --file-description="MiTAC CUP OS Auto-Deployment Tool" \
-    \
-    --assume-yes-for-downloads \
-    --jobs="$(nproc)" \
-    \
-    "${SRC_ENTRY}"
-
-# ─── Rename to versioned output ────────────────────────────────────────────────
-
-if [ -f "${DIST_DIR}/${BINARY_NAME}" ]; then
-    mv "${DIST_DIR}/${BINARY_NAME}" "${OUTPUT_BINARY}"
     chmod 755 "${OUTPUT_BINARY}"
-    SIZE=$(du -sh "${OUTPUT_BINARY}" | cut -f1)
-    ok "Build complete"
+    ok "Debug build complete (shell wrapper — source not hidden)"
     ok "Binary  : ${OUTPUT_BINARY}"
-    ok "Size    : ${SIZE}"
+    warn "This is a DEBUG build. Source code is NOT hidden. Do not distribute."
     echo ""
     echo "  Run with:"
     echo "    ${OUTPUT_BINARY} --help"
     echo "    ${OUTPUT_BINARY} -B <bmc-ip> -N <nfs-ip> -O <os-name>"
+
 else
-    die "Build finished but output binary not found at ${DIST_DIR}/${BINARY_NAME}"
+    # ── Release mode: full Nuitka compilation ────────────────────────────────
+    # Remove any stale Nuitka intermediate build directories from a previous run.
+    # These cause an AssertionError if Nuitka tries to write a .c file that already exists.
+    rm -rf "${DIST_DIR}"/*.build "${DIST_DIR}"/*.dist "${DIST_DIR}"/*.onefile-build
+
+    info "Compiling with Nuitka (this takes 2–5 minutes on first build)..."
+    info "Entry point : ${SRC_ENTRY}"
+    info "Output      : ${OUTPUT_BINARY}"
+
+    "${PYTHON}" -m nuitka \
+        --onefile \
+        --output-filename="${BINARY_NAME}" \
+        --output-dir="${DIST_DIR}" \
+        --remove-output \
+        \
+        --include-package=os_deployment \
+        --include-package=requests \
+        --include-package=urllib3 \
+        --include-package=certifi \
+        --include-package=tomli \
+        \
+        --include-data-files="${SCRIPT_DIR}/src/os_deployment/_version.py=os_deployment/_version.py" \
+        --include-data-files="${GO_BINARY}=autoinstall/build-iso-go/build-iso" \
+        \
+        --nofollow-import-to=tkinter \
+        --nofollow-import-to=matplotlib \
+        --nofollow-import-to=numpy \
+        --nofollow-import-to=scipy \
+        --nofollow-import-to=pandas \
+        \
+        --company-name="MiTAC Computing Technology Corporation" \
+        --product-name="os-deploy" \
+        --product-version="${VERSION}" \
+        --file-description="MiTAC CUP OS Auto-Deployment Tool" \
+        \
+        --assume-yes-for-downloads \
+        --jobs="$(nproc)" \
+        \
+        "${SRC_ENTRY}"
+
+    if [ -f "${DIST_DIR}/${BINARY_NAME}" ]; then
+        mv "${DIST_DIR}/${BINARY_NAME}" "${OUTPUT_BINARY}"
+        chmod 755 "${OUTPUT_BINARY}"
+        SIZE=$(du -sh "${OUTPUT_BINARY}" | cut -f1)
+        ok "Build complete"
+        ok "Binary  : ${OUTPUT_BINARY}"
+        ok "Size    : ${SIZE}"
+        echo ""
+        echo "  Run with:"
+        echo "    ${OUTPUT_BINARY} --help"
+        echo "    ${OUTPUT_BINARY} -B <bmc-ip> -N <nfs-ip> -O <os-name>"
+    else
+        die "Build finished but output binary not found at ${DIST_DIR}/${BINARY_NAME}"
+    fi
 fi
