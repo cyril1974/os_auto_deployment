@@ -54,6 +54,35 @@ for arg in "$@"; do
     esac
 done
 
+# ─── Auto-increment patch version ────────────────────────────────────────────
+# Increments the last digit of the version string in pyproject.toml and
+# _version.py before every build (skipped in --check mode).
+# Example: 1.0.0 → 1.0.1 → 1.0.2 → ... → 1.0.10 → 1.0.11 ...
+
+if [ "$CHECK_ONLY" = "false" ] && [ "${SKIP_VERSION_BUMP:-0}" != "1" ]; then
+    CURRENT_VERSION=$(grep '^version\s*=' "${PYPROJECT}" | sed 's/.*version\s*=\s*"\([^"]*\)".*/\1/')
+    if [ -z "${CURRENT_VERSION}" ]; then
+        warn "Could not read version from ${PYPROJECT} — skipping auto-increment"
+    else
+        MAJOR=$(echo "${CURRENT_VERSION}" | cut -d. -f1)
+        MINOR=$(echo "${CURRENT_VERSION}" | cut -d. -f2)
+        PATCH=$(echo "${CURRENT_VERSION}" | cut -d. -f3)
+        NEW_PATCH=$(( PATCH + 1 ))
+        NEW_VERSION="${MAJOR}.${MINOR}.${NEW_PATCH}"
+
+        # Update pyproject.toml
+        sed -i "s/^version\s*=\s*\"${CURRENT_VERSION}\"/version = \"${NEW_VERSION}\"/" "${PYPROJECT}"
+
+        # Update _version.py (used by Nuitka-compiled binary at runtime)
+        VERSION_PY="${SCRIPT_DIR}/src/os_deployment/_version.py"
+        if [ -f "${VERSION_PY}" ]; then
+            sed -i "s/__version__\s*=\s*\"[^\"]*\"/__version__ = \"${NEW_VERSION}\"/" "${VERSION_PY}"
+        fi
+
+        ok "Version bumped: ${CURRENT_VERSION} → ${NEW_VERSION}"
+    fi
+fi
+
 # ─── Docker build path ────────────────────────────────────────────────────────
 # When --docker is passed, build the image (if needed) then re-invoke this
 # script inside a Ubuntu 22.04 container so the binary links against glibc
@@ -87,6 +116,7 @@ if [ "$USE_DOCKER" = "true" ]; then
         -v "${SCRIPT_DIR}:/workspace" \
         -w /workspace \
         -e VENV_DIR=/tmp/.venv-docker \
+        -e SKIP_VERSION_BUMP=1 \
         "${DOCKER_IMAGE}" \
         bash build-cli.sh "${INNER_ARGS[@]}"
 
@@ -146,16 +176,8 @@ export PYTHONPATH="${SCRIPT_DIR}/src${PYTHONPATH:+:${PYTHONPATH}}"
 
 # ─── Read version from pyproject.toml ─────────────────────────────────────────
 
-VERSION=$("${PYTHON}" -c "
-import tomllib, pathlib
-data = tomllib.load(open('${PYPROJECT}', 'rb'))
-print(data['tool']['poetry']['version'])
-" 2>/dev/null) || VERSION=$("${PYTHON}" -c "
-import re, pathlib
-text = pathlib.Path('${PYPROJECT}').read_text()
-m = re.search(r'version\s*=\s*\"([^\"]+)\"', text)
-print(m.group(1) if m else 'unknown')
-")
+VERSION=$(grep '^version\s*=' "${PYPROJECT}" | sed 's/.*version\s*=\s*"\([^"]*\)".*/\1/')
+[ -z "${VERSION}" ] && VERSION="unknown"
 
 OUTPUT_BINARY="${DIST_DIR}/${BINARY_NAME}-${VERSION}"
 
