@@ -255,7 +255,7 @@ info "Output      : ${OUTPUT_BINARY}"
 
 if [ -f "${DIST_DIR}/${BINARY_NAME}" ]; then
     mv "${DIST_DIR}/${BINARY_NAME}" "${OUTPUT_BINARY}"
-    chmod +x "${OUTPUT_BINARY}"
+    chmod 755 "${OUTPUT_BINARY}"
     SIZE=$(du -sh "${OUTPUT_BINARY}" | cut -f1)
     ok "Build complete"
     ok "Binary  : ${OUTPUT_BINARY}"
