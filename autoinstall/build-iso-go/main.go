@@ -62,6 +62,15 @@ type BuildConfig struct {
 	// XDG cache home (~/.cache/build-iso/apt_cache/) so it survives binary runs
 	// and is not destroyed when the embedded-assets temp dir is cleaned up.
 	CacheDir string
+	// Hostname is the system hostname written into user-data / preseed.
+	// Defaults to "ubuntu-auto" when not specified.
+	Hostname string
+	// Mi325xSupport adds GRUB kernel parameters (amd_iommu=on iommu=pt pci=realloc=off)
+	// and GRUB_RECORDFAIL_TIMEOUT=0 required for MiTAC Mi325x platform stability.
+	Mi325xSupport bool
+	// Mi325xNode identifies the target node (e.g. node_1, node_2).
+	// Required when Mi325xSupport is true. Format: node_<integer>.
+	Mi325xNode string
 }
 
 // ─── Help ─────────────────────────────────────────────────────────────────────
@@ -91,6 +100,18 @@ OPTIONS:
                                 e.g. --storage-serial=S6CKNT0W700868
     --storage-model=<value>     Match target disk by model name (embedded directly in user-data)
                                 e.g. --storage-model=SAMSUNG_MZQL27T6HBLA
+
+    --hostname=<value>          Hostname for the installed system (default: ubuntu-auto)
+                                e.g. --hostname=node01
+
+    --mi325x-support            Apply MiTAC Mi325x platform GRUB adjustments in late-commands:
+                                  - amd_iommu=on iommu=pt pci=realloc=off kernel parameters
+                                  - GRUB_RECORDFAIL_TIMEOUT=0
+                                  - update-grub
+                                  Requires --mi325x-node.
+
+    --mi325x-node=<value>       Target node identifier. Required when --mi325x-support is set.
+                                Format: node_<integer>  e.g. node_1  node_2  node_10
 
     --storage-size=<value>      Find disk by size at boot via find_disk.sh, then match by serial.
                                 find_disk.sh is called with --target-size=<value> (±10% tolerance).
@@ -371,6 +392,47 @@ func getUbuntuCodename(workDir, osName string) string {
 
 	warnf("Could not determine Ubuntu version, defaulting to jammy")
 	return "jammy"
+}
+
+// ─── Mi325x platform files ───────────────────────────────────────────────────
+
+// copyMi325xrFiles copies platform-specific files into pool/mi325xr/ inside the ISO.
+// It merges two source directories:
+//   - <scriptDir>/mi325xr/common/   — files shared by all Mi325x nodes
+//   - <scriptDir>/mi325xr/<node>/   — files specific to the target node (optional)
+func copyMi325xrFiles(cfg *BuildConfig) {
+	destDir := filepath.Join(cfg.WorkDir, "pool/mi325xr")
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		fatalf("failed to create pool/mi325xr dir: %v", err)
+	}
+
+	sources := []string{
+		filepath.Join(cfg.ScriptDir, "mi325xr", "common"),
+		filepath.Join(cfg.ScriptDir, "mi325xr", cfg.Mi325xNode),
+	}
+
+	for _, src := range sources {
+		if !dirExists(src) {
+			warnf("mi325xr source directory not found, skipping: %s", src)
+			continue
+		}
+		entries, err := os.ReadDir(src)
+		if err != nil {
+			warnf("failed to read mi325xr source directory %s: %v", src, err)
+			continue
+		}
+		for _, e := range entries {
+			if e.IsDir() {
+				continue
+			}
+			srcFile := filepath.Join(src, e.Name())
+			dstFile := filepath.Join(destDir, e.Name())
+			if err := copyFile(srcFile, dstFile); err != nil {
+				fatalf("failed to copy mi325xr file %s: %v", srcFile, err)
+			}
+			logf("Mi325x: bundled %s → pool/mi325xr/%s", srcFile, e.Name())
+		}
+	}
 }
 
 // ─── Download extra packages ─────────────────────────────────────────────────
@@ -743,7 +805,7 @@ const userDataTmpl = `#cloud-config
 autoinstall:
   version: 1
   identity:
-    hostname: ubuntu-auto
+    hostname: {{.Hostname}}
     username: {{.Username}}
     password: "{{.HashPassword}}"
   locale: en_US.UTF-8
@@ -758,6 +820,8 @@ autoinstall:
         ptable: gpt
         wipe: superblock-recursive
         preserve: false
+		grub_device: true
+
       - type: partition
         id: partition-efi
         device: disk-main
@@ -767,30 +831,51 @@ autoinstall:
         grub_device: true
         number: 1
         preserve: false
+
       - type: format
         id: format-efi
         volume: partition-efi
         fstype: vfat
         preserve: false
-      - type: partition
-        id: partition-root
-        device: disk-main
-        size: -1
-        number: 2
-        preserve: false
-      - type: format
-        id: format-root
-        volume: partition-root
-        fstype: ext4
-        preserve: false
-      - type: mount
-        id: mount-root
-        device: format-root
-        path: /
+
       - type: mount
         id: mount-efi
         device: format-efi
-        path: /boot/efi
+        path: /boot/efi		
+      
+	  # SWAP Partition
+      - id: swap_partition
+        type: partition
+        size: 8GB
+        device: disk-main
+        flag: swap
+
+      - id: swap_format
+        type: format
+        fstype: swap
+        volume: swap_partition
+
+      - id: swap_mount
+        path: none
+        type: mount
+        device: swap_format
+
+	   # Root Partition (BTRFS)
+      - id: root_partition
+        type: partition
+        size: -1
+        device: disk-main
+
+      - id: root_format
+        type: format
+        fstype: btrfs
+        volume: root_partition
+
+      - id: root_mount
+        type: mount
+        path: /
+        device: root_format
+	
   ssh:
     install-server: true
     authorized-keys:
@@ -851,7 +936,84 @@ autoinstall:
     - curtin in-target --target=/target -- sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
     - echo '{{.Username}} ALL=(ALL) NOPASSWD:ALL' > /target/etc/sudoers.d/{{.Username}}
     - chmod 440 /target/etc/sudoers.d/{{.Username}}
-    - cp /etc/resolv.conf /target/etc/resolv.conf
+    
+{{- if .Mi325xSupport}}
+    # Add home folder and users
+    - curtin in-target --target=/target -- groupadd -g 1003 mctadmins
+{{- if ne .Username "mctadmin"}}
+    - curtin in-target --target=/target -- useradd -u 1002 -g 1003 -m -d /home/mctadmin -s /bin/bash mctadmin
+    - curtin in-target --target=/target -- usermod --password '$6$qP4pkN8TukYjIBGC$XTiUGY58xYSSwspzxJCu4W9g/JFUg59F4U4zs9xqIaZWV3X0LwK.hND85WtOCI5kcfAXiNu7V2bEFoPzeotGU1' mctadmin
+    - curtin in-target --target=/target -- usermod -aG sudo,video,render,mctadmins mctadmin
+{{- end}}
+{{- if ne .Username "mctkube"}}
+    - curtin in-target --target=/target -- useradd -u 1001 -g 1003 -m -d /home/mctkube -s /bin/bash mctkube
+    - curtin in-target --target=/target -- usermod --password '$6$qP4pkN8TukYjIBGC$XTiUGY58xYSSwspzxJCu4W9g/JFUg59F4U4zs9xqIaZWV3X0LwK.hND85WtOCI5kcfAXiNu7V2bEFoPzeotGU1' mctkube
+    - curtin in-target --target=/target -- usermod -aG sudo,video,render,mctadmins mctkube
+{{- end}}
+    - |
+      curtin in-target --target=/target -- sh -c '
+      echo "ADD_EXTRA_GROUPS=1" | tee -a /etc/adduser.conf
+      echo "EXTRA_GROUPS=\"video render docker\"" | tee -a /etc/adduser.conf
+      '
+	# Update System configuration
+	- cp /cdrom/pool/mi325xr/setup_routing_mi325.sh /target/usr/local/bin/setup_routing_mi3xx.sh
+	- mkdir -p /target/var/spool/cron/crontabs
+	- cp /cdrom/pool/mi325xr/crontabs /target/var/spool/cron/crontabs/root
+    - |
+      # Update crontab configuration
+      curtin in-target --target=/target -- sh -c '
+      chmod +x /usr/local/bin/setup_routing_mi3xx.sh
+      chmod 600 /var/spool/cron/crontabs/root
+      chown root:crontab /var/spool/cron/crontabs/root
+      '
+	# Passwordless SSH keys
+	- mkdir -p /target/home/mctadmin/.ssh
+	- chmod 700 /target/home/mctadmin/.ssh
+	- mkdir -p /target/home/mctkube/.ssh
+    - chmod 700 /target/home/mctkube/.ssh
+    - cp /cdrom/pool/mi325xr/hosts /target/tmp/hosts
+	- cp /cdrom/pool/mi325xr/id_rsa /target/home/mctadmin/.ssh/id_rsa
+	- cp /cdrom/pool/mi325xr/id_rsa.pub /target/home/mctadmin/.ssh/id_rsa.pub
+	- cp /cdrom/pool/mi325xr/id_rsa /target/home/mctkube/.ssh/id_rsa
+	- cp /cdrom/pool/mi325xr/id_rsa.pub /target/home/mctkube/.ssh/id_rsa.pub
+	- |
+      curtin in-target --target=/target -- sh -c '
+	  cat /tmp/hosts >> /etc/hosts
+	  chown mctadmin:mctadmins -R /home/mctadmin/.ssh
+	  chmod 600 /home/mctadmin/.ssh/*
+	  chown mctkube:mctadmins -R /home/mctkube/.ssh
+      chmod 600 -R /home/mctkube/.ssh/* 
+	  '
+
+	# Update eths naming
+	- cp /cdrom/pool/mi325xr/70-amdgpu.rules /target/etc/udev/rules.d/70-amdgpu.rules
+	- cp /cdrom/pool/mi325xr/99-network-naming.rules /target/etc/udev/rules.d/99-network-naming.rules
+	- |
+      curtin in-target --target=/target -- sh -c '
+      udevadm control --reload
+      udevadm trigger --subsystem-match=net
+      '
+    
+	# Disable ACS
+	- cp /cdrom/pool/mi325xr/disable_acs.service /target/etc/systemd/system/disable_acs.service
+	- cp /cdrom/pool/mi325xr/disable_acs /target/usr/local/bin/disable_acs
+    - |
+      curtin in-target --target=/target -- sh -c '
+      chmod +x /usr/local/bin/disable_acs
+      systemctl daemon-reload
+      systemctl enable disable_acs.service
+      '
+
+	# Others
+	- cp /cdrom/pool/mi325xr/env.sh /target/etc/profile.d/env.sh   
+	- |
+      curtin in-target --target=/target -- sh -c '
+      chmod +x /etc/profile.d/env.sh
+      '
+
+{{- end}}
+
+	- cp /etc/resolv.conf /target/etc/resolv.conf
     - |
       if [ -n "{{.OfflinePackages}}" ]; then
           mkdir -p /target/tmp/extra_pkg
@@ -907,6 +1069,12 @@ autoinstall:
         fi
       '
 {{- end}}
+{{- if .Mi325xSupport}}
+    # Mi325x platform: configure GRUB kernel parameters and record-fail timeout
+    - curtin in-target --target=/target -- sh -c "sed -i 's/GRUB_CMDLINE_LINUX=\"\"/GRUB_CMDLINE_LINUX=\"amd_iommu=on iommu=pt pci=realloc=off\"/' /etc/default/grub"
+    - curtin in-target -- bash -c 'echo "GRUB_RECORDFAIL_TIMEOUT=0" >> /etc/default/grub'
+    - curtin in-target --target=/target -- update-grub
+{{- end}}
     - cp /var/log/ipmi_telemetry.log /target/var/log/ipmi_telemetry.log 2>/dev/null || true
     - cp /var/log/install_disk_audit.log /target/var/log/install_disk_audit.log 2>/dev/null || true
 `
@@ -920,7 +1088,7 @@ d-i keyboard-configuration/xkb-keymap select us
 
 # Network
 d-i netcfg/choose_interface select auto
-d-i netcfg/get_hostname string ubuntu-auto
+d-i netcfg/get_hostname string {{.Hostname}}
 d-i netcfg/get_domain string unassigned-domain
 
 d-i anna/choose_modules string network-console
@@ -1047,7 +1215,7 @@ func writeCloudInitFiles(cfg *BuildConfig) {
 	autoinstallDir := filepath.Join(cfg.WorkDir, "autoinstall")
 	_ = os.MkdirAll(autoinstallDir, 0755)
 
-	metaData := "instance-id: ubuntu-autoinstall-001\nlocal-hostname: ubuntu-auto\n"
+	metaData := fmt.Sprintf("instance-id: ubuntu-autoinstall-001\nlocal-hostname: %s\n", cfg.Hostname)
 	_ = os.WriteFile(filepath.Join(autoinstallDir, "meta-data"), []byte(metaData), 0644)
 
 	// Symlink for Ubuntu 24.04+ compatibility
@@ -1058,6 +1226,7 @@ func writeCloudInitFiles(cfg *BuildConfig) {
 	}
 
 	tmplData := struct {
+		Hostname          string
 		Username          string
 		Password          string
 		HashPassword      string
@@ -1068,7 +1237,10 @@ func writeCloudInitFiles(cfg *BuildConfig) {
 		StorageMatchValue string
 		FindDiskEnabled   bool
 		FindDiskSizeHint  string
+		Mi325xSupport     bool
+		Mi325xNode        string
 	}{
+		Hostname:          cfg.Hostname,
 		Username:          cfg.Username,
 		Password:          cfg.Password,
 		HashPassword:      cfg.HashPassword,
@@ -1079,6 +1251,8 @@ func writeCloudInitFiles(cfg *BuildConfig) {
 		StorageMatchValue: cfg.StorageMatchValue,
 		FindDiskEnabled:   cfg.StorageMatchValue == "__ID_SERIAL__",
 		FindDiskSizeHint:  cfg.FindDiskSizeHint,
+		Mi325xSupport:     cfg.Mi325xSupport,
+		Mi325xNode:        cfg.Mi325xNode,
 	}
 
 	t := template.Must(template.New("userdata").Parse(userDataTmpl))
@@ -1092,9 +1266,11 @@ func writeCloudInitFiles(cfg *BuildConfig) {
 
 func writePreseedFile(cfg *BuildConfig) {
 	tmplData := struct {
+		Hostname string
 		Username string
 		Password string
 	}{
+		Hostname: cfg.Hostname,
 		Username: cfg.Username,
 		Password: cfg.Password,
 	}
@@ -1321,6 +1497,9 @@ func main() {
 
 	skipInstall := false
 	isoRepoDir := ""
+	hostname := "ubuntu-auto"
+	mi325xSupport := false
+	mi325xNode := ""
 	var positional []string
 
 	// Storage match: collect all three flags in argv order, then resolve.
@@ -1331,8 +1510,14 @@ func main() {
 		switch {
 		case arg == "--skip-install":
 			skipInstall = true
+		case arg == "--mi325x-support":
+			mi325xSupport = true
+		case strings.HasPrefix(arg, "--mi325x-node="):
+			mi325xNode = strings.TrimPrefix(arg, "--mi325x-node=")
 		case strings.HasPrefix(arg, "--iso-repo-dir="):
 			isoRepoDir = strings.TrimPrefix(arg, "--iso-repo-dir=")
+		case strings.HasPrefix(arg, "--hostname="):
+			hostname = strings.TrimPrefix(arg, "--hostname=")
 		case strings.HasPrefix(arg, "--storage-serial="):
 			storageFlags = append(storageFlags, storageFlag{"serial", strings.TrimPrefix(arg, "--storage-serial=")})
 		case strings.HasPrefix(arg, "--storage-model="):
@@ -1463,10 +1648,34 @@ func main() {
 		}
 	}
 
+	// Validate --mi325x-node when --mi325x-support is set.
+	reNode := regexp.MustCompile(`^node_[1-9][0-9]*$`)
+	if mi325xSupport {
+		if mi325xNode == "" {
+			fatalf("--mi325x-node is required when --mi325x-support is set\n" +
+				"  Usage: --mi325x-node=node_1  (node_1, node_2, ... node_N)")
+		}
+		if !reNode.MatchString(mi325xNode) {
+			fatalf("invalid --mi325x-node value: %q\n"+
+				"  Expected format: node_<integer>  e.g. node_1, node_2, node_10", mi325xNode)
+		}
+	} else if mi325xNode != "" {
+		warnf("--mi325x-node=%s ignored (only used when --mi325x-support is set)", mi325xNode)
+	}
+
+	logf("Hostname: %s", hostname)
+	if mi325xSupport {
+		logf("Mi325x support: enabled (GRUB kernel params will be applied in late-commands)")
+		logf("Mi325x node: %s", mi325xNode)
+	}
+
 	cfg := &BuildConfig{
 		OSName:            osName,
 		Username:          username,
 		Password:          password,
+		Hostname:          hostname,
+		Mi325xSupport:     mi325xSupport,
+		Mi325xNode:        mi325xNode,
 		Is1804:            is1804,
 		OrigISO:           origISO,
 		WorkDir:           workDir,
@@ -1497,6 +1706,12 @@ func main() {
 
 	// Download and bundle extra packages
 	downloadExtraPackages(cfg)
+
+	// Copy Mi325x platform files into pool/mi325xr/
+	if cfg.Mi325xSupport {
+		logf("Bundling Mi325x platform files (node: %s)...", cfg.Mi325xNode)
+		copyMi325xrFiles(cfg)
+	}
 
 	// Hash password using SHA-512 crypt (same format as mkpasswd -m sha-512).
 	// Implemented natively in Go — no dependency on the external mkpasswd binary.

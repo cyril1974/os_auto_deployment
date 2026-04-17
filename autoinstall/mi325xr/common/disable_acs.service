@@ -1,0 +1,13 @@
+[Unit]
+Description=Disable ACS Script
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/disable_acs
+TimeoutSec=0
+RemainAfterExit=yes
+StandardOutput=journal
+
+[Install]
+WantedBy=multi-user.target

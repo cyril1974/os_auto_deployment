@@ -1,0 +1,25 @@
+network:
+    renderer: networkd
+    ethernets:
+        fe0:
+            mtu: 9000
+            addresses:
+              - 192.168.21.11/24
+            nameservers:
+              addresses:
+                - 10.88.1.86
+                - 10.88.0.23
+              search: []
+        fe1:
+            mtu: 9000
+            addresses:
+              - 192.168.22.11/24
+            nameservers:
+              addresses:
+                - 10.88.1.86
+                - 10.88.0.23
+              search: []
+    version: 2
+        
+
+

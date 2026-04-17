@@ -64,7 +64,7 @@ def get_version_info():
     """Get formatted version information with MiTAC branding"""
     version = get_version()
     return (
-        f"MiTAC CUP Deploy Tool -- {version}\n"
+        f"MiTAC OS AutoDeploy Tool -- {version}\n"
         f"Copyright (c) 2025 MiTAC Computing Technology Corporation\n"
         f"All rights reserved."
     )
@@ -131,6 +131,25 @@ def main():
         help="Path to the ISO repository directory containing file_list.json and ISO files. "
              "Required when -O/--os is used."
     )
+    parser.add_argument(
+        "--hostname", default="ubuntu-auto", dest="hostname",
+        metavar="NAME",
+        help="Hostname for the installed system (default: ubuntu-auto). "
+             "Applied to autoinstall user-data and preseed."
+    )
+    parser.add_argument(
+        "--mi325x-support", action="store_true", dest="mi325x_support",
+        help="Apply MiTAC Mi325x platform GRUB adjustments: "
+             "amd_iommu=on iommu=pt pci=realloc=off kernel params, "
+             "GRUB_RECORDFAIL_TIMEOUT=0, and update-grub in late-commands. "
+             "Requires --mi325x-node."
+    )
+    parser.add_argument(
+        "--mi325x-node", default=None, dest="mi325x_node",
+        metavar="NODE",
+        help="Target node identifier, required when --mi325x-support is set. "
+             "Format: node_<integer>  e.g. node_1, node_2, node_10"
+    )
     args = parser.parse_args()
 
     # Resolve storage flag: first in argv order wins; warn about extras
@@ -157,6 +176,16 @@ def main():
     pre_built_iso = args.iso
     gen_by_sh = args.gen_by_sh
     iso_repo_dir = args.iso_repo_dir
+    hostname = args.hostname
+    mi325x_support = args.mi325x_support
+    mi325x_node = args.mi325x_node
+
+    if mi325x_support and not mi325x_node:
+        parser.error("--mi325x-node is required when --mi325x-support is set (e.g. --mi325x-node=node_1)")
+
+    import re as _re
+    if mi325x_node and not _re.match(r'^node_[1-9][0-9]*$', mi325x_node):
+        parser.error(f"invalid --mi325x-node value: {mi325x_node!r}  Expected format: node_<integer>  e.g. node_1, node_2")
 
     # Validate: -O is required when --iso is not provided
     if not pre_built_iso and not os:
@@ -287,6 +316,11 @@ def main():
             print(f"[{utils.formatted_time()}] Executing [{generator_label}]: sudo {build_script.name} {os} {osuser} ****{storage_info}")
 
             cmd = ["sudo", str(build_script), os, osuser, ospasswd]
+            if hostname and hostname != "ubuntu-auto":
+                cmd.append(f"--hostname={hostname}")
+            if mi325x_support:
+                cmd.append("--mi325x-support")
+                cmd.append(f"--mi325x-node={mi325x_node}")
             if storage_flag_arg:
                 cmd.append(storage_flag_arg)
             if iso_repo_dir:
@@ -380,6 +414,7 @@ def main():
     state_manager.state.product_model = gen[0]
     
     print(f"[{utils.formatted_time()}] Detect Product Generation {gen}.....")
+    
 
     redfish_ver = utils.get_redfish_version(bmcip, auth_string)
     state_manager.state.redfish_version = redfish_ver
@@ -389,9 +424,7 @@ def main():
     # Check Virtual Media Permission
     print(f"[{utils.formatted_time()}] Check Virtual Media Permission .....",end="")
     vm_permission = utils.get_virtual_media_permission(bmcip,auth_string)
-    #print(vm_permission)
-    
-    
+    # print(vm_permission)
     if vm_permission:
         try:
             enable_outband = all(vm_permission.get('outband', {}).values())
@@ -416,7 +449,7 @@ def main():
         print("Get Virtual Media Permission Fail...")    
         sys.exit("Cannot Determine Virtual Media Permission , Please enter BMC confirm Virtual Media Permission ...Abort")
     
-    
+    # sys.exit("Debug...") 
     LOG_SAVE_LOCAL_PATH = f"./collected_log/{bmcip}/{datetime.now().strftime('%Y%m%d_%H%M%S')}/"
     ## Mount Image ##
     print(f"[{utils.formatted_time()}] Remote Mount Image ..... ")
@@ -437,7 +470,7 @@ def main():
         print(f"FAIL {e}")
         sys.exit(f"Remote Mount Image {mount_path} FAIL !! Exit")    
     
-       
+     
     ## Reboot to CD-ROM ##
     from_timestamp  = 0 
     if not no_reboot:
@@ -452,6 +485,7 @@ def main():
                 print(f"FAIL {e}")
                 sys.exit(f"Clear PostCode Log FAIL !! Exit")
         from_datetime = reboot.reboot_cdrom(bmcip,config_json)
+        sys.exit("Debug...")   
         print(f"[{utils.formatted_time()}] Load initrd and kernel  ({from_datetime}) .....") 
         if from_datetime is None:
             raise RuntimeError("Reboot Server Fail (TimeOut)")

@@ -18,8 +18,9 @@ import (
 //   - startup.nsh                — UEFI startup script (copied into ISO EFI image)
 //   - ipmi_start_logger.py       — IPMI SEL logger (copied into ISO pool/extra/)
 //   - package_list               — offline package list read at startup
+//   - mi325xr/                   — MiTAC Mi325x platform files (common/ + node-specific dirs)
 
-//go:embed scripts startup.nsh ipmi_start_logger.py package_list
+//go:embed scripts startup.nsh ipmi_start_logger.py package_list mi325xr
 var embeddedAssets embed.FS
 
 // extractEmbeddedAssets writes all embedded assets to a temporary directory

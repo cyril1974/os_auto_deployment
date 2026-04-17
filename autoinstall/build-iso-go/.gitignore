@@ -7,6 +7,7 @@ startup.nsh
 ipmi_start_logger.py
 package_list
 scripts/
+mi325xr/
 
 # Apt cache
 apt_cache/

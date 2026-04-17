@@ -7,37 +7,44 @@ GENERATION = ''
 
 VIRTUAL_MEDIA_API_DICT = {
     "6":"/redfish/v1/Managers/bmc/VirtualMedia",
-    "7":"/redfish/v1/Managers/bmc/VirtualMedia"
+    "7":"/redfish/v1/Managers/bmc/VirtualMedia",
+    "8":"/redfish/v1/Managers/Self/VirtualMedia"
 }
 
 INBAND_MEDIA = {
     "6":"/redfish/v1/Managers/bmc/VirtualMedia/Internal/",
-    "7":"/redfish/v1/Managers/bmc/VirtualMedia/Inband/"
+    "7":"/redfish/v1/Managers/bmc/VirtualMedia/Inband/",
+    "8":None
 }
 
 UMOUNT_IMAGE_API = {
     "7":"/redfish/v1/Managers/bmc/VirtualMedia/Inband/Actions/Oem/VirtualMedia.UmountImage",
-    "6":"/redfish/v1/Managers/bmc/VirtualMedia/Internal/Actions/Oem/VirtualMedia.UmountImage"
+    "6":"/redfish/v1/Managers/bmc/VirtualMedia/Internal/Actions/Oem/VirtualMedia.UmountImage",
+    "8":None
 }
 
 DELETE_IMAGE_API = {
     "7":"/redfish/v1/Managers/bmc/VirtualMedia/Inband/Actions/Oem/VirtualMedia.DeleteImage",
-    "6":"/redfish/v1/Managers/bmc/VirtualMedia/Internal/Actions/Oem/VirtualMedia.DeleteImage"
+    "6":"/redfish/v1/Managers/bmc/VirtualMedia/Internal/Actions/Oem/VirtualMedia.DeleteImage",
+    "8":None
 }
 
 CREATE_IMAGE_API = {
     "7":"/redfish/v1/Managers/bmc/VirtualMedia/Inband/Actions/Oem/VirtualMedia.CreateImage",
-    "6":"/redfish/v1/Managers/bmc/VirtualMedia/Internal/Actions/Oem/VirtualMedia.CreateImage"
+    "6":"/redfish/v1/Managers/bmc/VirtualMedia/Internal/Actions/Oem/VirtualMedia.CreateImage",
+    "8":None
 }
 
 PUTFILE_IMAGE_API = {
     "7":"/redfish/v1/Managers/bmc/VirtualMedia/Inband/Actions/Oem/VirtualMedia.PutFileToImage",
-    "6":"/redfish/v1/Managers/bmc/VirtualMedia/Internal/Actions/Oem/VirtualMedia.PutFileToImage"
+    "6":"/redfish/v1/Managers/bmc/VirtualMedia/Internal/Actions/Oem/VirtualMedia.PutFileToImage",
+    "8":None
 }
 
 GETFILE_IMAGE_API = {
     "7":"/redfish/v1/Managers/bmc/VirtualMedia/Inband/Actions/Oem/VirtualMedia.GetFileFromImage",
-    "6":"/redfish/v1/Managers/bmc/VirtualMedia/Internal/Actions/Oem/VirtualMedia.GetFileFromImage"
+    "6":"/redfish/v1/Managers/bmc/VirtualMedia/Internal/Actions/Oem/VirtualMedia.GetFileFromImage",
+    "8":None
 }
 
 LOG_FETCH_API = {
@@ -47,10 +54,15 @@ LOG_FETCH_API = {
 
 MOUNT_IMAGE_API = {
     "7":"/redfish/v1/Managers/bmc/VirtualMedia/Inband/Actions/Oem/VirtualMedia.MountImage",
-    "6":"/redfish/v1/Managers/bmc/VirtualMedia/Internal/Actions/Oem/VirtualMedia.MountImage"
+    "6":"/redfish/v1/Managers/bmc/VirtualMedia/Internal/Actions/Oem/VirtualMedia.MountImage",
+    "8":None
 }
 
-BMC_MANAGER_API = "/redfish/v1/Managers/bmc"
+BMC_MANAGER_API = {
+    "7":"/redfish/v1/Managers/bmc",
+    "6":"/redfish/v1/Managers/bmc",
+    "8":"/redfish/v1/Managers/Self"
+}
 POSTCODE_LOG_API = "/redfish/v1/Systems/system/LogServices/PostCodes/Entries"
 POSTCODE_LOG_CLEAR_API = "/redfish/v1/Systems/system/LogServices/PostCodes/Actions/LogService.ClearLog"
 

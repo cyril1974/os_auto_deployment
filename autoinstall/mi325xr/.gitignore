@@ -1,0 +1,7 @@
+# Large binary files — store manually, do not commit to git
+*.tar.gz
+*.tar.xz
+*.tar.bz2
+*.iso
+*.img
+*.bin

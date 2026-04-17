@@ -1,0 +1,25 @@
+# Backend Ports (be0 to be7)
+# enp147s0np0
+SUBSYSTEM=="net", ACTION=="add", KERNELS=="0000:93:00.0", NAME="be0-gpu5"
+# enp131s0np0
+SUBSYSTEM=="net", ACTION=="add", KERNELS=="0000:83:00.0", NAME="be1-gpu4"
+# enp227s0np0
+SUBSYSTEM=="net", ACTION=="add", KERNELS=="0000:e3:00.0", NAME="be2-gpu6"
+# enp243s0np0
+SUBSYSTEM=="net", ACTION=="add", KERNELS=="0000:f3:00.0", NAME="be3-gpu7"
+# enp3s0np0
+SUBSYSTEM=="net", ACTION=="add", KERNELS=="0000:03:00.0", NAME="be4-gpu0"
+# enp19s0np0
+SUBSYSTEM=="net", ACTION=="add", KERNELS=="0000:13:00.0", NAME="be5-gpu1"
+# ens101np0
+SUBSYSTEM=="net", ACTION=="add", KERNELS=="0000:73:00.0", NAME="be6-gpu3"
+# ens100np0
+SUBSYSTEM=="net", ACTION=="add", KERNELS=="0000:63:00.0", NAME="be7-gpu2"
+
+# Frontend Ports (fe0, fe1)
+# enp195s0f0
+SUBSYSTEM=="net", ACTION=="add", KERNELS=="0000:c3:00.0", NAME="fe0"
+# ens512f0np0
+#SUBSYSTEM=="net", ACTION=="add", KERNELS=="0000:33:00.0", NAME="fe0"
+# ens512f1np1
+#SUBSYSTEM=="net", ACTION=="add", KERNELS=="0000:33:00.1", NAME="fe1"

@@ -29,6 +29,12 @@ if [ -d "${PARENT_DIR}/scripts" ] && [ ! -e "${SCRIPT_DIR}/scripts" ]; then
     STAGED+=("${SCRIPT_DIR}/scripts")
 fi
 
+# Copy mi325xr/ directory (platform-specific files for MiTAC Mi325x nodes)
+if [ -d "${PARENT_DIR}/mi325xr" ] && [ ! -e "${SCRIPT_DIR}/mi325xr" ]; then
+    cp -r "${PARENT_DIR}/mi325xr" "${SCRIPT_DIR}/mi325xr"
+    STAGED+=("${SCRIPT_DIR}/mi325xr")
+fi
+
 cleanup() {
     for f in "${STAGED[@]}"; do
         rm -rf "${f}"

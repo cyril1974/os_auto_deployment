@@ -177,6 +177,25 @@ ok "Build dependencies installed"
 # Make os_deployment importable (src/ layout — not installed as a package)
 export PYTHONPATH="${SCRIPT_DIR}/src${PYTHONPATH:+:${PYTHONPATH}}"
 
+# ─── Python syntax check ─────────────────────────────────────────────────────
+# Compile every .py file under src/ to bytecode (no execution).
+# Catches SyntaxError / IndentationError before spending time on Go + Nuitka.
+
+info "Checking Python syntax (src/) ..."
+SYNTAX_ERRORS=0
+while IFS= read -r -d '' pyfile; do
+    if ! "${PYTHON}" -m py_compile "${pyfile}" 2>/tmp/py_syntax_err; then
+        warn "Syntax error in: ${pyfile}"
+        cat /tmp/py_syntax_err
+        SYNTAX_ERRORS=$(( SYNTAX_ERRORS + 1 ))
+    fi
+done < <(find "${SCRIPT_DIR}/src" -name "*.py" -print0)
+
+if [ "${SYNTAX_ERRORS}" -gt 0 ]; then
+    die "Python syntax check failed: ${SYNTAX_ERRORS} file(s) have errors. Fix them before building."
+fi
+ok "Python syntax check passed"
+
 # ─── Read version from pyproject.toml ─────────────────────────────────────────
 
 VERSION=$(grep '^version\s*=' "${PYPROJECT}" | sed 's/.*version\s*=\s*"\([^"]*\)".*/\1/')
@@ -220,6 +239,12 @@ if [ "$DEBUG_BUILD" = "true" ]; then
     # The wrapper runs the Python source directly via the local venv so the
     # build completes in seconds.  Source code remains visible — for local
     # development and testing only.
+    warn "────────────────────────────────────────────────────────────"
+    warn "DEBUG BUILD — output is a shell wrapper, NOT a standalone binary."
+    warn "It references the venv at: ${VENV_DIR}"
+    warn "It will ONLY run on THIS machine. Do NOT copy to other servers."
+    warn "For a distributable binary, run:  bash build-cli.sh --docker"
+    warn "────────────────────────────────────────────────────────────"
     info "Debug mode — skipping Nuitka, generating shell wrapper..."
     info "Entry point : ${SRC_ENTRY}"
     info "Output      : ${OUTPUT_BINARY}"
@@ -274,7 +299,7 @@ else
         --company-name="MiTAC Computing Technology Corporation" \
         --product-name="os-deploy" \
         --product-version="${VERSION}" \
-        --file-description="MiTAC CUP OS Auto-Deployment Tool" \
+        --file-description="MiTAC OS Auto-Deployment Tool" \
         \
         --assume-yes-for-downloads \
         --jobs="$(nproc)" \

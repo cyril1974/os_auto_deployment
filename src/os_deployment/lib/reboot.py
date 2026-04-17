@@ -10,10 +10,22 @@ from . import utils
 from . import constants
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-ENDPOINT = "/redfish/v1/Systems/system"
-RESET_ENDPOINT = "/redfish/v1/Systems/system/Actions/ComputerSystem.Reset"
+
+ENDPOINT_DICT = {
+    "8": "/redfish/v1/Systems/Self",
+    "7": "/redfish/v1/Systems/system",
+    "6": "/redfish/v1/Systems/system"
+}
+
+RESET_ENDPOINT_DICT = {
+    "8": "/redfish/v1/Systems/Self/Actions/ComputerSystem.Reset",
+    "7": "/redfish/v1/Systems/system/Actions/ComputerSystem.Reset",
+    "6": "/redfish/v1/Systems/system/Actions/ComputerSystem.Reset"
+}
 
 def _check_power_status(target: str , auth_header: str):
+    gen = str(state_manager.state.generation)
+    ENDPOINT = ENDPOINT_DICT[gen]
     if utils.check_redfish_api(target,auth_header):
         response = utils.redfish_get_request(f"{ENDPOINT}?$select=PowerState",bmc_ip=target,auth=auth_header) 
         # print(response.__dict__)
@@ -28,36 +40,72 @@ def _check_power_status(target: str , auth_header: str):
             print("Request for Power State Fail !!")    
             return False
 
+def _fetch_etag_gen8(target: str, auth_header: str, endpoint: str) -> str:
+    """Gen 8 only: fetch the current ETag from the Systems endpoint (required for PATCH)."""
+    url = f"https://{target}{endpoint}"
+    headers = {
+        "Accept": "application/json",
+        "Authorization": auth_header
+    }
+    try:
+        response = requests.get(url, headers=headers, verify=False)
+        # Keep the ETag value exactly as returned by the server (quotes included).
+        # The If-Match header must match verbatim, e.g. "1776395333".
+        etag = response.headers.get("ETag", "")
+        return etag
+    except requests.RequestException as e:
+        print(f"[{utils.formatted_time()}] Failed to fetch ETag from {url}: {e}")
+        return ""
+
 def _set_boot_cdrom(target: str , auth_header: str):
+    gen = str(state_manager.state.generation)
+    ENDPOINT = ENDPOINT_DICT[gen]
     return_value = False
-    url = f"https://{target}{ENDPOINT}" 
+    url = f"https://{target}{ENDPOINT}"
+    data = json.dumps({
+        "Boot": {
+            "BootSourceOverrideTarget": "UefiShell",
+            "BootSourceOverrideEnabled": "Once"
+        }
+    })
+
     headers = {
         "Accept": "application/json",
         "Authorization": auth_header,
-        'Content-Type': 'application/json'
+        "Content-Type": "application/json"
     }
-    data = json.dumps({
+
+    if gen == '8':
+        # Step 1 — fetch current ETag
+        etag = _fetch_etag_gen8(target, auth_header, ENDPOINT)
+        if not etag:
+            print(f"[{utils.formatted_time()}] Set {target} Boot to CD-ROM FAIL: could not retrieve ETag.")
+            return False
+        # Step 2 — PATCH with If-Match header
+        headers["If-Match"] = etag
+        data = json.dumps({
             "Boot": {
                 "BootSourceOverrideTarget": "UefiShell",
-                "BootSourceOverrideEnabled": "Once"
+                "BootSourceOverrideEnabled": "Once",
+                "BootSourceOverrideMode" : "UEFI"
             }
-    })
+        })   
+
     try:
-        response = requests.patch(url, headers=headers, data=data , verify=False)
+        response = requests.patch(url, headers=headers, data=data, verify=False)
         if response.status_code == 204:
             print(f"[{utils.formatted_time()}] Set Boot Order to CD-ROM Success !!")
-            return_value = True            
+            return_value = True
         else:
             try:
                 json_data = response.json()
-            except Exception as e:
-                print("Get Response JSON Data Fail !!")
-            json_data = None
-            print(f"[{utils.formatted_time()}] Set {target} Boot to CD-ROM FAIL via {url} with data {data} , Status Code {response.status_code}\n{json_data}")     
-    
+            except Exception:
+                json_data = None
+            print(f"[{utils.formatted_time()}] Set {target} Boot to CD-ROM FAIL via {url} with data {data} , Status Code {response.status_code}\n{json_data}")
+
     except requests.RequestException as e:
         print(f"[{utils.formatted_time()}] Set {target} Boot to CD-ROM FAIL via {url} with data {data}")
-        
+
     return return_value
 
 def _clear_postcode_log(target: str, auth_header: str) -> bool:
@@ -95,6 +143,9 @@ def clear_postcode_log(target: str, config: dict) -> bool:
         return False
 
 def _exec_reboot(target: str , auth_header: str):
+    gen = str(state_manager.state.generation)
+    ENDPOINT = ENDPOINT_DICT[gen]
+    RESET_ENDPOINT = RESET_ENDPOINT_DICT[gen]
     return_value = False
     url = f"https://{target}{RESET_ENDPOINT}" 
     headers = {

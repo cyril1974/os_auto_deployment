@@ -185,8 +185,10 @@ def MsgCtl(string, VERBOSE_LEVEL, *modes):
     #         remove_log(mode.split("remove_log_")[1], string, VERBOSE_LEVEL)
     
 def getTargetBMCDateTime(target,auth):
+    gen = str(state_manager.state.generation)
     if check_redfish_api(target,auth): 
-        response = redfish_get_request(constants.BMC_MANAGER_API,bmc_ip=target,auth=auth)
+        bmc_manager_api = constants.BMC_MANAGER_API[gen]
+        response = redfish_get_request(bmc_manager_api,bmc_ip=target,auth=auth)
         try:
             data = response.json()
             # print(data.keys())  

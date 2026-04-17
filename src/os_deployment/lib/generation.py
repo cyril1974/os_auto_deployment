@@ -26,11 +26,12 @@ def get_generation(model):
         "S7149GMRE": 7,
         "SC513G6": 7,
         "G527G6": 7,
-        "E7142DCPSB":7
+        "E7142DCPSB":7,
+        "MI325":8
 
     }
     for platform in gen_dict:
-        if model.startswith(platform):
+        if model.startswith(platform) or platform in model:
             return model, gen_dict[platform]
     return model, 0
 
@@ -43,6 +44,7 @@ def get_generation_redfish(target,auth_string):
     r = utils.redfish_get_request(member,target,auth_string,custom_timeout=10)
     # print(r.json())
     model = str(r.json()['Model'])
+    print(model)
     #utils.MsgCtl("Model found: {}\n".format(model), False,"print_msg_5", "direct_log_out")
     platform, gen = get_generation(model)
     if gen != 0:
@@ -54,8 +56,11 @@ def get_generation_redfish(target,auth_string):
 
 def get_baseboard_api(target,auth_string):
     members = redfish_getMembersArray('/redfish/v1/Chassis', target,auth_string,retry=1)
+    # print(members)
     for member in members:
         if 'baseboard' in member.lower():
+            return member
+        elif 'ubb' in member.lower():
             return member
     utils.redfish_specific_error('Redfish Baseboard Error', 'ERedfishResponse')
 
