@@ -5,3 +5,6 @@
 *.iso
 *.img
 *.bin
+
+# Allow pre-provisioned SSH public keys (overrides root *.pub rule)
+!*.pub
