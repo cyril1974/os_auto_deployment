@@ -54,3 +54,6 @@ os-deploy-*
 autoinstall/build-iso-go/build-iso
 autoinstall/build-iso-go/build-iso-go
 autoinstall/build-iso-go/apt_cache/
+
+# Large binary package archives — store manually, do not commit to git
+autoinstall/mi325xr_packages/

@@ -1,0 +1,12 @@
+[Unit]
+Description=Setup BCM NIC on First Boot
+After=local-fs.target
+PartOf=firstboot.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/install_nic_bcm_n2200g.sh
+
+[Install]
+WantedBy=firstboot.target

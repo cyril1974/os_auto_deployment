@@ -113,6 +113,10 @@ OPTIONS:
     --mi325x-node=<value>       Target node identifier. Required when --mi325x-support is set.
                                 Format: node_<integer>  e.g. node_1  node_2  node_10
 
+    --package-list=<path>       Path to a custom package_list file.
+                                Overrides the embedded package_list bundled in the binary.
+                                e.g. --package-list=/data/my_packages.txt
+
     --storage-size=<value>      Find disk by size at boot via find_disk.sh, then match by serial.
                                 find_disk.sh is called with --target-size=<value> (±10% tolerance).
                                 user-data uses serial: __ID_SERIAL__ — patched at boot with the
@@ -297,8 +301,12 @@ func lookupISOPath(osName, scriptDir, isoRepoDir string) string {
 
 // ─── Offline packages ────────────────────────────────────────────────────────
 
-func readOfflinePackages(scriptDir string) string {
+func readOfflinePackages(scriptDir, customPath string) string {
 	pkgFile := filepath.Join(scriptDir, "package_list")
+	if customPath != "" {
+		pkgFile = customPath
+		logf("Using custom package_list: %s", pkgFile)
+	}
 	if !fileExists(pkgFile) {
 		return ""
 	}
@@ -519,6 +527,17 @@ func downloadExtraPackages(cfg *BuildConfig) {
 			fmt.Sprintf("curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.35/deb/Release.key | gpg --dearmor -o %s", kubeGPG))
 		_ = copyFile(kubeGPG, filepath.Join(aptEtc, "trusted.gpg.d", "kubernetes.gpg"))
 		sourceContent += "deb [arch=amd64 trusted=yes] https://pkgs.k8s.io/core:/stable:/v1.35/deb/ /\n"
+	}
+
+	// Ansible PPA
+	if strings.Contains(pkgsToDownload, "ansible") {
+		logf("Adding Ansible PPA for bundling...")
+		runSilent("apt-get", "install", "-y", "software-properties-common")
+		runSilent("add-apt-repository", "--yes", "--update", "ppa:ansible/ansible")
+		sourceContent += fmt.Sprintf(
+			"deb [arch=amd64 trusted=yes] https://ppa.launchpadcontent.net/ansible/ansible/ubuntu %s main\n",
+			cfg.Codename,
+		)
 	}
 
 	_ = os.WriteFile(aptSources, []byte(sourceContent), 0644)
@@ -820,7 +839,6 @@ autoinstall:
         ptable: gpt
         wipe: superblock-recursive
         preserve: false
-		grub_device: true
 
       - type: partition
         id: partition-efi
@@ -841,9 +859,9 @@ autoinstall:
       - type: mount
         id: mount-efi
         device: format-efi
-        path: /boot/efi		
-      
-	  # SWAP Partition
+        path: /boot/efi
+
+      # SWAP Partition
       - id: swap_partition
         type: partition
         size: 8GB
@@ -860,7 +878,7 @@ autoinstall:
         type: mount
         device: swap_format
 
-	   # Root Partition (BTRFS)
+      # Root Partition (BTRFS)
       - id: root_partition
         type: partition
         size: -1
@@ -875,7 +893,7 @@ autoinstall:
         type: mount
         path: /
         device: root_format
-	
+
   ssh:
     install-server: true
     authorized-keys:
@@ -936,7 +954,7 @@ autoinstall:
     - curtin in-target --target=/target -- sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
     - echo '{{.Username}} ALL=(ALL) NOPASSWD:ALL' > /target/etc/sudoers.d/{{.Username}}
     - chmod 440 /target/etc/sudoers.d/{{.Username}}
-    
+
 {{- if .Mi325xSupport}}
     # Add home folder and users
     - curtin in-target --target=/target -- groupadd -g 1003 mctadmins
@@ -955,10 +973,10 @@ autoinstall:
       echo "ADD_EXTRA_GROUPS=1" | tee -a /etc/adduser.conf
       echo "EXTRA_GROUPS=\"video render docker\"" | tee -a /etc/adduser.conf
       '
-	# Update System configuration
-	- cp /cdrom/pool/mi325xr/setup_routing_mi325.sh /target/usr/local/bin/setup_routing_mi3xx.sh
-	- mkdir -p /target/var/spool/cron/crontabs
-	- cp /cdrom/pool/mi325xr/crontabs /target/var/spool/cron/crontabs/root
+    # Update System configuration
+    - cp /cdrom/pool/mi325xr/setup_routing_mi325.sh /target/usr/local/bin/setup_routing_mi3xx.sh
+    - mkdir -p /target/var/spool/cron/crontabs
+    - cp /cdrom/pool/mi325xr/crontabs /target/var/spool/cron/crontabs/root
     - |
       # Update crontab configuration
       curtin in-target --target=/target -- sh -c '
@@ -966,37 +984,44 @@ autoinstall:
       chmod 600 /var/spool/cron/crontabs/root
       chown root:crontab /var/spool/cron/crontabs/root
       '
-	# Passwordless SSH keys
-	- mkdir -p /target/home/mctadmin/.ssh
-	- chmod 700 /target/home/mctadmin/.ssh
-	- mkdir -p /target/home/mctkube/.ssh
+    # Passwordless SSH keys
+    - mkdir -p /target/home/mctadmin/.ssh
+    - chmod 700 /target/home/mctadmin/.ssh
+    - mkdir -p /target/home/mctkube/.ssh
     - chmod 700 /target/home/mctkube/.ssh
     - cp /cdrom/pool/mi325xr/hosts /target/tmp/hosts
-	- cp /cdrom/pool/mi325xr/id_rsa /target/home/mctadmin/.ssh/id_rsa
-	- cp /cdrom/pool/mi325xr/id_rsa.pub /target/home/mctadmin/.ssh/id_rsa.pub
-	- cp /cdrom/pool/mi325xr/id_rsa /target/home/mctkube/.ssh/id_rsa
-	- cp /cdrom/pool/mi325xr/id_rsa.pub /target/home/mctkube/.ssh/id_rsa.pub
-	- |
+    - cp /cdrom/pool/mi325xr/id_rsa /target/home/mctadmin/.ssh/id_rsa
+    - cp /cdrom/pool/mi325xr/id_rsa.pub /target/home/mctadmin/.ssh/id_rsa.pub
+    - cp /cdrom/pool/mi325xr/id_rsa /target/home/mctkube/.ssh/id_rsa
+    - cp /cdrom/pool/mi325xr/id_rsa.pub /target/home/mctkube/.ssh/id_rsa.pub
+    - |
       curtin in-target --target=/target -- sh -c '
-	  cat /tmp/hosts >> /etc/hosts
-	  chown mctadmin:mctadmins -R /home/mctadmin/.ssh
-	  chmod 600 /home/mctadmin/.ssh/*
-	  chown mctkube:mctadmins -R /home/mctkube/.ssh
-      chmod 600 -R /home/mctkube/.ssh/* 
-	  '
+      cat /tmp/hosts >> /etc/hosts
+      cat /home/mctadmin/.ssh/id_rsa.pub > /home/mctadmin/.ssh/authorized_keys
+      cat /home/mctkube/.ssh/id_rsa.pub > /home/mctkube/.ssh/authorized_keys
+      chown mctadmin:mctadmins -R /home/mctadmin/.ssh
+      chmod 600 /home/mctadmin/.ssh/*
+      chown mctkube:mctadmins -R /home/mctkube/.ssh
+      chmod 600 /home/mctkube/.ssh/*
+      '
 
-	# Update eths naming
-	- cp /cdrom/pool/mi325xr/70-amdgpu.rules /target/etc/udev/rules.d/70-amdgpu.rules
-	- cp /cdrom/pool/mi325xr/99-network-naming.rules /target/etc/udev/rules.d/99-network-naming.rules
-	- |
+    # Update eths naming
+    - cp /cdrom/pool/mi325xr/70-amdgpu.rules /target/etc/udev/rules.d/70-amdgpu.rules
+    - cp /cdrom/pool/mi325xr/99-network-naming.rules /target/etc/udev/rules.d/99-network-naming.rules
+    - |
       curtin in-target --target=/target -- sh -c '
       udevadm control --reload
       udevadm trigger --subsystem-match=net
       '
-    
-	# Disable ACS
-	- cp /cdrom/pool/mi325xr/disable_acs.service /target/etc/systemd/system/disable_acs.service
-	- cp /cdrom/pool/mi325xr/disable_acs /target/usr/local/bin/disable_acs
+
+    # Copy Network Test Scripts
+    - mkdir -p /target/opt/firstboot
+    - cp /cdrom/pool/mi325xr/frontend_network_test.sh /target/opt/firstboot/frontend_network_test.sh
+    - cp /cdrom/pool/mi325xr/backend_network_test.sh /target/opt/firstboot/backend_network_test.sh
+
+    # Disable ACS
+    - cp /cdrom/pool/mi325xr/disable_acs.service /target/etc/systemd/system/disable_acs.service
+    - cp /cdrom/pool/mi325xr/disable_acs /target/usr/local/bin/disable_acs
     - |
       curtin in-target --target=/target -- sh -c '
       chmod +x /usr/local/bin/disable_acs
@@ -1004,22 +1029,62 @@ autoinstall:
       systemctl enable disable_acs.service
       '
 
-	# Others
-	- cp /cdrom/pool/mi325xr/env.sh /target/etc/profile.d/env.sh   
-	- |
+    # Others
+    - cp /cdrom/pool/mi325xr/env.sh /target/etc/profile.d/env.sh
+    - |
       curtin in-target --target=/target -- sh -c '
       chmod +x /etc/profile.d/env.sh
       '
 
+    # Install NIC driver
+    - mkdir -p /target/opt/firstboot
+    - cp /cdrom/pool/mi325xr/bcm_236.1.155.0c.tar.gz /target/opt/firstboot/bcm_236.1.155.0c.tar.gz
+    - cp /cdrom/pool/mi325xr/install_nic_bcm_n2200g.sh /target/usr/local/bin/install_nic_bcm_n2200g.sh
+    - cp /cdrom/pool/mi325xr/ice-2.4.5.tar.gz  /target/opt/firstboot/ice-2.4.5.tar.gz
+    - cp /cdrom/pool/mi325xr/install_nic_intel_e810.sh  /target/opt/firstboot/install_nic_intel_e810.sh
+    - |
+      curtin in-target --target=/target -- sh -c '
+      chmod +x /usr/local/bin/install_nic_bcm_n2200g.sh
+      chmod +x /opt/firstboot/install_nic_intel_e810.sh
+      /opt/firstboot/install_nic_intel_e810.sh
+      '
+
+    # Update netplan configuration
+    - cp /cdrom/pool/mi325xr/backend.yaml /target/etc/netplan/backend.yaml
+    - cp /cdrom/pool/mi325xr/frontend.yaml /target/etc/netplan/frontend.yaml
+    - curtin in-target --target=/target -- chmod 600 /etc/netplan/backend.yaml
+    - curtin in-target --target=/target -- chmod 600 /etc/netplan/frontend.yaml
+
+    # Setup first-boot services
+    - mkdir -p /target/opt/firstboot
+    - cp /cdrom/pool/mi325xr/firstboot-bcm-nic-setup.service /target/etc/systemd/system/firstboot-bcm-nic-setup.service
+    - cp /cdrom/pool/mi325xr/firstboot-finalize.sh /target/usr/local/bin/firstboot-finalize.sh
+    - cp /cdrom/pool/mi325xr/firstboot-finalize.service /target/etc/systemd/system/firstboot-finalize.service
+    - cp /cdrom/pool/mi325xr/firstboot.target /target/etc/systemd/system/firstboot.target
+    - |
+      # Download docker load service
+      curtin in-target --target=/target -- sh -c '
+      mkdir -p /opt/firstboot
+      chmod +x /usr/local/bin/firstboot-finalize.sh
+      systemctl daemon-reload
+      systemctl enable firstboot.target
+      systemctl enable firstboot-bcm-nic-setup.service
+      systemctl enable firstboot-finalize.service
+      '
+
+
+
 {{- end}}
 
-	- cp /etc/resolv.conf /target/etc/resolv.conf
+    - cp /etc/resolv.conf /target/etc/resolv.conf
     - |
       if [ -n "{{.OfflinePackages}}" ]; then
           mkdir -p /target/tmp/extra_pkg
           cp -r /cdrom/pool/extra/*.deb /target/tmp/extra_pkg/ 2>/dev/null || true
           curtin in-target --target=/target -- sh -c 'apt-get install -y /tmp/extra_pkg/*.deb || dpkg -i /tmp/extra_pkg/*.deb || true'
           rm -rf /target/tmp/extra_pkg
+          curtin in-target --target=/target -- apt-get update || true
+          curtin in-target --target=/target -- apt-get full-upgrade -y || true
       else
           if apt-get update && curtin in-target --target=/target -- apt-get install -y vim curl net-tools ipmitool htop; then
               echo "[+] Packages installed from mirrors."
@@ -1028,6 +1093,7 @@ autoinstall:
               cp -r /cdrom/pool/extra/*.deb /target/tmp/extra_pkg/ 2>/dev/null || true
               curtin in-target --target=/target -- sh -c 'apt-get install -y /tmp/extra_pkg/*.deb || dpkg -i /tmp/extra_pkg/*.deb || true'
               rm -rf /target/tmp/extra_pkg
+              curtin in-target --target=/target -- apt-get full-upgrade -y || true
           fi
       fi
     - sleep 1
@@ -1072,7 +1138,7 @@ autoinstall:
 {{- if .Mi325xSupport}}
     # Mi325x platform: configure GRUB kernel parameters and record-fail timeout
     - curtin in-target --target=/target -- sh -c "sed -i 's/GRUB_CMDLINE_LINUX=\"\"/GRUB_CMDLINE_LINUX=\"amd_iommu=on iommu=pt pci=realloc=off\"/' /etc/default/grub"
-    - curtin in-target -- bash -c 'echo "GRUB_RECORDFAIL_TIMEOUT=0" >> /etc/default/grub'
+    - curtin in-target --target=/target -- sh -c 'echo "GRUB_RECORDFAIL_TIMEOUT=0" >> /etc/default/grub'
     - curtin in-target --target=/target -- update-grub
 {{- end}}
     - cp /var/log/ipmi_telemetry.log /target/var/log/ipmi_telemetry.log 2>/dev/null || true
@@ -1500,6 +1566,7 @@ func main() {
 	hostname := "ubuntu-auto"
 	mi325xSupport := false
 	mi325xNode := ""
+	packageListPath := ""
 	var positional []string
 
 	// Storage match: collect all three flags in argv order, then resolve.
@@ -1518,6 +1585,8 @@ func main() {
 			isoRepoDir = strings.TrimPrefix(arg, "--iso-repo-dir=")
 		case strings.HasPrefix(arg, "--hostname="):
 			hostname = strings.TrimPrefix(arg, "--hostname=")
+		case strings.HasPrefix(arg, "--package-list="):
+			packageListPath = strings.TrimPrefix(arg, "--package-list=")
 		case strings.HasPrefix(arg, "--storage-serial="):
 			storageFlags = append(storageFlags, storageFlag{"serial", strings.TrimPrefix(arg, "--storage-serial=")})
 		case strings.HasPrefix(arg, "--storage-model="):
@@ -1572,7 +1641,7 @@ func main() {
 	scriptDir := assetsDir
 
 	// Read offline packages
-	offlinePkgs := readOfflinePackages(scriptDir)
+	offlinePkgs := readOfflinePackages(scriptDir, packageListPath)
 
 	// Check / install required packages
 	checkAndInstallPackages(skipInstall)

@@ -1,7 +1,7 @@
 network:
     renderer: networkd
     ethernets:
-        be0:
+        be0-gpu5:
             mtu: 9000
             addresses:
             - 192.168.1.1/24
@@ -12,7 +12,7 @@ network:
             routing-policy:
               - from: 192.168.1.1
                 table: 101
-        be1:
+        be1-gpu4:
             mtu: 9000
             addresses:
             - 192.168.2.1/24
@@ -23,7 +23,7 @@ network:
             routing-policy:
               - from: 192.168.2.1
                 table: 102
-        be2:
+        be2-gpu6:
             mtu: 9000
             addresses:
             - 192.168.3.1/24
@@ -34,7 +34,7 @@ network:
             routing-policy:
               - from: 192.168.3.1
                 table: 103
-        be3:
+        be3-gpu7:
             mtu: 9000
             addresses:
             - 192.168.4.1/24
@@ -45,7 +45,7 @@ network:
             routing-policy:
               - from: 192.168.4.1
                 table: 104
-        be4:
+        be4-gpu0:
             mtu: 9000
             addresses:
             - 192.168.5.1/24
@@ -56,7 +56,7 @@ network:
             routing-policy:
               - from: 192.168.5.1
                 table: 105
-        be5:
+        be5-gpu1:
             mtu: 9000
             addresses:
             - 192.168.6.1/24
@@ -67,7 +67,7 @@ network:
             routing-policy:
               - from: 192.168.6.1
                 table: 106
-        be6:
+        be6-gpu3:
             mtu: 9000
             addresses:
             - 192.168.7.1/24
@@ -78,7 +78,7 @@ network:
             routing-policy:
               - from: 192.168.7.1
                 table: 107
-        be7:
+        be7-gpu2:
             mtu: 9000
             addresses:
             - 192.168.8.1/24

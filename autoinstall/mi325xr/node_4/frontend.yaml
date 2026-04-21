@@ -4,7 +4,10 @@ network:
         fe0:
             mtu: 9000
             addresses:
-              - 192.168.21.11/24
+              - 192.168.21.14/24
+            routes:
+              - to: default
+                via: 192.168.21.7
             nameservers:
               addresses:
                 - 10.88.1.86
@@ -13,7 +16,7 @@ network:
         fe1:
             mtu: 9000
             addresses:
-              - 192.168.22.11/24
+              - 192.168.22.14/24
             nameservers:
               addresses:
                 - 10.88.1.86

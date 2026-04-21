@@ -1,0 +1,6 @@
+[Unit]
+Description=First Boot Initialization Target
+ConditionPathExists=!/var/lib/firstboot.done
+
+[Install]
+WantedBy=multi-user.target

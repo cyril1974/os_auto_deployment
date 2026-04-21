@@ -1,0 +1,12 @@
+[Unit]
+Description=Finalize First Boot Initialization
+After=firstboot-docker-image.service firstboot-bcm-nic-setup.service firstboot-others.service
+PartOf=firstboot.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/firstboot-finalize.sh
+
+[Install]
+WantedBy=firstboot.target

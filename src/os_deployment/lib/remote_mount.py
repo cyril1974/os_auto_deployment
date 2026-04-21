@@ -81,7 +81,7 @@ def _check_usable(target: str,auth_header: str,endpoint:str):
     try:
         response = requests.get(check_url, headers=headers, verify=False)
         # print(f"Status Code: {response.status_code}")
-        print(f"Output: {json.dumps(response.text,indent=2)}")
+        # print(f"Output: {json.dumps(response.text,indent=2)}")
         try:
             json_data = response.json()
             if "Inserted" in json_data and json_data["Inserted"] == False:
@@ -130,7 +130,7 @@ def exec_mount_image(mount_path,target: str,auth_header: str,endpoint:str):
     try:
         response = requests.post(mount_url, headers=headers, data=data , verify=False)
         print(f"Status Code: {response.status_code}")
-        print(f"Output: {response.text}")
+        # print(f"Output: {response.text}")
         print(f"{state_manager.state.generation},{state_manager.state.product_model}")
         if response.status_code in [200,202,204]:
             if state_manager.state.generation == 7:           

@@ -159,7 +159,7 @@ def _exec_reboot(target: str , auth_header: str):
     try:
         response = requests.post(url, headers=headers, data=data , verify=False)
         # print(response.text)
-        if response.status_code == 200:
+        if response.status_code in [200,202,204]:
             try:
                 json_data = response.json()
                 if state_manager.state.generation == 7:           

@@ -1,0 +1,71 @@
+---
+- name: Build autoinstall ISOs for mi325xr node_3 and node_4
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    build_iso_bin: "{{ playbook_dir }}/autoinstall/build-iso-go/build-iso"
+    iso_base_arg: "ubuntu-24.04.2-live-server-amd64"
+    iso_repo_dir: "{{ playbook_dir }}/autoinstall/iso_repository"
+
+  tasks:
+    - name: Build ISO for mi325xr node_3
+      command: >
+        {{ build_iso_bin }}
+        {{ iso_base_arg }}
+        --iso-repo-dir={{ iso_repo_dir }}
+        --storage-serial=Micron_7450_MTFDKBA960TFR_24374B1433DF_1
+        --mi325x-support
+        --hostname=mi325xr-3
+        --mi325x-node=node_3
+      args:
+        chdir: "{{ playbook_dir }}"
+      register: build_node3
+      changed_when: true
+
+    - name: Extract node_3 output ISO path
+      set_fact:
+        node3_iso_path: >-
+          {{ build_node3.stdout_lines
+             | select('match', '.*Done\. Autoinstall ISO created at:.*')
+             | map('regex_replace', '.*Done\. Autoinstall ISO created at:\s*', '')
+             | first
+             | trim }}
+
+    - name: Rename node_3 ISO to mi325xr_node3_autoinstall.iso
+      command: mv "{{ node3_iso_path }}" "{{ playbook_dir }}/mi325xr_node3_autoinstall.iso"
+      changed_when: true
+
+    - name: Build ISO for mi325xr node_4
+      command: >
+        {{ build_iso_bin }}
+        {{ iso_base_arg }}
+        --iso-repo-dir={{ iso_repo_dir }}
+        --storage-serial=Micron_7450_MTFDKBG960TFR_244850396BF8_1
+        --mi325x-support
+        --hostname=mi325xr-4
+        --mi325x-node=node_4
+      args:
+        chdir: "{{ playbook_dir }}"
+      register: build_node4
+      changed_when: true
+
+    - name: Extract node_4 output ISO path
+      set_fact:
+        node4_iso_path: >-
+          {{ build_node4.stdout_lines
+             | select('match', '.*Done\. Autoinstall ISO created at:.*')
+             | map('regex_replace', '.*Done\. Autoinstall ISO created at:\s*', '')
+             | first
+             | trim }}
+
+    - name: Rename node_4 ISO to mi325xr_node4_autoinstall.iso
+      command: mv "{{ node4_iso_path }}" "{{ playbook_dir }}/mi325xr_node4_autoinstall.iso"
+      changed_when: true
+
+    - name: Report results
+      debug:
+        msg:
+          - "node_3 ISO: {{ playbook_dir }}/mi325xr_node3_autoinstall.iso"
+          - "node_4 ISO: {{ playbook_dir }}/mi325xr_node4_autoinstall.iso"

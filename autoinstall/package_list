@@ -9,3 +9,5 @@ kubeadm
 kubectl
 apt-transport-https
 ca-certificates
+traceroute
+ansible

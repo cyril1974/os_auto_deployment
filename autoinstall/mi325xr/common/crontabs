@@ -28,6 +28,3 @@
 @reboot sh -c 'echo 0 > /proc/sys/kernel/numa_balancing'
 @reboot /usr/bin/cpupower idle-set -d 2
 @reboot sleep 5 && /usr/local/bin/setup_routing_mi3xx.sh
-#@reboot /usr/local/bin/dcqcn.sh
-#@reboot /usr/local/bin/pfc.sh
-#@reboot /usr/bin/cpupower frequency-set -g performance

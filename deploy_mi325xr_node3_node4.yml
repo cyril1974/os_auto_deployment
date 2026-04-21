@@ -1,0 +1,57 @@
+---
+- name: Deploy OS to mi325xr node_3 and node_4 in parallel
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    deploy_bin: "{{ playbook_dir }}/os-deploy-1.0.25"
+
+  tasks:
+    - name: Launch OS deploy for node_3 (async)
+      command: >
+        {{ deploy_bin }}
+        -B 192.168.21.103
+        -N 192.168.21.202
+        --iso mi325xr_node3_autoinstall.iso
+      args:
+        chdir: "{{ playbook_dir }}"
+      async: 3600
+      poll: 0
+      register: job_node3
+      changed_when: true
+
+    - name: Launch OS deploy for node_4 (async)
+      command: >
+        {{ deploy_bin }}
+        -B 192.168.21.104
+        -N 192.168.21.202
+        --iso mi325xr_node4_autoinstall.iso
+      args:
+        chdir: "{{ playbook_dir }}"
+      async: 3600
+      poll: 0
+      register: job_node4
+      changed_when: true
+
+    - name: Wait for node_3 deploy to complete
+      async_status:
+        jid: "{{ job_node3.ansible_job_id }}"
+      register: result_node3
+      until: result_node3.finished
+      retries: 360
+      delay: 10
+
+    - name: Wait for node_4 deploy to complete
+      async_status:
+        jid: "{{ job_node4.ansible_job_id }}"
+      register: result_node4
+      until: result_node4.finished
+      retries: 360
+      delay: 10
+
+    - name: Report results
+      debug:
+        msg:
+          - "node_3 (192.168.21.103) rc={{ result_node3.rc }}"
+          - "node_4 (192.168.21.104) rc={{ result_node4.rc }}"

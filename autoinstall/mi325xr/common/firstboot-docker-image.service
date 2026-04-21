@@ -1,0 +1,13 @@
+[Unit]
+Description=Load docker image on First Boot
+After=docker.service
+Requires=docker.service
+PartOf=firstboot.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/firstboot-docker-image.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=firstboot.target

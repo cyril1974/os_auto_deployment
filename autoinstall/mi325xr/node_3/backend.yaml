@@ -1,93 +1,93 @@
 network:
     renderer: networkd
     ethernets:
-        be0:
+        be0-gpu5:
             mtu: 9000
             addresses:
-            - 192.168.1.1/24
+            - 192.168.1.3/24
             routes:
               - to: default
                 via: 192.168.1.254
                 table: 101
             routing-policy:
-              - from: 192.168.1.1
+              - from: 192.168.1.3
                 table: 101
-        be1:
+        be1-gpu4:
             mtu: 9000
             addresses:
-            - 192.168.2.1/24
+            - 192.168.2.3/24
             routes:
               - to: default
                 via: 192.168.2.254
                 table: 102
             routing-policy:
-              - from: 192.168.2.1
+              - from: 192.168.2.3
                 table: 102
-        be2:
+        be2-gpu6:
             mtu: 9000
             addresses:
-            - 192.168.3.1/24
+            - 192.168.3.3/24
             routes:
               - to: default
                 via: 192.168.3.254
                 table: 103
             routing-policy:
-              - from: 192.168.3.1
+              - from: 192.168.3.3
                 table: 103
-        be3:
+        be3-gpu7:
             mtu: 9000
             addresses:
-            - 192.168.4.1/24
+            - 192.168.4.3/24
             routes:
               - to: default
                 via: 192.168.4.254
                 table: 104
             routing-policy:
-              - from: 192.168.4.1
+              - from: 192.168.4.3
                 table: 104
-        be4:
+        be4-gpu0:
             mtu: 9000
             addresses:
-            - 192.168.5.1/24
+            - 192.168.5.3/24
             routes:
               - to: default
                 via: 192.168.5.254
                 table: 105
             routing-policy:
-              - from: 192.168.5.1
+              - from: 192.168.5.3
                 table: 105
-        be5:
+        be5-gpu1:
             mtu: 9000
             addresses:
-            - 192.168.6.1/24
+            - 192.168.6.3/24
             routes:
               - to: default
                 via: 192.168.6.254
                 table: 106
             routing-policy:
-              - from: 192.168.6.1
+              - from: 192.168.6.3
                 table: 106
-        be6:
+        be6-gpu3:
             mtu: 9000
             addresses:
-            - 192.168.7.1/24
+            - 192.168.7.3/24
             routes:
               - to: default
                 via: 192.168.7.254
                 table: 107
             routing-policy:
-              - from: 192.168.7.1
+              - from: 192.168.7.3
                 table: 107
-        be7:
+        be7-gpu2:
             mtu: 9000
             addresses:
-            - 192.168.8.1/24
+            - 192.168.8.3/24
             routes:
               - to: default
                 via: 192.168.8.254
                 table: 108
             routing-policy:
-              - from: 192.168.8.1
+              - from: 192.168.8.3
                 table: 108
     version: 2
 

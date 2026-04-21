@@ -12,6 +12,7 @@ import (
 // ─── Template data struct (mirrors the anonymous struct in writeCloudInitFiles) ─
 
 type userDataTmplData struct {
+	Hostname          string
 	Username          string
 	Password          string
 	HashPassword      string
@@ -22,6 +23,8 @@ type userDataTmplData struct {
 	StorageMatchValue string
 	FindDiskEnabled   bool
 	FindDiskSizeHint  string
+	Mi325xSupport     bool
+	Mi325xNode        string
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -42,6 +45,7 @@ func renderTemplate(t *testing.T, data userDataTmplData) string {
 // defaultData returns a fully populated data struct for the default (auto-detect) mode.
 func defaultData() userDataTmplData {
 	return userDataTmplData{
+		Hostname:          "ubuntu-auto",
 		Username:          "mitac",
 		Password:          "ubuntu",
 		HashPassword:      "$6$rounds=4096$salt$hashedpassword",
@@ -314,9 +318,10 @@ func TestUserData_SSHConfig(t *testing.T) {
 
 // TestUserData_StorageLayout checks the partition layout:
 //   - EFI partition 512M with boot flag
+//   - swap partition 8GB
 //   - root partition filling remaining space (size: -1)
-//   - EFI formatted as vfat, root as ext4
-//   - both partitions mounted at /boot/efi and /
+//   - EFI formatted as vfat, root as btrfs
+//   - partitions mounted at /boot/efi, swap (none), and /
 func TestUserData_StorageLayout(t *testing.T) {
 	out := renderTemplate(t, defaultData())
 
@@ -327,7 +332,7 @@ func TestUserData_StorageLayout(t *testing.T) {
 		{"EFI boot flag", "flag: boot"},
 		{"EFI vfat format", "fstype: vfat"},
 		{"root partition size -1", "size: -1"},
-		{"root ext4 format", "fstype: ext4"},
+		{"root btrfs format", "fstype: btrfs"},
 		{"root mount /", "path: /"},
 		{"EFI mount /boot/efi", "path: /boot/efi"},
 	}
