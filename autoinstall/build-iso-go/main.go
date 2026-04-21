@@ -1483,12 +1483,22 @@ func buildISO(cfg *BuildConfig) {
 			logf("Copying GRUB fonts directory...")
 			run("mcopy", "-s", "-i", efiImg, fontsDir, "::/boot/grub/")
 		}
-		startupNsh := filepath.Join(cfg.ScriptDir, "startup.nsh")
-		if fileExists(startupNsh) {
-			logf("Copying startup.nsh to EFI image root...")
-			run("mcopy", "-i", efiImg, startupNsh, "::/startup.nsh")
+		// Select the correct startup script: Mi325x builds use startup_mi325xr.nsh
+		// (which fires an IPMI SEL entry before handing off to grub); all other
+		// builds use the standard startup.nsh. Both live in scripts/ and are
+		// always written to the EFI image root as startup.nsh.
+		var startupNshSrc string
+		if cfg.Mi325xSupport {
+			startupNshSrc = filepath.Join(cfg.ScriptDir, "scripts/startup_mi325xr.nsh")
+			logf("Mi325x support: using startup_mi325xr.nsh as startup.nsh")
 		} else {
-			warnf("startup.nsh not found at %s", startupNsh)
+			startupNshSrc = filepath.Join(cfg.ScriptDir, "scripts/startup.nsh")
+		}
+		if fileExists(startupNshSrc) {
+			logf("Copying startup.nsh to EFI image root...")
+			run("mcopy", "-i", efiImg, startupNshSrc, "::/startup.nsh")
+		} else {
+			warnf("startup.nsh source not found at %s", startupNshSrc)
 		}
 		ipmiToolEfi := filepath.Join(cfg.ScriptDir, "scripts/IpmiTool.efi")
 		if fileExists(ipmiToolEfi) {

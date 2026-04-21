@@ -13,14 +13,17 @@ import (
 // (direct execution, Nuitka onefile, CI pipeline, etc.).
 //
 // Embedded files:
-//   - scripts/find_disk.sh       — serial auto-detection script (copied into ISO)
-//   - scripts/find_disk_1804.sh  — same for Ubuntu 18.04
-//   - startup.nsh                — UEFI startup script (copied into ISO EFI image)
-//   - ipmi_start_logger.py       — IPMI SEL logger (copied into ISO pool/extra/)
-//   - package_list               — offline package list read at startup
-//   - mi325xr/                   — MiTAC Mi325x platform files (common/ + node-specific dirs)
+//   - scripts/find_disk.sh           — serial auto-detection script (copied into ISO)
+//   - scripts/find_disk_1804.sh      — same for Ubuntu 18.04
+//   - scripts/startup.nsh            — UEFI startup script (copied into ISO EFI image)
+//   - scripts/startup_mi325xr.nsh    — UEFI startup script for Mi325x platform (copied instead when --mi325x-support)
+//   - scripts/IpmiTool.efi           — UEFI-native IPMI tool (copied into ISO EFI image)
+//   - scripts/ipmicmdtoolX64.efi     — UEFI-native IPMI command tool x64 (copied into ISO EFI image)
+//   - ipmi_start_logger.py           — IPMI SEL logger (copied into ISO pool/extra/)
+//   - package_list                   — offline package list read at startup
+//   - mi325xr/                       — MiTAC Mi325x platform files (common/ + node-specific dirs)
 
-//go:embed scripts startup.nsh ipmi_start_logger.py package_list mi325xr
+//go:embed scripts ipmi_start_logger.py package_list mi325xr
 var embeddedAssets embed.FS
 
 // extractEmbeddedAssets writes all embedded assets to a temporary directory
@@ -33,8 +36,11 @@ var embeddedAssets embed.FS
 //	<tmpdir>/
 //	├── scripts/
 //	│   ├── find_disk.sh
-//	│   └── find_disk_1804.sh
-//	├── startup.nsh
+//	│   ├── find_disk_1804.sh
+//	│   ├── startup.nsh
+//	│   ├── startup_mi325xr.nsh
+//	│   ├── IpmiTool.efi
+//	│   └── ipmicmdtoolX64.efi
 //	├── ipmi_start_logger.py
 //	└── package_list
 func extractEmbeddedAssets() (string, error) {

@@ -92,6 +92,7 @@ EventLogPrefix = {
 }
 
 EventLogMessage = {
+    "0A": "[Info] Hardware Boot Completed , OS Installer Detected",
     "01": "[Info] OS Installation Start",
     "0F": "[Info] Package Pre-install Start",
     "1F": "[Info] Package Pre-install Complete",

@@ -1,9 +1,12 @@
 #!/bin/bash
 # build.sh — Build the build-iso Go binary.
 #
-# Assets from the parent autoinstall/ directory (startup.nsh, ipmi_start_logger.py,
+# Assets from the parent autoinstall/ directory (ipmi_start_logger.py,
 # package_list) are copied here before build so Go's //go:embed directive can
-# include them, then removed afterwards. The scripts/ symlink handles find_disk*.sh.
+# include them, then removed afterwards.
+# The scripts/ directory (startup.nsh, startup_mi325xr.nsh, find_disk*.sh,
+# IpmiTool.efi, ipmicmdtoolX64.efi) is copied wholesale from the parent dir.
+# The mi325xr/ directory is likewise copied for Mi325x platform support.
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -14,7 +17,7 @@ PARENT_DIR="$(dirname "${SCRIPT_DIR}")"
 STAGED=()
 
 # Copy individual asset files
-for asset in startup.nsh ipmi_start_logger.py package_list; do
+for asset in ipmi_start_logger.py package_list; do
     src="${PARENT_DIR}/${asset}"
     dst="${SCRIPT_DIR}/${asset}"
     if [ -f "${src}" ] && [ ! -e "${dst}" ]; then
