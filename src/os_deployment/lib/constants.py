@@ -49,7 +49,8 @@ GETFILE_IMAGE_API = {
 
 LOG_FETCH_API = {
     "6":"/redfish/v1/Systems/system/LogServices/EventLog/Entries",
-    "7":"/redfish/v1/Managers/bmc/LogServices/SEL/Entries"
+    "7":"/redfish/v1/Managers/bmc/LogServices/SEL/Entries",
+    "8":"/redfish/v1/Managers/Self/LogServices/SEL/Entries"
 }
 
 MOUNT_IMAGE_API = {

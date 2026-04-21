@@ -295,7 +295,166 @@ def wait_for_reboot(target,auth,fromtimestamp):
             }
     return  int(current_timestamp - fromtimestamp)
     
+# ─── Gen-8 SEL helpers (ported from sel_raw.py) ──────────────────────────────
+
+_SENSOR_TYPE_MAP = {
+    "Temperature": 0x01, "Voltage": 0x02, "Current": 0x03, "Fan": 0x04,
+    "Physical Security": 0x05, "Platform Security": 0x06, "Processor": 0x07,
+    "Power Supply": 0x08, "Power Unit": 0x09, "Cooling Device": 0x0A,
+    "Other Units-based Sensor": 0x0B, "Memory": 0x0C, "Drive Slot": 0x0D,
+    "POST Memory Resize": 0x0E, "System Firmware Progress": 0x0F,
+    "Event Logging Disabled": 0x10, "Watchdog 1": 0x11,
+    "System Event": 0x12, "Critical Interrupt": 0x13,
+    "Button / Switch": 0x14, "Module / Board": 0x15,
+    "Microcontroller / Coprocessor": 0x16, "Add-in Card": 0x17,
+    "Chassis": 0x18, "Chip Set": 0x19, "Other FRU": 0x1A,
+    "Cable / Interconnect": 0x1B, "Terminator": 0x1C,
+    "System Boot / Restart Initiated": 0x1D, "Boot Error": 0x1E,
+    "Base OS Boot / Installation Status": 0x1F,
+    "OS Stop / Shutdown": 0x20, "Slot / Connector": 0x21,
+    "System ACPI PowerState": 0x22, "Watchdog 2": 0x23,
+    "Platform Alert": 0x24, "Entity Presence": 0x25,
+    "Monitor ASIC / IC": 0x26, "LAN": 0x27,
+    "Management Subsystem Health": 0x28, "Battery": 0x29,
+    "Session Audit": 0x2A, "Version Change": 0x2B,
+    "FRUState": 0x2C,
+}
+
+
+def _parse_sel_message(message: str) -> dict:
+    """Parse the comma-separated 'key : value' pairs in a Redfish SEL Message field."""
+    fields = {}
+    for part in message.split(","):
+        part = part.strip()
+        if " : " in part:
+            k, v = part.split(" : ", 1)
+            fields[k.strip()] = v.strip()
+    return fields
+
+
+def _sel_entry_to_raw_ipmi(entry: dict) -> dict:
+    """Convert a single Redfish SEL LogEntry (Gen-8) to raw IPMI hex format."""
+    msg = _parse_sel_message(entry.get("Message", ""))
+
+    record_id  = int(msg.get("Record_ID", "0"))
+    sensor_num = int(msg.get("Sensor_Number", entry.get("SensorNumber", 0)))
+    evt_data1  = int(msg.get("Event_Data_1", "0"))
+    evt_data2  = int(msg.get("Event_Data_2", "255")) & 0xFF
+    evt_data3  = int(msg.get("Event_Data_3", "255")) & 0xFF
+
+    gen_id_raw  = msg.get("Generator_ID", "0x0000")
+    gen_id      = int(gen_id_raw, 16)
+    gen_id_low  = gen_id & 0xFF
+    gen_id_high = (gen_id >> 8) & 0xFF
+
+    sensor_type = _SENSOR_TYPE_MAP.get(entry.get("SensorType", ""), 0x00)
+
+    assertion    = entry.get("EntryCode", "Assert") == "Assert"
+    evt_dir_type = 0x6F if assertion else 0xEF
+
+    ts_str = entry.get("EventTimestamp", "")
+    try:
+        dt          = datetime.fromisoformat(ts_str)
+        unix_ts     = int(dt.timestamp())
+        dt_formatted = dt.strftime("%Y/%m/%d %H:%M:%S")
+    except (ValueError, TypeError):
+        unix_ts      = 0
+        dt_formatted = ""
+
+    event_type_raw = msg.get("Event_Type", entry.get("EntryType", ""))
+    description = (
+        event_type_raw.lower()
+        .replace(" ", "_")
+        .replace("'", "")
+        .replace("/", "_")
+        .strip("_")
+    )
+
+    return {
+        "ID":          f"{record_id:04x}h",
+        "Record_Type": "02h",
+        "TimeStamp":   f"{unix_ts:08x}h",
+        "GenID_Low":   f"{gen_id_low:02x}h",
+        "GenID_High":  f"{gen_id_high:02x}h",
+        "EvMRev":      "04h",
+        "Sensor_Type": f"{sensor_type:02x}h",
+        "Sensor_Num":  f"{sensor_num:02x}h",
+        "EvtDir_Type": f"{evt_dir_type:02x}h",
+        "EvtData1":    f"{evt_data1:02x}h",
+        "EvtData2":    f"{evt_data2:02x}h",
+        "EvtData3":    f"{evt_data3:02x}h",
+        "DateTime":    dt_formatted,
+        "Event_Type":  "system_event",
+        "Sensor_Name": "Unknown",
+        "Description": description,
+        "Status":      "asserted" if assertion else "deasserted",
+        # Keep the original Redfish fields so filter_custom_event() can inspect
+        # Message / AdditionalDataURI just like Gen-6/7 entries.
+        "Created":     entry.get("EventTimestamp", ""),
+        "Message":     entry.get("Message", ""),
+        "Id":          str(record_id),
+    }
+
+
+def get_all_sel_logs_gen8(target: str, auth: str, fromtimestamp: int = 0) -> list:
+    """
+    Fetch SEL log entries from a Gen-8 BMC via Redfish, using the shared
+    ``redfish_get_request`` helper (auth-header based, no raw credentials).
+
+    Paginates through all pages via ``Members@odata.nextLink`` and returns
+    only entries whose ``EventTimestamp`` is newer than *fromtimestamp*.
+    Each entry is converted to the raw IPMI hex dict format produced by
+    ``_sel_entry_to_raw_ipmi`` so the rest of the monitoring loop can treat
+    Gen-8 results identically to Gen-6/7 results.
+
+    Args:
+        target:        BMC IP address.
+        auth:          Authorization header string (e.g. "Basic <base64>").
+        fromtimestamp: Unix timestamp; only entries newer than this are returned.
+
+    Returns:
+        List of raw-IPMI-format dicts (see ``_sel_entry_to_raw_ipmi``).
+    """
+    endpoint = constants.LOG_FETCH_API["8"]
+    raw_entries = []
+
+    while endpoint:
+        response = redfish_get_request(endpoint, bmc_ip=target, auth=auth, custom_timeout=10)
+        if response is None or response.status_code != 200:
+            print(f"Get Gen-8 SEL Fail !! (endpoint: {endpoint}, status: {getattr(response, 'status_code', 'no response')})")
+            break
+        try:
+            data = response.json()
+        except Exception as e:
+            print(f"Get Gen-8 SEL JSON parse Fail !! {e}")
+            break
+
+        raw_entries.extend(data.get("Members", []))
+
+        next_link = data.get("Members@odata.nextLink", "")
+        endpoint  = next_link if next_link and next_link.startswith("/") else None
+
+    result = []
+    for entry in raw_entries:
+        try:
+            ts_str  = entry.get("EventTimestamp", "")
+            entry_ts = int(datetime.fromisoformat(ts_str[:19]).timestamp()) if ts_str else 0
+            if entry_ts > fromtimestamp:
+                result.append(_sel_entry_to_raw_ipmi(entry))
+        except Exception:
+            continue
+
+    return result
+
+
+# ─── System Event Log (all generations) ──────────────────────────────────────
+
 def getSystemEventLog(target,auth,fromtimestamp):
+    # Gen-8 uses its own Redfish SEL endpoint and entry schema — delegate entirely
+    # to get_all_sel_logs_gen8() which handles pagination and timestamp filtering.
+    if state_manager.state.generation == 8:
+        return get_all_sel_logs_gen8(target, auth, fromtimestamp)
+
     return_data = []
     if check_redfish_api(target,auth): 
         gen = str(state_manager.state.generation)
@@ -336,7 +495,7 @@ def getSystemEventLog(target,auth,fromtimestamp):
             print("Get Event Log Fail !!")    
     # print(f"[{datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')}] Send Event Log {len(return_data)} !!")
     # print(f"{return_data}")
-    return return_data 
+    return return_data
 
 def _resolve_event_gen() -> str:
     """Return the effective gen key for EventLogPrefix / LOG_FETCH_API.
