@@ -1490,6 +1490,20 @@ func buildISO(cfg *BuildConfig) {
 		} else {
 			warnf("startup.nsh not found at %s", startupNsh)
 		}
+		ipmiToolEfi := filepath.Join(cfg.ScriptDir, "scripts/IpmiTool.efi")
+		if fileExists(ipmiToolEfi) {
+			logf("Copying IpmiTool.efi to EFI image root...")
+			run("mcopy", "-i", efiImg, ipmiToolEfi, "::/IpmiTool.efi")
+		} else {
+			warnf("IpmiTool.efi not found at %s", ipmiToolEfi)
+		}
+		ipmiCmdToolEfi := filepath.Join(cfg.ScriptDir, "scripts/ipmicmdtoolX64.efi")
+		if fileExists(ipmiCmdToolEfi) {
+			logf("Copying ipmicmdtoolX64.efi to EFI image root...")
+			run("mcopy", "-i", efiImg, ipmiCmdToolEfi, "::/ipmicmdtoolX64.efi")
+		} else {
+			warnf("ipmicmdtoolX64.efi not found at %s", ipmiCmdToolEfi)
+		}
 		logf("EFI boot image created: %s", efiImg)
 
 		// Find BIOS boot image
