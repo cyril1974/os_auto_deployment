@@ -1,3 +1,28 @@
+## 2026-04-21: Embed IPMI EFI Tools into EFI Image Root
+
+**Commit:** `eef1212`
+
+### Changes
+
+1. **New EFI Tool Files (`autoinstall/scripts/`):**
+   - Added `IpmiTool.efi` and `ipmicmdtoolX64.efi` as UEFI-native IPMI utilities.
+   - Both files are automatically embedded into the self-contained `build-iso-go` binary at compile time via the existing `//go:embed scripts` directive — no changes to `embed.go` required.
+
+2. **`buildISO()` in `autoinstall/build-iso-go/main.go`:**
+   - For the Ubuntu 20.04+ ISO path, both EFI files are now copied into the EFI image root (`::/ `) alongside `startup.nsh`, using the same `mcopy -i <efiImg>` pattern.
+   - Non-fatal: a missing file emits a `warnf` warning without aborting the build.
+
+### Summary of File Changes
+
+| File | Change | Description |
+|---|---|---|
+| `autoinstall/build-iso-go/main.go` | Modified | `buildISO()` now mcopies `IpmiTool.efi` and `ipmicmdtoolX64.efi` to EFI image root |
+| `autoinstall/scripts/IpmiTool.efi` | New | UEFI Shell IPMI utility (15 KB) |
+| `autoinstall/scripts/ipmicmdtoolX64.efi` | New | UEFI Shell IPMI command tool, x64 (137 KB) |
+| `autoinstall/doc/03_boot_and_iso/efi_image_ipmi_tools.md` | New | Reference documentation for this change |
+
+---
+
 ## 2026-03-26: Forensic Stability and IP Reporting Fixes (v2-rev42)
 
 ### Major Changes:
