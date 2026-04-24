@@ -1,2 +1,2 @@
 """Version information for mcup_deployer."""
-__version__ = "1.0.25"
+__version__ = "1.0.28"

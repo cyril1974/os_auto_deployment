@@ -84,10 +84,10 @@ def main():
         version=get_version_info(),
         help="Show version information"
     )
-    parser.add_argument("-B","--bmcip", required=True, help="BMC IP")
+    parser.add_argument("-B","--bmcip", required=False, default=None, help="BMC IP (not required when --gen-iso-only)")
     parser.add_argument("-BU","--bmcuser",help="BMC Login User")
     parser.add_argument("-BP","--bmcpasswd",help="BMC Login Password")
-    parser.add_argument("-N","--nfsip", required=True, help="NFS IP (NFS information should be defined in config.json)")
+    parser.add_argument("-N","--nfsip", required=False, default=None, help="NFS IP (not required when --gen-iso-only)")
     parser.add_argument("-O","--os", required=False, default=None,
                         help="Specific OS ISO Name (Support Ubuntu Only). "
                              "Required unless --iso is provided.")
@@ -150,6 +150,12 @@ def main():
         help="Target node identifier, required when --mi325x-support is set. "
              "Format: node_<integer>  e.g. node_1, node_2, node_10"
     )
+    parser.add_argument(
+        "--gen-iso-only", action="store_true", dest="gen_iso_only",
+        help="Generate the custom ISO and print its path, then exit. "
+             "Skips NFS deployment, remote mount, and reboot. "
+             "-B/--bmcip and -N/--nfsip are not required in this mode."
+    )
     args = parser.parse_args()
 
     # Resolve storage flag: first in argv order wins; warn about extras
@@ -179,6 +185,7 @@ def main():
     hostname = args.hostname
     mi325x_support = args.mi325x_support
     mi325x_node = args.mi325x_node
+    gen_iso_only = args.gen_iso_only
 
     if mi325x_support and not mi325x_node:
         parser.error("--mi325x-node is required when --mi325x-support is set (e.g. --mi325x-node=node_1)")
@@ -186,6 +193,17 @@ def main():
     import re as _re
     if mi325x_node and not _re.match(r'^node_[1-9][0-9]*$', mi325x_node):
         parser.error(f"invalid --mi325x-node value: {mi325x_node!r}  Expected format: node_<integer>  e.g. node_1, node_2")
+
+    # --gen-iso-only: --iso makes no sense (nothing to generate)
+    if gen_iso_only and pre_built_iso:
+        parser.error("--gen-iso-only and --iso are mutually exclusive.")
+
+    # BMC and NFS are required for full deployment but not for ISO-only mode
+    if not gen_iso_only:
+        if not bmcip:
+            parser.error("-B/--bmcip is required (omit only with --gen-iso-only).")
+        if not args.nfsip:
+            parser.error("-N/--nfsip is required (omit only with --gen-iso-only).")
 
     # Validate: -O is required when --iso is not provided
     if not pre_built_iso and not os:
@@ -243,34 +261,35 @@ def main():
     # 
     # sys.exit("DEBUG!!!")
     
-    # Validate Redfish API
-    print(f"[{utils.formatted_time()}] Validating Redfish API ({bmcip}) ....", end="")
-    redfish_supported = False
-    redfish_result = utils.check_redfish_api(bmcip, "")
-    if redfish_result==False:
-        print("Redfish API Not Supported ... (Old Platform)")
-    else:
-        print("Redfish API Supported")
-        redfish_supported = True
-    # Validate BMC Authentication
-    print(f"[{utils.formatted_time()}] Validating BMC authentication ({bmcip}) ....", end="")
-    if redfish_supported:
-        auth_string = auth.get_auth_header(bmcip, config_json)
-        auth_result = utils.check_auth_valid(bmcip, auth_string, redfish_supported)
-        if auth_result["status"] == "ok":
-            print("OK")
+    if not gen_iso_only:
+        # Validate Redfish API
+        print(f"[{utils.formatted_time()}] Validating Redfish API ({bmcip}) ....", end="")
+        redfish_supported = False
+        redfish_result = utils.check_redfish_api(bmcip, "")
+        if redfish_result==False:
+            print("Redfish API Not Supported ... (Old Platform)")
         else:
-            print("FAIL")
-            sys.exit(f"BMC Auth Validation Failed: {auth_result['message']} (Please check your parameter or config.json)")
-    else:
-        auth_query = auth.get_auth_form(bmcip, config_json)
-        auth_result = utils.check_auth_valid(bmcip, auth_query, redfish_supported)
-        if auth_result["status"] == "ok":
-            print("OK")
-            sys.exit(f"Redfish UnSupported , Login Response {auth_result['content']}")
+            print("Redfish API Supported")
+            redfish_supported = True
+        # Validate BMC Authentication
+        print(f"[{utils.formatted_time()}] Validating BMC authentication ({bmcip}) ....", end="")
+        if redfish_supported:
+            auth_string = auth.get_auth_header(bmcip, config_json)
+            auth_result = utils.check_auth_valid(bmcip, auth_string, redfish_supported)
+            if auth_result["status"] == "ok":
+                print("OK")
+            else:
+                print("FAIL")
+                sys.exit(f"BMC Auth Validation Failed: {auth_result['message']} (Please check your parameter or config.json)")
         else:
-            print("FAIL")
-            sys.exit(f"BMC Auth Validation Failed: {auth_result['message']} (Please check your parameter or config.json)")
+            auth_query = auth.get_auth_form(bmcip, config_json)
+            auth_result = utils.check_auth_valid(bmcip, auth_query, redfish_supported)
+            if auth_result["status"] == "ok":
+                print("OK")
+                sys.exit(f"Redfish UnSupported , Login Response {auth_result['content']}")
+            else:
+                print("FAIL")
+                sys.exit(f"BMC Auth Validation Failed: {auth_result['message']} (Please check your parameter or config.json)")
     # Generate Custom ISO or use pre-built ISO
     if pre_built_iso:
         # --iso option provided: validate and use the pre-built ISO
@@ -384,8 +403,10 @@ def main():
             sys.exit(f"Failed to generate custom autoinstall ISO (exit code: {e.returncode})")
         except Exception as e:
             sys.exit(f"Error executing build script: {e}")
-    
-    
+
+    if gen_iso_only:
+        print(f"[{utils.formatted_time()}] --gen-iso-only: ISO ready at {iso}")
+        sys.exit(0)
 
     ## Deploy ISO to NFS Server ##
            

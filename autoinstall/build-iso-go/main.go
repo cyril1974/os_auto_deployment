@@ -1055,6 +1055,9 @@ autoinstall:
     - curtin in-target --target=/target -- chmod 600 /etc/netplan/backend.yaml
     - curtin in-target --target=/target -- chmod 600 /etc/netplan/frontend.yaml
 
+   
+  
+
     # Setup first-boot services
     - mkdir -p /target/opt/firstboot
     - cp /cdrom/pool/mi325xr/firstboot-bcm-nic-setup.service /target/etc/systemd/system/firstboot-bcm-nic-setup.service
@@ -1071,10 +1074,37 @@ autoinstall:
       systemctl enable firstboot-bcm-nic-setup.service
       systemctl enable firstboot-finalize.service
       '
-
-
+    # Mi325x platform: configure GRUB kernel parameters and record-fail timeout
+    - curtin in-target --target=/target -- sh -c "sed -i 's/GRUB_CMDLINE_LINUX=\"\"/GRUB_CMDLINE_LINUX=\"amd_iommu=on iommu=pt pci=realloc=off\"/' /etc/default/grub"
+    - curtin in-target --target=/target -- sh -c 'echo "GRUB_RECORDFAIL_TIMEOUT=0" >> /etc/default/grub'
+    - curtin in-target --target=/target -- update-grub
+    # Docker Configuration
+    - curtin in-target --target=/target -- usermod -aG docker mctadmin
+    - curtin in-target --target=/target -- usermod -aG docker mctkube
+    - curtin in-target --target=/target -- systemctl enable docker
 
 {{- end}}
+    - curtin in-target --target=/target -- sh -c "containerd config default > /etc/containerd/config.toml"
+    - curtin in-target --target=/target -- sh -c "sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml"
+    - curtin in-target --target=/target -- systemctl restart containerd
+    - curtin in-target --target=/target -- systemctl restart docker
+
+    # K8S Configuration
+    - |
+      curtin in-target --target=/target -- sh -c '
+      tee /etc/modules-load.d/k8s.conf <<EOF
+      overlay
+      br_netfilter
+      EOF
+      '
+    - |
+      curtin in-target --target=/target -- sh -c '
+      tee /etc/sysctl.d/k8s.conf <<EOF
+      net.bridge.bridge-nf-call-iptables = 1
+      net.bridge.bridge-nf-call-ip6tables = 1
+      net.ipv4.ip_forward = 1
+      EOF
+      '
 
     - cp /etc/resolv.conf /target/etc/resolv.conf
     - |
@@ -1118,7 +1148,9 @@ autoinstall:
     - sleep 1
     - python3 /cdrom/pool/extra/ipmi_start_logger.py 0xaa 2>/dev/null || true
     - sleep 1
-{{- if eq .StorageMatchKey "serial"}}
+
+# Change condition value to an impossilbe value so that this section won't be added anymore	
+{{- if eq .StorageMatchKey "xxxxxxx"}}
     - |
       curtin in-target --target=/target -- sh -c '
         root_dev=$(lsblk -no PKNAME $(findmnt -nvo SOURCE /) | head -n 1)
@@ -1136,10 +1168,7 @@ autoinstall:
       '
 {{- end}}
 {{- if .Mi325xSupport}}
-    # Mi325x platform: configure GRUB kernel parameters and record-fail timeout
-    - curtin in-target --target=/target -- sh -c "sed -i 's/GRUB_CMDLINE_LINUX=\"\"/GRUB_CMDLINE_LINUX=\"amd_iommu=on iommu=pt pci=realloc=off\"/' /etc/default/grub"
-    - curtin in-target --target=/target -- sh -c 'echo "GRUB_RECORDFAIL_TIMEOUT=0" >> /etc/default/grub'
-    - curtin in-target --target=/target -- update-grub
+    
 {{- end}}
     - cp /var/log/ipmi_telemetry.log /target/var/log/ipmi_telemetry.log 2>/dev/null || true
     - cp /var/log/install_disk_audit.log /target/var/log/install_disk_audit.log 2>/dev/null || true

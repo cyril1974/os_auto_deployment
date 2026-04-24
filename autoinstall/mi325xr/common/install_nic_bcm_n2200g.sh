@@ -31,6 +31,8 @@ INSTALL_SCRIPT="$DRIVER_DIR/utils/nic_wizard/nic_wizard"
 if [ -f "$INSTALL_SCRIPT" ]; then
     cd "$(dirname "$INSTALL_SCRIPT")" || exit
     ./nic_wizard installer install -v -f -g -N
+    echo "blacklist bnxt_en" | tee /etc/modprobe.d/blacklist-bnxt.conf
+    update-initramfs -c -k $(uname -r)
     cd - >/dev/null
     echo "[✔] Broadcom driver installed successfully"
 else

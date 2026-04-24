@@ -2,7 +2,6 @@
 
 > **Module:** `os_deployment.main`
 > **Entry Point:** `os-deploy` (CLI) / `python -m os_deployment.main`
-> **Version:** 0.0.1
 > **Author:** Cyril Chang
 > **Copyright:** © 2025 MiTAC Computing Technology Corporation
 
@@ -17,13 +16,15 @@
   - [config.json](#configjson)
   - [Config Template](#config-template)
 - [Command-Line Arguments](#command-line-arguments)
+  - [Required Arguments](#required-arguments)
+  - [ISO Generation Options](#iso-generation-options)
+  - [Storage Matching Options](#storage-matching-options)
+  - [Platform Options](#platform-options)
+  - [Deployment Control](#deployment-control)
 - [Workflow](#workflow)
+  - [Full Deployment Flow](#full-deployment-flow)
+  - [ISO-Only Flow (--gen-iso-only)](#iso-only-flow---gen-iso-only)
 - [Usage Examples](#usage-examples)
-  - [Basic Usage](#basic-usage)
-  - [Specifying BMC Credentials on CLI](#specifying-bmc-credentials-on-cli)
-  - [Custom Config File](#custom-config-file)
-  - [Skip Reboot](#skip-reboot)
-  - [Show Version](#show-version)
 - [Execution Flow Detail](#execution-flow-detail)
 - [Error Handling](#error-handling)
 - [Project Structure](#project-structure)
@@ -34,15 +35,21 @@
 
 ## Overview
 
-`os_deployment` is a CLI tool that automates the end-to-end process of deploying an operating system (Ubuntu) onto target servers via BMC (Baseboard Management Controller). The tool performs the following high-level operations:
+`os_deployment` is a CLI tool that automates the end-to-end process of deploying Ubuntu onto target servers via BMC (Baseboard Management Controller). It can also operate in ISO-only mode to generate a custom autoinstall ISO without performing any network deployment.
 
-1. **Load Configuration** — Reads server credentials and NFS settings from a JSON config file.
-2. **Generate Custom Autoinstall ISO** — Executes a build script to create a custom Ubuntu autoinstall ISO.
-3. **Deploy ISO to NFS Server** — Uploads the generated ISO to an NFS share.
-4. **Mount ISO on Target Server** — Remotely mounts the ISO via BMC virtual media.
-5. **Mount Utility Package** — Mounts additional utility images to the target server.
-6. **Reboot to UEFI** — Reboots the target server to begin installation.
-7. **Monitor Installation** — Monitors BMC event logs and manages automatic reboots during firmware/OS updates.
+**Full deployment** performs:
+
+1. Generate custom autoinstall ISO (or use pre-built)
+2. Deploy ISO to NFS server
+3. Validate Redfish API & BMC authentication
+4. Mount ISO via BMC virtual media
+5. Set boot device to CD-ROM + reboot
+6. Monitor BMC event log until installation completes
+
+**ISO-only mode** (`--gen-iso-only`):
+
+1. Generate custom autoinstall ISO
+2. Print the ISO path and exit — no BMC or NFS access required
 
 ---
 
@@ -50,11 +57,9 @@
 
 - **Python** >= 3.9, < 4.0
 - **sudo** privileges (required for ISO build operations)
-- **Network Access** to:
-  - Target server's BMC IP
-  - NFS server
-- **NFS Server** configured and accessible
-- **Autoinstall build script** located at `<project_root>/autoinstall/build-ubuntu-autoinstall-iso.sh`
+- **Network access** to BMC IP and NFS server *(not required in `--gen-iso-only` mode)*
+- **Go ISO builder** binary at `autoinstall/build-iso-go/build-iso`
+  (run `bash build.sh` inside `autoinstall/build-iso-go/` to compile)
 
 ---
 
@@ -67,9 +72,7 @@ cd os_auto_deployment
 poetry install
 ```
 
-After installation, the CLI command `os-deploy` will be available in your Poetry environment.
-
-Alternatively, run directly:
+After installation, the CLI command `os-deploy` is available in the Poetry environment:
 
 ```bash
 poetry run os-deploy --help
@@ -81,9 +84,7 @@ poetry run os-deploy --help
 
 ### config.json
 
-The tool expects a JSON configuration file (default: `config.json` in the current working directory). This file provides NFS server information and BMC authentication credentials.
-
-**Structure:**
+The tool expects a JSON configuration file (default: `config.json` in the current working directory).
 
 ```json
 {
@@ -100,105 +101,231 @@ The tool expects a JSON configuration file (default: `config.json` in the curren
 }
 ```
 
-**Fields:**
-
-| Field                    | Type   | Description                                         |
-| ------------------------ | ------ | --------------------------------------------------- |
-| `nfs_server.ip`          | string | IP address of the NFS server                        |
-| `nfs_server.path`        | string | Export path on the NFS server                       |
-| `auth.<BMC_IP>.username` | string | Login username for the BMC at the specified IP      |
-| `auth.<BMC_IP>.password` | string | Login password for the BMC at the specified IP      |
+| Field | Type | Description |
+|---|---|---|
+| `nfs_server.ip` | string | IP address of the NFS server |
+| `nfs_server.path` | string | Export path on the NFS server |
+| `auth.<BMC_IP>.username` | string | BMC login username |
+| `auth.<BMC_IP>.password` | string | BMC login password |
 
 ### Config Template
 
-A template file is provided at `config.json.template`:
+Copy and edit the template:
 
-```json
-{
-  "nfs_server": {
-    "ip": "192.168.1.100",
-    "path": "/path/to/nfs/share"
-  },
-  "auth": {
-    "192.168.1.50": {
-      "username": "admin",
-      "password": "your_password_here"
-    }
-  }
-}
+```bash
+cp config.json.template config.json
 ```
-
-Copy and edit this template to create your own `config.json`.
 
 ---
 
 ## Command-Line Arguments
 
-| Argument                    | Short | Required | Default        | Description                                                                                |
-| --------------------------- | ----- | -------- | -------------- | ------------------------------------------------------------------------------------------ |
-| `--bmcip`                   | `-B`  | **Yes**  | —              | BMC IP address of the target server                                                        |
-| `--bmcuser`                 | `-BU` | No       | —              | BMC login username (if provided with `--bmcpasswd`, overrides config.json)                 |
-| `--bmcpasswd`               | `-BP` | No       | —              | BMC login password (if provided with `--bmcuser`, overrides config.json)                   |
-| `--nfsip`                   | `-N`  | **Yes**  | —              | NFS server IP (must be defined in config.json)                                             |
-| `--os`                      | `-O`  | **Yes**  | —              | OS ISO name to deploy (Ubuntu only)                                                        |
-| `--osuser`                  | `-OU` | No       | `admin`        | OS login username for the installed system                                                 |
-| `--ospasswd`                | `-OP` | No       | `ubuntu`       | OS login password for the installed system                                                 |
-| `--config`                  | `-c`  | No       | `config.json`  | Path to the JSON configuration file                                                        |
-| `--no-reboot`               |       | No       | `False`        | Skip rebooting the target server after deployment                                          |
-| `--version`                 | `-V`  | No       | —              | Show version information and exit                                                          |
+### Required Arguments
 
-> **Note:** If `--bmcuser` and `--bmcpasswd` are both provided along with `--bmcip`, the BMC credentials will be **added/updated** in the config.json file automatically.
+| Argument | Short | Required | Default | Description |
+|---|---|---|---|---|
+| `--bmcip` | `-B` | Yes* | — | BMC IP of the target server (*not required with `--gen-iso-only`) |
+| `--nfsip` | `-N` | Yes* | — | NFS server IP (*not required with `--gen-iso-only`) |
+| `--os` | `-O` | Yes** | — | OS ISO name to look up in `file_list.json` (**required unless `--iso` is provided) |
+| `--iso-repo-dir` | — | Yes** | — | Path to ISO repository containing `file_list.json` (**required when `-O` is used) |
+
+### Authentication Options
+
+| Argument | Short | Required | Default | Description |
+|---|---|---|---|---|
+| `--bmcuser` | `-BU` | No | — | BMC login username (overrides config.json when combined with `--bmcpasswd`) |
+| `--bmcpasswd` | `-BP` | No | — | BMC login password |
+| `--osuser` | `-OU` | No | `autoinstall` | Username for the installed OS |
+| `--ospasswd` | `-OP` | No | `ubuntu` | Password for the installed OS (also applied to root) |
+| `--config` | `-c` | No | `config.json` | Path to the JSON config file |
+
+### ISO Generation Options
+
+| Argument | Required | Default | Description |
+|---|---|---|---|
+| `--iso` | No | — | Path to a pre-built ISO. Skips ISO generation entirely and uses this file for deployment. Mutually exclusive with `--gen-iso-only`. |
+| `--gen-iso-only` | No | `False` | Generate the custom ISO and print its path, then exit. Skips NFS deployment, remote mount, and reboot. `-B` and `-N` are not required in this mode. |
+| `--gen-by-sh` | No | `False` | Use the legacy shell script builder (`build-ubuntu-autoinstall-iso.sh`) instead of the default Go builder. |
+| `--package-list` | No | — | Path to a custom `package_list` file to override the embedded package list in the Go builder. |
+
+### Storage Matching Options
+
+Only one of the following may be specified. If more than one is provided, the first in argument order is used and the rest are ignored with a warning.
+
+| Argument | Description |
+|---|---|
+| `--storage-serial=VALUE` | Match target disk by serial number. Embeds directly in `user-data`; disables `find_disk.sh`. |
+| `--storage-model=VALUE` | Match target disk by model name. Embeds directly in `user-data`; disables `find_disk.sh`. |
+| `--storage-size=VALUE` | Match target disk by size (e.g. `7T`, `960G`). Enables `find_disk.sh` at boot with `--target-size`. Serial is resolved at boot time. |
+
+When none of the above is set, `find_disk.sh` runs at boot and selects the smallest empty disk automatically.
+
+### Platform Options
+
+| Argument | Required | Default | Description |
+|---|---|---|---|
+| `--hostname=NAME` | No | `ubuntu-auto` | Hostname written into `user-data` / preseed for the installed system. |
+| `--mi325x-support` | No | `False` | Apply MiTAC Mi325x platform late-commands: GRUB kernel parameters (`amd_iommu=on iommu=pt pci=realloc=off`), `GRUB_RECORDFAIL_TIMEOUT=0`, and `update-grub`. Requires `--mi325x-node`. |
+| `--mi325x-node=NODE` | Conditional | — | Target node identifier. Required when `--mi325x-support` is set. Format: `node_<integer>` e.g. `node_1`, `node_2`. |
+
+### Deployment Control
+
+| Argument | Short | Default | Description |
+|---|---|---|---|
+| `--no-reboot` | — | `False` | Skip rebooting the target server after deployment. Useful for testing. |
+| `--version` | `-V` | — | Show version information and exit. |
 
 ---
 
 ## Workflow
 
+### Full Deployment Flow
+
 ```
-┌─────────────────────────────────────────────┐
-│  1. Parse CLI Arguments                     │
-├─────────────────────────────────────────────┤
-│  2. Load & Validate config.json             │
-│     - Merge BMC credentials if provided     │
-├─────────────────────────────────────────────┤
-│  3. Generate Custom Autoinstall ISO         │
-│     - Calls build-ubuntu-autoinstall-iso.sh │
-│     - Requires sudo                         │
-├─────────────────────────────────────────────┤
-│  4. Deploy ISO to NFS Server                │
-│     - Copy ISO to NFS export path           │
-├─────────────────────────────────────────────┤
-│  5. Authenticate with BMC                   │
-│     - Detect product generation via Redfish │
-├─────────────────────────────────────────────┤
-│  6. Check Virtual Media Permission          │
-│     - Verify outband & inband media access  │
-├─────────────────────────────────────────────┤
-│  7. Remote Mount ISO via BMC                │
-├─────────────────────────────────────────────┤
-│  8. Mount Utility Package                   │
-├─────────────────────────────────────────────┤
-│  9. Reboot to UEFI (unless --no-reboot)     │
-├─────────────────────────────────────────────┤
-│ 10. Monitor Event Log & Handle Reboots      │
-│     - Track firmware update progress        │
-│     - Re-mount media if lost                │
-│     - Collect logs upon completion          │
-└─────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│  1. Parse & Validate CLI Arguments                  │
+├─────────────────────────────────────────────────────┤
+│  2. Load & Validate config.json                     │
+│     - Merge BMC credentials if -BU/-BP provided     │
+├─────────────────────────────────────────────────────┤
+│  3. Validate Redfish API & BMC Authentication       │
+│     - Detect Redfish support                        │
+│     - Validate BMC login credentials                │
+├─────────────────────────────────────────────────────┤
+│  4. Generate Custom Autoinstall ISO                 │
+│     - Go builder (default) or shell builder         │
+│     - Embeds: hostname, credentials, storage match, │
+│       platform options, offline packages            │
+│  OR: Use pre-built ISO (--iso)                      │
+├─────────────────────────────────────────────────────┤
+│  5. Deploy ISO to NFS Server                        │
+│     - Copy ISO to NFS export path                   │
+├─────────────────────────────────────────────────────┤
+│  6. Detect Product Generation                       │
+│     - Query Redfish for model and generation        │
+├─────────────────────────────────────────────────────┤
+│  7. Remote Mount ISO via BMC Virtual Media          │
+│     - Gen 6/7: standard Redfish VirtualMedia        │
+│     - Gen 8: EnableRMedia + polling RedirectionStatus│
+├─────────────────────────────────────────────────────┤
+│  8. Set Boot Device to CD-ROM + Reboot              │
+│     - Gen 8: ETag / If-Match PATCH required         │
+│     (skipped if --no-reboot)                        │
+├─────────────────────────────────────────────────────┤
+│  9. Monitor Installation                            │
+│     - Poll BMC event log for progress               │
+│     - Handle automatic reboots                      │
+│     - Re-mount media if lost                        │
+│     - Collect logs on completion                    │
+└─────────────────────────────────────────────────────┘
+```
+
+### ISO-Only Flow (`--gen-iso-only`)
+
+```
+┌─────────────────────────────────────────────────────┐
+│  1. Parse & Validate CLI Arguments                  │
+│     (-B and -N not required)                        │
+├─────────────────────────────────────────────────────┤
+│  2. Load config.json                                │
+├─────────────────────────────────────────────────────┤
+│  3. Generate Custom Autoinstall ISO                 │
+├─────────────────────────────────────────────────────┤
+│  4. Print ISO path and exit                         │
+└─────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## Usage Examples
 
-### Basic Usage
+### Basic Full Deployment
 
 ```bash
-os-deploy -B 10.99.236.49 -N 10.99.236.48 -O ubuntu-22.04.4-live-server-amd64.iso
+os-deploy \
+  -B 10.99.236.49 \
+  -N 10.99.236.48 \
+  -O ubuntu-24.04.2-live-server-amd64 \
+  --iso-repo-dir=/data/iso_repo
 ```
 
-This uses credentials from `config.json` for BMC IP `10.99.236.49`, mounts the ISO via NFS at `10.99.236.48`, and deploys the specified Ubuntu ISO.
+### Generate ISO Only (no BMC/NFS needed)
 
-### Specifying BMC Credentials on CLI
+```bash
+os-deploy \
+  --gen-iso-only \
+  -O ubuntu-24.04.2-live-server-amd64 \
+  --iso-repo-dir=/data/iso_repo \
+  --hostname=node01
+```
+
+The generated ISO path is printed to stdout. Use `--iso` in a subsequent deployment step to skip re-generation:
+
+```bash
+os-deploy \
+  -B 10.99.236.49 \
+  -N 10.99.236.48 \
+  --iso=/path/to/generated.iso
+```
+
+### Mi325x Platform Deployment
+
+```bash
+os-deploy \
+  -B 10.99.236.49 \
+  -N 10.99.236.48 \
+  -O ubuntu-24.04.2-live-server-amd64 \
+  --iso-repo-dir=/data/iso_repo \
+  --hostname=mi325xr-node1 \
+  --mi325x-support \
+  --mi325x-node=node_1
+```
+
+### ISO-Only for Mi325x Node
+
+```bash
+os-deploy \
+  --gen-iso-only \
+  -O ubuntu-24.04.2-live-server-amd64 \
+  --iso-repo-dir=/data/iso_repo \
+  --hostname=mi325xr-node3 \
+  --mi325x-support \
+  --mi325x-node=node_3
+```
+
+### Custom Package List
+
+```bash
+os-deploy \
+  --gen-iso-only \
+  -O ubuntu-24.04.2-live-server-amd64 \
+  --iso-repo-dir=/data/iso_repo \
+  --package-list=/data/package_list_mi325xr
+```
+
+### Match Disk by Serial Number
+
+```bash
+os-deploy \
+  -B 10.99.236.49 \
+  -N 10.99.236.48 \
+  -O ubuntu-24.04.2-live-server-amd64 \
+  --iso-repo-dir=/data/iso_repo \
+  --storage-serial=S6CKNT0W700868
+```
+
+### Match Disk by Size
+
+```bash
+os-deploy \
+  -B 10.99.236.49 \
+  -N 10.99.236.48 \
+  -O ubuntu-24.04.2-live-server-amd64 \
+  --iso-repo-dir=/data/iso_repo \
+  --storage-size=7T
+```
+
+### BMC Credentials on CLI
 
 ```bash
 os-deploy \
@@ -206,20 +333,11 @@ os-deploy \
   -BU admin \
   -BP MySecurePass \
   -N 10.99.236.48 \
-  -O ubuntu-22.04.4-live-server-amd64.iso
+  -O ubuntu-24.04.2-live-server-amd64 \
+  --iso-repo-dir=/data/iso_repo
 ```
 
-When both `-BU` and `-BP` are provided, the credentials are written into `config.json` under the `auth` section for the given BMC IP.
-
-### Custom Config File
-
-```bash
-os-deploy \
-  -B 10.99.236.49 \
-  -N 10.99.236.48 \
-  -O ubuntu-22.04.4-live-server-amd64.iso \
-  -c /path/to/my_config.json
-```
+When both `-BU` and `-BP` are provided, credentials are written into `config.json` under the `auth` section for that BMC IP.
 
 ### Skip Reboot
 
@@ -227,11 +345,10 @@ os-deploy \
 os-deploy \
   -B 10.99.236.49 \
   -N 10.99.236.48 \
-  -O ubuntu-22.04.4-live-server-amd64.iso \
+  -O ubuntu-24.04.2-live-server-amd64 \
+  --iso-repo-dir=/data/iso_repo \
   --no-reboot
 ```
-
-Useful for testing or when you want to manually control the reboot process.
 
 ### Show Version
 
@@ -239,80 +356,54 @@ Useful for testing or when you want to manually control the reboot process.
 os-deploy -V
 ```
 
-Output:
-```
-MiTAC CUP Deploy Tool -- 0.0.1
-Copyright (c) 2025 MiTAC Computing Technology Corporation
-All rights reserved.
-```
-
 ---
 
 ## Execution Flow Detail
 
-### 1. Configuration Loading
+### ISO Generation
 
-- Validates the config path exists and is a valid string.
-- Loads the JSON configuration.
-- If BMC credentials (`--bmcuser` + `--bmcpasswd`) are provided on the CLI, they are **merged** into the config and written back to disk.
-- If only `--bmcip` is provided without credentials, the tool expects the BMC IP to already exist in the config's `auth` section — otherwise it exits with an error.
+The Go builder (`autoinstall/build-iso-go/build-iso`) is used by default. It embeds:
 
-### 2. ISO Generation
+- Hostname, username, password (hashed), SSH public key
+- Storage match key/value or `find_disk.sh` size hint
+- Offline package list (embedded or from `--package-list`)
+- Mi325x platform files (`mi325xr/common/` + `mi325xr/node_x/`) when `--mi325x-support` is set
+- IPMI SEL logger script
 
-- Locates the build script at `<project_root>/autoinstall/build-ubuntu-autoinstall-iso.sh`.
-- Executes the script with **sudo**: `sudo build-ubuntu-autoinstall-iso.sh <os_name> <os_user> <os_password>`.
-- Parses the script output to extract the generated ISO file path.
-- Converts any relative path to an absolute path.
+The legacy shell builder (`--gen-by-sh`) calls `build-ubuntu-autoinstall-iso.sh` instead.
 
-### 3. NFS Deployment
+### Gen 8 BMC Compatibility
 
-- Reads the NFS server configuration from `config.json`.
-- Retrieves NFS exports from the server.
-- Deploys (copies) the ISO file to the configured NFS path.
+The tool handles MiTAC Mi325x (Gen 8) BMC differences automatically:
 
-### 4. BMC Authentication & Detection
-
-- Retrieves authentication headers for Redfish API access.
-- Detects the target server's product generation and model via Redfish.
-
-### 5. Virtual Media Check
-
-- Queries the BMC for virtual media permissions.
-- Validates that both **outband** and **inband** virtual media are enabled.
-- Exits with an error if permissions are insufficient.
-
-### 6. Image Mounting & Reboot
-
-- Mounts the ISO image remotely via the BMC's virtual media interface.
-- Mounts additional utility packages.
-- Sets boot device to UEFI and reboots the server (unless `--no-reboot` is set).
-
-### 7. Monitoring
-
-- Continuously polls BMC event logs for installation progress.
-- Monitors for automatic server reboots and handles them.
-- Re-mounts lost virtual media if detected.
-- Tracks firmware update stages (BIOS, BMC, CPLD, SUP).
-- Collects and saves logs upon completion.
+| Operation | Gen 6/7 | Gen 8 |
+|---|---|---|
+| Virtual media enable | Not needed | POST `AMIVirtualMedia.EnableRMedia` first |
+| Mount confirmation | Synchronous | Poll `Oem.Ami.RedirectionStatus` up to 60s |
+| Boot PATCH | No special headers | Requires `If-Match: <ETag>` header |
+| Boot mode | — | `BootSourceOverrideMode: UEFI` required |
 
 ---
 
 ## Error Handling
 
-The tool exits with descriptive error messages in the following cases:
-
-| Scenario                                    | Exit Message                                                             |
-| ------------------------------------------- | ------------------------------------------------------------------------ |
-| Config path is not a string                 | `Invalid configuration path: ...`                                        |
-| Config file not found                       | `Configuration File (<path>) not found: ...`                             |
-| BMC IP not in config (no CLI credentials)   | `BMC IP (<ip>) configuration not found in config.json`                   |
-| Build script not found                      | `Build script not found: <path>`                                         |
-| Build script execution fails                | `Failed to generate custom autoinstall ISO (exit code: <code>)`          |
-| ISO path not found in script output         | `Failed to extract ISO path from build script output`                    |
-| NFS configuration missing                   | `Get NFS Server Config Fail, Please configure NFS Server...`            |
-| Virtual media not enabled                   | `No Virtual Media Permission, Please enter BMC to configure ...Abort`    |
-| Remote mount fails                          | `Remote Mount Image <path> FAIL !! Exit`                                 |
-| Reboot timeout                              | `Reboot Server Fail (TimeOut)`                                           |
+| Scenario | Exit Message |
+|---|---|
+| `--gen-iso-only` + `--iso` together | `--gen-iso-only and --iso are mutually exclusive` |
+| `-B` missing in full deployment mode | `-B/--bmcip is required (omit only with --gen-iso-only)` |
+| `-N` missing in full deployment mode | `-N/--nfsip is required (omit only with --gen-iso-only)` |
+| `-O` missing and `--iso` not provided | `-O/--os is required when --iso is not provided` |
+| `--iso-repo-dir` missing with `-O` | `--iso-repo-dir is required when -O/--os is specified` |
+| `--mi325x-node` missing with `--mi325x-support` | `--mi325x-node is required when --mi325x-support is set` |
+| Invalid `--mi325x-node` format | `invalid --mi325x-node value: ... Expected format: node_<integer>` |
+| Config file not found | `Configuration File (<path>) not found` |
+| BMC IP not in config | `BMC IP (<ip>) configuration not found in config.json` |
+| Pre-built ISO not found | `Pre-built ISO not found: <path>` |
+| Build script not found | `Build script not found: <path>` |
+| ISO generation failed | `Failed to generate custom autoinstall ISO (exit code: <N>)` |
+| NFS config missing | `Get NFS Server Config Fail, Please configure NFS Server...` |
+| Remote mount failed | `Remote Mount Image <path> FAIL !! Exit` |
+| Reboot timeout | `Reboot Server Fail (TimeOut)` |
 
 ---
 
@@ -320,35 +411,37 @@ The tool exits with descriptive error messages in the following cases:
 
 ```
 os_auto_deployment/
-├── autoinstall/                    # Autoinstall ISO build scripts & resources
-│   ├── build-ubuntu-autoinstall-iso.sh
-│   └── doc/
-├── config.json                     # Runtime configuration (not tracked in git)
-├── config.json.template            # Configuration template
-├── doc/                            # Documentation (this file)
-│   └── main_usage.md
-├── pyproject.toml                  # Poetry project definition
-├── src/
-│   └── os_deployment/
-│       ├── __init__.py
-│       ├── _version.py             # Version fallback for PyInstaller builds
-│       ├── main.py                 # Main entry point (this document)
-│       ├── test_function.py
-│       └── lib/
-│           ├── auth.py             # BMC authentication
-│           ├── board_version.py    # Board version utilities
-│           ├── config.py           # Config file loader
-│           ├── constants.py        # Constants & API endpoint definitions
-│           ├── generation.py       # Server generation detection
-│           ├── monitor.py          # Monitoring utilities
-│           ├── nfs.py              # NFS operations
-│           ├── reboot.py           # Reboot & boot option management
-│           ├── redfish.py          # Redfish API client
-│           ├── remote_mount.py     # Remote virtual media mount
-│           ├── state_manager.py    # Global state management
-│           ├── utility_mount.py    # Utility image mount operations
-│           └── utils.py            # Shared utility functions
-└── tests/
+├── autoinstall/
+│   ├── build-iso-go/           # Go ISO builder source
+│   │   ├── main.go             # Builder entry point + user-data template
+│   │   ├── embed.go            # Embedded asset extraction
+│   │   ├── build.sh            # Compile script
+│   │   └── build-iso           # Compiled binary (not in git)
+│   ├── mi325xr/                # Mi325x platform files
+│   │   ├── common/             # Shared across all nodes
+│   │   └── node_1/ … node_4/  # Per-node files (netplan, network tests)
+│   ├── scripts/                # find_disk.sh variants
+│   ├── package_list            # Default offline package list
+│   └── package_list_mi325xr   # Mi325x-specific package list
+├── config.json                 # Runtime config (not in git)
+├── config.json.template
+├── doc/
+│   ├── main_usage.md           # This document
+│   ├── 09_distribution/
+│   └── 11_platform_compatibility/
+│       └── mi325x_gen8_compatibility.md
+├── pyproject.toml
+└── src/os_deployment/
+    ├── main.py                 # CLI entry point
+    └── lib/
+        ├── auth.py             # BMC authentication
+        ├── config.py           # Config loader
+        ├── generation.py       # Server generation detection
+        ├── nfs.py              # NFS operations
+        ├── reboot.py           # Reboot & boot option management
+        ├── remote_mount.py     # BMC virtual media mount
+        ├── state_manager.py    # Global state
+        └── utils.py            # Shared utilities
 ```
 
 ---
@@ -357,28 +450,20 @@ os_auto_deployment/
 
 Defined in `pyproject.toml`:
 
-| Package    | Version       | Purpose                         |
-| ---------- | ------------- | ------------------------------- |
-| `python`   | >= 3.9, < 4.0 | Runtime                         |
-| `typer`    | ^0.9.0        | CLI framework                   |
-| `requests` | ^2.32.3       | HTTP/Redfish API requests       |
-| `aiohttp`  | ^3.11.18      | Async HTTP operations           |
+| Package | Version | Purpose |
+|---|---|---|
+| `python` | >= 3.9, < 4.0 | Runtime |
+| `requests` | ^2.32.3 | HTTP / Redfish API |
+| `aiohttp` | ^3.11.18 | Async HTTP |
 
 **System dependencies:**
-- `sudo` access (for ISO build script execution)
-- NFS client utilities (for NFS mount operations)
+- `sudo` access (ISO build requires root for `apt` and ISO operations)
+- Go 1.21+ (to compile `build-iso-go/build-iso` from source)
+- `xorriso`, `genisoimage`, `mtools`, `isolinux` (used by ISO builder at runtime)
 
 ---
 
 ## Troubleshooting
-
-### Config file not found
-
-```
-Configuration File (config.json) not found
-```
-
-**Solution:** Ensure `config.json` exists in the current working directory, or specify a custom path with `-c /path/to/config.json`.
 
 ### BMC IP not in config
 
@@ -386,23 +471,28 @@ Configuration File (config.json) not found
 BMC IP (x.x.x.x) configuration not found in config.json
 ```
 
-**Solution:** Either add the BMC IP and credentials to `config.json`, or supply them via CLI flags `-BU` and `-BP`.
+Add credentials to `config.json` or supply `-BU` / `-BP` on the CLI.
 
 ### Build script not found
 
 ```
-Build script not found: .../autoinstall/build-ubuntu-autoinstall-iso.sh
+Build script not found: .../autoinstall/build-iso-go/build-iso
 ```
 
-**Solution:** Ensure the `autoinstall/` directory exists at the project root with the required build script. The script is expected at `<project_root>/autoinstall/build-ubuntu-autoinstall-iso.sh`.
+Compile the Go builder first:
 
-### Virtual Media Permission denied
+```bash
+cd autoinstall/build-iso-go
+bash build.sh
+```
+
+### Virtual media permission denied
 
 ```
 No Virtual Media Permission, Please enter BMC to configure Virtual Media Permission ...Abort
 ```
 
-**Solution:** Log into the BMC web interface and enable both Outband and Inband virtual media permissions.
+Log into the BMC web interface and enable Outband and Inband virtual media.
 
 ### ISO generation failed
 
@@ -410,8 +500,17 @@ No Virtual Media Permission, Please enter BMC to configure Virtual Media Permiss
 Failed to generate custom autoinstall ISO (exit code: X)
 ```
 
-**Solution:** Check the stdout/stderr output printed above the error. Common causes include missing packages (the build script may require `xorriso`, `genisoimage`, etc.) or insufficient permissions.
+Check the stdout output above the error. Common causes: missing packages (`xorriso`, `genisoimage`), insufficient permissions, or invalid `--os` name.
+
+### Unmet dependencies on installed system
+
+If `apt install` fails after OS deployment with version conflict errors, the offline packages installed from the ISO are from an older snapshot. Run on the target:
+
+```bash
+apt --fix-broken install -y
+apt update && apt full-upgrade -y
+```
 
 ---
 
-*Document generated on 2026-03-02*
+*Last updated: 2026-04-21*
